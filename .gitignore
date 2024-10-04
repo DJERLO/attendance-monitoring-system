@@ -1,0 +1,57 @@
+# Python files
+*.pyc
+*.pyo
+*.pyd
+__pycache__/
+*.so
+# Django specific
+*.log
+*.pot
+*.py[cod]
+*.sqlite3
+db.sqlite3
+
+/staticfiles/
+/media/
+/attendance/sample.py
+/attendance/face_uploader.py
+
+
+# Ignore migrations
+*/migrations/*
+
+# Virtual environment
+venv/
+env/
+ENV/
+.venv/
+.ENV/
+
+# MacOS specific files
+.DS_Store
+
+# Ignore node_modules (if using JavaScript frameworks)
+node_modules/
+
+# Ignore compiled/static files
+/staticfiles/
+.npm/
+npm-debug.log
+yarn-error.log
+
+# Secrets and settings
+.env
+.env.local
+.env.production
+.env.development
+.env.test
+
+# IDE specific
+.idea/
+.vscode/
+
+#JSON
+/attendance/attendance-monitoring-sy-6a60f-firebase-adminsdk-bm25p-f93ac84126.json
+# Include the known_faces folder but ignore its subfolders
+attendance/known_faces/*
+!attendance/known_faces/.gitkeep  # Keep a placeholder if needed

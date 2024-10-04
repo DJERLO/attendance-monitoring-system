@@ -1,0 +1,321 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="{% static 'css/bootstrap.min.css' %}" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <title>Check Attendance</title>
+    <style>
+        :root {
+            --max-width: 720px;
+            --max-height: 1920px;
+        }
+
+        html{
+            width: 100%;
+            height: 100%;
+        }
+
+        #video-container {
+            position: relative;
+            width: 100%;
+            max-width: var(--max-width); 
+            height: auto;
+            margin-top: 20px;
+        }
+
+        video{
+            border: 5px solid blue; /* Or any color you prefer */
+            width: 100%;
+            height: 100%;
+        }
+
+        video, canvas {
+            display: block;
+            width: inherit;
+            height: auto; 
+            max-width: var(--max-width);
+        }
+
+        canvas {
+            display: block;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%; /* Matches the video width */
+            height: 100%; /* Matches the video height */
+            
+        }
+
+        #form-container {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            border: 5px solid #007bff;
+            border-radius: 5px;
+            padding: 20px;
+            background-color: #e9ecef;
+            margin-top: 20px; /* Space above the form */
+            max-width: var(--max-width);
+        }
+
+        #nameTag {
+            display: block;
+            margin-top: 10px;
+        }
+
+        .name-tag {
+            border: 2px solid #007bff;
+            border-radius: 5px;
+            padding: 10px;
+            background-color: #e9ecef;
+            text-align: center;
+            font-weight: bold;
+            font-size: 1.2em;
+        }
+
+        #button-container {
+            border: 2px solid #007bff;
+            border-radius: 5px;
+            padding: 10px;
+            background-color: #e9ecef;
+            text-align: center;
+            font-weight: bold;
+            font-size: 1.2em;
+        }
+
+        #resultLabel {
+            margin-top: 20px;
+            font-size: 1.5em;
+            color: #333;
+        }
+
+        /* Form styles */
+        .form-group {
+            margin-bottom: 15px;
+            width: 100%;
+        }
+
+        .form-control {
+            font-size: 1.2em; /* Increase font size for readability */
+            background-color: #f8f9fa; /* Light background for input fields */
+        }
+
+        img {
+            max-width: 100%; /* Make sure image is responsive */
+            border-radius: 5px; /* Add rounded corners to images */
+            margin-top: 10px; /* Space above the image */
+        }
+    </style>
+</head>
+
+<body>
+    <main>
+        <div class="container-fluid text-center">
+            <div class=" d-flex justify-content-center align-self-center row ">
+                <div class="col-md-6 flex-fill w-100" id="video-container">
+                    <canvas id="canvas"></canvas>
+                    <video class="w-100 h-100" id="video" autoplay muted></video>
+                </div>
+
+                <div class="col-md-6 flex-fill mx-2" id="form-container">
+                    <h2>Attendance Record</h2>
+                    <div class="form-group">
+                        <label for="employeeName">Name:</label>
+                        <input type="text" id="employeeName" class="form-control text-center" readonly>
+                    </div>
+                    <div class="form-group">
+                        <label for="employeeID">Employee ID:</label>
+                        <input type="text" id="employeeID" class="form-control text-center" readonly>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script defer src="{% static 'js/bootstrap.bundle.min.js' %}"></script>
+    <script defer src="{% static 'js/face-api.min.js' %}"></script>   
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            const video = document.getElementById('video');
+            const canvas = document.getElementById('canvas');
+            const context = canvas.getContext('2d');
+            const form = document.getElementById('form-container');
+            
+            let lastDetectionTime = Date.now();
+            const detectionInterval = 2000; // 2 seconds between consecutive face captures
+            let matches = [];  // Array to hold recognized names
+
+            let employeeName = document.getElementById('employeeName');
+            let employeeID = document.getElementById('employeeID');
+
+
+            function adjustCanvasSize(video, canvas) {
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+            }
+
+            function getCameraStream() {
+                const constraints = {
+                    video: {
+                        width: { ideal: window.innerWidth },
+                        height: { ideal: window.innerHeight },
+                        facingMode: "user"
+                    }
+                };
+
+                // Access webcam stream
+                navigator.mediaDevices.getUserMedia(constraints)
+                .then(stream => {
+                    video.srcObject = stream;
+                    video.addEventListener('loadedmetadata', () => {
+                        adjustCanvasSize(video, canvas);
+                    });
+                })
+                .catch(err => {
+                    console.error("Error accessing webcam: " + err);
+                    alert("Could not access the camera. Please check camera permissions and try again.");
+                });
+            }
+
+            async function loadModels() {
+                try {
+                    const modelPath = '{% static "js/" %}';
+                    await faceapi.nets.tinyFaceDetector.loadFromUri(modelPath);
+                    await faceapi.nets.faceLandmark68Net.loadFromUri(modelPath);
+                    await faceapi.nets.faceRecognitionNet.loadFromUri(modelPath);
+                } catch (error) {
+                    console.error("Error loading models:", error);
+                }
+            }
+
+            async function detectAndCaptureFaces() {
+                console.log(matches)
+                const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions())
+                    .withFaceLandmarks()
+                    .withFaceDescriptors();
+
+                context.clearRect(0, 0, canvas.width, canvas.height);
+                let faceNames = [];
+
+                // Draw rectangles and names
+                detections.forEach((detection, index) => {
+                    const box = detection.detection.box;
+
+                    // Determine if the face is recognized or not
+                    const name = matches[index] || "Unknown";  // Use matches to label faces
+                    faceNames.push(name); // Store names for the detected faces
+
+                    // Change the stroke color based on recognition status
+                    if (name === "Unknown" || name === "Face not recognized" || name === "No match found") {
+                        context.strokeStyle = 'red';  // Red for unrecognized faces
+                    } else {
+                        context.strokeStyle = 'green';  // Green for recognized faces
+                    }
+
+                    // Draw the bounding box around the face
+                    context.beginPath();
+                    context.rect(box.x, box.y, box.width, box.height);
+                    context.lineWidth = 5;
+                    context.stroke();
+
+                    // Text settings for name label
+                    context.font = '20px Arial';
+                    // Change the fillStyle color based on recognition status
+                    if (name === "Unknown" || name === "Face not recognized" ||  name === "No match found") {
+                        context.fillStyle = 'red';  // Red for unrecognized faces or fake faces
+                    } else {
+                        context.fillStyle = 'green';  // Green for recognized faces
+                    }
+                    context.fillText(name, box.x, box.y > 10 ? box.y - 5 : 10);  // Display the name above the face
+                });
+
+                if (detections.length > 0 && (Date.now() - lastDetectionTime > detectionInterval)) {
+                    lastDetectionTime = Date.now(); 
+                    await captureAndSendImage(faceNames); // Pass face names for further processing
+                } else if (detections.length === 0) {
+                    console.log('No faces detected.');
+                }
+
+                requestAnimationFrame(detectAndCaptureFaces);
+            }
+
+
+            async function captureAndSendImage(faceNames) {
+                console.log("Matching...");
+                
+                
+                context.drawImage(video, 0, 0, canvas.width, canvas.height);
+                const imgData = canvas.toDataURL('image/jpeg');
+
+                fetch('/attendance/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token }}',
+                    },
+                    body: JSON.stringify({ image: imgData }),
+                })
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Server response:', data);
+                    
+                    // Assuming your server sends back the names of matched faces
+                    matches = data.result.map(item => item.name || item.message);
+
+                    // Update the result label with all recognized names
+                    
+                    // Check for valid matches (excluding "Unknown" and "No match found")
+                    const validMatches = matches.filter(name => name !== "Unknown" && name !== "No match found");
+
+                    // Check if a fake face was detected
+                    if (matches.includes("Face not recognized")) {
+                        
+                        employeeName.value = '';
+                        
+                        
+                    } else if (validMatches.length > 0 && Array.isArray(matches) && matches.every(match => match !== '' && match !== null && match !== undefined)) {
+                        
+                        employeeName.value = validMatches[0];
+                       
+                        
+                    } else if (matches.includes("No match found")) {
+                       
+                        employeeName.value = '';
+                        
+                       
+                    } else{
+                        matches[0] = null
+                        
+                        employeeName.value = '';
+                        
+                       
+                    }
+                    
+                })
+                .catch((error) => {
+                    console.error('Error:', error);
+                    
+                });
+            }
+
+            await loadModels();
+            getCameraStream();
+    
+            window.onresize = function() {
+                video.pause();
+                getCameraStream();
+                adjustCanvasSize(video, canvas);
+            };
+    
+            video.addEventListener('loadedmetadata', () => {
+                detectAndCaptureFaces();
+            });
+        });
+    </script>    
+</body>
+</html>
