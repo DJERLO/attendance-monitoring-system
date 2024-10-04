@@ -10,7 +10,6 @@ __pycache__/
 *.py[cod]
 *.sqlite3
 db.sqlite3
-
 /staticfiles/
 /media/
 /attendance/sample.py
