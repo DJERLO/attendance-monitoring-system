@@ -18,17 +18,16 @@ data_transforms = transforms.Compose([
 train_dataset = datasets.ImageFolder(root=DATASET_DIR, transform=data_transforms)
 train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=32, shuffle=True)
 
-# Step 3: Define your model (using a pre-trained model for simplicity)
-from torchvision.models import ResNet18_Weights  # Import the weight enum
-model = models.resnet18(weights=ResNet18_Weights.DEFAULT)  # Use weights parameter
-num_features = model.fc.in_features
+# Step 3: Define your model (using MobileNetV2 instead of ResNet18)
+model = models.mobilenet_v2(weights='IMAGENET1K_V1')  # Use pre-trained weights
+num_features = model.classifier[1].in_features  # Get input features from the classifier
 
 # Print the number of input features to the final layer
 print("Number of input features to the final layer:", num_features)
-print("train dataset: ", len(train_dataset.classes))
+print("Train dataset classes: ", len(train_dataset.classes))
 
 # Adjust the final fully connected layer for the number of classes
-model.fc = nn.Linear(num_features, len(train_dataset.classes))  # Adjust for number of classes
+model.classifier[1] = nn.Linear(num_features, len(train_dataset.classes))  # Adjust for number of classes
 
 # Step 4: Set up training parameters
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

@@ -1,6 +1,5 @@
 import torch
 from torchvision import models
-from torchvision.models import ResNet18_Weights  # Import the weight enum
 import torch.nn as nn
 from torchvision import transforms
 import face_recognition
@@ -14,12 +13,18 @@ import cv2
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 KNOWN_FACES_DIR = os.path.join(CURRENT_DIR, 'known_faces')
 MODEL_PATH = os.path.join(CURRENT_DIR, 'training.pth')
-TOLERANCE = 0.55
+TOLERANCE = 0.4
+FAKE_TOLERANCE_HIGH = 0.75  # Threshold for definitely fake
+FAKE_TOLERANCE_LOW = 0.50   # Threshold for definitely real
 
 # Define the transformation for the images
 transform = transforms.Compose([
-    transforms.Resize((224, 224)),  # Resize images to 600x600
-    transforms.ToTensor()            # Convert images to tensor
+    transforms.Resize((224, 224)),
+    transforms.RandomHorizontalFlip(),                      # Randomly flip the image horizontally
+    transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1),  # Randomly change brightness, contrast, saturation, and hue
+    transforms.RandomRotation(degrees=15),                  # Randomly rotate the image within ±15 degrees
+    transforms.ToTensor(),
+    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])  # Normalize for MobileNet
 ])
 
 # Load the Haar Cascade for eye detection
@@ -49,9 +54,9 @@ def load_known_faces(known_faces_dir):
 class FakeFaceDetector(nn.Module):
     def __init__(self, num_classes=2):  # Accept num_classes as a parameter
         super(FakeFaceDetector, self).__init__()
-        self.model = models.resnet18(weights=ResNet18_Weights.DEFAULT)
-        num_features = self.model.fc.in_features
-        self.model.fc = nn.Linear(num_features, num_classes)  # Direct replacement
+        self.model = models.mobilenet_v2(weights='IMAGENET1K_V1')  # Load MobileNetV2 with pre-trained weights
+        num_features = self.model.classifier[1].in_features  # Get input features from the classifier
+        self.model.classifier[1] = nn.Linear(num_features, num_classes)  # Direct replacement for final layer
 
     def forward(self, x):
         x = self.model(x)
@@ -59,24 +64,72 @@ class FakeFaceDetector(nn.Module):
 
 def load_model():
     model = FakeFaceDetector()
-    model.load_state_dict(torch.load(MODEL_PATH, map_location=torch.device("cuda" if torch.cuda.is_available() else "cpu"), weights_only=True), strict=False)
-    model.eval()  # Set the model to evaluation mode
+    try:
+        model.load_state_dict(torch.load(MODEL_PATH, map_location=torch.device("cuda" if torch.cuda.is_available() else "cpu"), weights_only=True), strict=False)
+        model.eval()  # Set the model to evaluation mode
+    except Exception as e:
+        print(f"Error loading model: {e}")
+        return None
     return model
 
+def crop_face(image_array):
+    """
+    Detects and crops the largest face in the image.
+    Returns the cropped face as a PIL image or None if no face is found.
+    """
+    face_locations = face_recognition.face_locations(image_array)
+    
+    if face_locations:
+        # Use the first face (largest)
+        top, right, bottom, left = face_locations[0]
+        face_image = image_array[top:bottom, left:right]
+        return Image.fromarray(face_image)
+    else:
+        return None  # No face found
+
 def detect_fake_face(image_data):
-    # Load and preprocess the image for the model
-    image = Image.open(io.BytesIO(base64.b64decode(image_data.split(",")[1])))
-    image = transform(image).unsqueeze(0)
+    """
+    Detect if the face in the image is fake or real by cropping the face first
+    and then running the deepfake detection model.
+    """
+    # Decode the base64 image if not already in bytes
+    if isinstance(image_data, str):
+        image_data = image_data.split(",")[1]
+        image_data = base64.b64decode(image_data)
+
+    # Open the image and convert it to RGB
+    image = Image.open(io.BytesIO(image_data))
+    image = image.convert('RGB')
+    image_array = np.array(image)
+
+    # Crop the face from the image
+    face_image = crop_face(image_array)
+    if face_image is None:
+        return "No face detected."
+
+    # Transform the cropped face for the model
+    face_image = transform(face_image).unsqueeze(0)
 
     # Load the model
     model = load_model()
 
     # Run the model to detect if the face is fake
     with torch.no_grad():
-        output = model(image)
-        _, prediction = torch.max(output, 1)
-
-    return "Fake" if prediction.item() == 1 else "Real"
+        output = model(face_image)
+        probabilities = torch.softmax(output, dim=1)[0]  # Apply softmax to get probabilities
+        fake_confidence = probabilities[1].item()  # Confidence for "fake" class
+        fake_confidence = round(fake_confidence, 2)
+        
+    # Determine if the face is real or fake based on the confidence thresholds
+    if fake_confidence >= FAKE_TOLERANCE_HIGH:
+        print(f"Fake Confidence: {fake_confidence:.2f} - [Fake]")
+        return "Fake"
+    elif fake_confidence < FAKE_TOLERANCE_LOW:
+        print(f"Fake Confidence: {fake_confidence:.2f} - [Real]")
+        return "Real"
+    else:
+        print(f"Fake Confidence: {fake_confidence:.2f} - [Undetermined]")
+        return "Undetermined"
 
 def recognize_faces(image_data):
     fake_status = detect_fake_face(image_data)  # Check if the face is real or fake
@@ -87,7 +140,11 @@ def recognize_faces(image_data):
     
     if fake_status == "Fake":
         print("Fake Face Detected: ", fake_status)
-        return {"message": "Face detected as Fake. Skipping recognition."}
+        return fake_status
+    
+    if fake_status == "Undetermined":
+        print("Fake Face Detected: ", fake_status)
+        return fake_status
 
 def recognize_faces_from_image(image_data):
     try:
@@ -129,7 +186,6 @@ def recognize_faces_from_image(image_data):
                     "name": None
                 })
                 print("No match found for the detected face.")
-
         # Return results for all detected faces
         return results
 

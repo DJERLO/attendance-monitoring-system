@@ -37,23 +37,22 @@ async def attendance(request):
             else:
                 return JsonResponse({"error": "Invalid image format"}, status=400)
 
-            # Check for fake face detection
-            face_status = await async_detect_fake_face(data['image'])  # Use the original base64 data for detection
-            
-            if face_status == "Real":
-                # If it's a real face, proceed with face recognition
+            result = await async_detect_fake_face(data['image'])
+
+            if result == 'Real':
                 verify = await async_recognize_faces(data['image'])  # Again, use original data
                 return JsonResponse({"result": verify}, status=200)
             
-            if face_status == "Fake":
-                print("Possible Face Detection Error")
-                return JsonResponse({"result": [{"message": "Face not recognized"}]}, status=200)
+            if result == 'Fake':
+                print('Spoofing Detected')
+                return JsonResponse({"result":[{"message": ""}]}, status=200)
+            
 
         except json.JSONDecodeError as e:
             logger.error("JSON Decode Error: %s", e)
-            return JsonResponse({"error": "Invalid JSON"}, status=400)
+            return JsonResponse({"error": ["Invalid JSON"]}, status=400)
         except Exception as e:
             logger.error("Error: %s", e)
-            return JsonResponse({"error": str(e)}, status=500)
+            return JsonResponse({"error": [str(e)]}, status=500)
 
-    return JsonResponse({"message": "No Content"}, status=204)
+    return JsonResponse({"error":[{"message": "No Content"}]}, status=204)
