@@ -7,20 +7,79 @@
     <link href="{% static 'css/bootstrap.min.css' %}" rel="stylesheet">
     <link href="{% static 'css/attendance.css' %}" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-    
     <title>Check Attendance</title>
 </head>
+<style>
+    .loader-container {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(255, 255, 255);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 1000;
+    }
+
+    .ripple {
+        position: relative;
+        width: 50px;
+        height: 50px;
+    }
+
+    .ripple::before, .ripple::after {
+        content: '';
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        border-radius: 50%;
+        border: 4px solid #FF5C35;
+        opacity: 0;
+        animation: ripple 3s infinite;
+    }
+
+    .ripple::after {
+        animation-delay: 1.5s;
+    }
+
+    @keyframes ripple {
+        0% {
+            transform: scale(0.5);
+            opacity: 0;
+        }
+        25% {
+            opacity: 1;
+        }
+        100% {
+            transform: scale(2.5);
+            opacity: 0;
+        }
+    }
+</style>
 
 <body>
+    <div class="loader-container" id="loader">
+        <div class="ripple"></div>
+    </div>
     <main>
-        <div class="container-fluid text-center mt-4">
-            <div class="d-flex justify-content-center align-self-center row g-0">
+        
+        <nav class="navbar bg-dark">
+            <div class="container-fluid d-flex justify-content-center ">
+                <a class="navbar-brand text-white text-center justify-content-center" href="#">
+                    <img src="https://isteam.wsimg.com/ip/9823cc75-e414-4f2c-a90b-3d89a05fec57/SC-FINAL.png/:/cr=t:0%25,l:0%25,w:100%25,h:100%25" alt="Bootstrap" width="50" height="50">
+                    <p class="fs-4 fw-bold">St. Clare College</p>
+                </a>
+            </div>
+          </nav>
+        <div class="container-fluid text-center">
+            <div class="d-flex justify-content-center align-content-center row g-0"> 
                 <div class="col-md-6 mx-2" id="video-container">
                     <canvas id="canvas"></canvas>
                     <video class="align-self-stretch" id="video" autoplay muted></video>
                 </div>
-
-                <div class="col-md-6 flex-grow-1 mx-2" id="form-container">
+                <div class="col-md-12 flex-grow-1 mx-2" id="form-container">
                     <h2>Attendance Record</h2>
                     <div class="form-group">
                         <label for="employeeName">Name:</label>
@@ -30,17 +89,21 @@
                         <label for="employeeID">Employee ID:</label>
                         <input type="text" id="employeeID" class="form-control text-center" readonly>
                     </div>
+                    <div class="form-group">
+                        <button class="btn btn-primary w-50 h-100" id="register-btn">Register</button>
+                    </div>
                 </div>
+            </div>
+        </div>
+        <!-- Toast Container -->
+        <div aria-live="polite" aria-atomic="true" style="position: relative; min-height: 200px;">
+            <div class="toast-container position-fixed bottom-0 end-0 p-3">
+                <!-- Toasts will be dynamically added here -->
             </div>
         </div>
     </main>
 
-    <!-- Toast Container -->
-    <div aria-live="polite" aria-atomic="true" style="position: relative; min-height: 200px;">
-        <div class="toast-container position-fixed bottom-0 end-0 p-3">
-            <!-- Toasts will be dynamically added here -->
-        </div>
-    </div>
+    
 
     <script defer src="{% static 'js/bootstrap.bundle.min.js' %}"></script>
     <script defer src="{% static 'js/face-api.min.js' %}"></script>
@@ -50,14 +113,25 @@
     
     <script>
         document.addEventListener('DOMContentLoaded', async () => {
+            const loader = document.getElementById('loader');
+            // Delay hiding the spinner for 5 seconds (5000 milliseconds)
+    
+            
             const video = document.getElementById('video');
             const canvas = document.getElementById('canvas');
             const context = canvas.getContext('2d');
             const form = document.getElementById('form-container');
+
+            const registerBtn = document.getElementById('register-btn');
+            
+            registerBtn.addEventListener('click', () => {
+                window.location.href = "/register";
+            });
             
             let lastDetectionTime = Date.now();
             const detectionInterval = 1000; // 2 seconds between consecutive face captures
             let matches = [];  // Array to hold recognized names
+            let employee_ids = [];
 
             let employeeName = document.getElementById('employeeName');
             let employeeID = document.getElementById('employeeID');
@@ -106,7 +180,7 @@
             }
 
             async function detectAndCaptureFaces() {
-                console.log(matches)
+                console.log(employee_ids)
                 const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions())
                     .withFaceLandmarks()
                     .withFaceDescriptors();
@@ -120,6 +194,7 @@
 
                     // Determine if the face is recognized or not
                     const name = matches[index] || "Unknown";  // Use matches to label faces
+                    const employeeID = employee_ids[index] || "N/A"
                     faceNames.push(name); // Store names for the detected faces
 
                     // Change the stroke color based on recognition status
@@ -152,6 +227,7 @@
                 } else if (detections.length === 0 && (Date.now() - lastDetectionTime > detectionInterval)) {
                     console.log('No faces detected.');
                     employeeName.value = '';
+                    employeeID.value = '';
                 }
 
                 requestAnimationFrame(detectAndCaptureFaces);
@@ -210,34 +286,34 @@
                     console.log('Server response:', data);
                     
                     // Assuming your server sends back the names of matched faces
-                    matches = data.result.map(item => item.name || item.message);
-
+                    matches = data.result.map(item => item.name || item.employee_id || item.message);
+                    employee_id = data.result.map(item => item.employee_id || "N/A");
                     // Update the result label with all recognized names
                     
                     // Check for valid matches (excluding "Unknown" and "No match found")
                     const validMatches = matches.filter(name => name !== "Unknown" && name !== "No match found");
-
+                    const validEmployeeID = employee_id.filter(employee_id => employee_id !== "N/A");
                     // Check if a fake face was detected
                     if (matches.includes("Face not recognized")) {
                         matches[0] = null
                         employeeName.value = '';
-                        
+                        employeeID.value = '';
                         
                     } else if (validMatches.length > 0 && Array.isArray(matches) && matches.every(match => match !== '' && match !== null && match !== undefined)) {
                         
                         employeeName.value = validMatches[0];
+                        employeeID.value = validEmployeeID[0];
                         showToast('Success!', `Welcome, ${employeeName.value}!`, 'success');
                         
                     } else if (matches.includes("No match found")) {
                         matches[0] = null
                         employeeName.value = '';
-                        
+                        employeeID.value = '';
                        
                     } else{
                         matches[0] = null
-                        
                         employeeName.value = '';
-                        
+                        employeeID.value = '';
                        
                     }
                     
@@ -260,6 +336,10 @@
             video.addEventListener('loadedmetadata', () => {
                 detectAndCaptureFaces();
             });
+
+            setTimeout(() => {
+                loader.style.display = 'none'; // Hide the spinner after 5 seconds
+            }, 6000);
         });
     </script>    
 </body>

@@ -38,6 +38,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'attendance',
+    'widget_tweaks',
 ]
 
 MIDDLEWARE = [
@@ -127,6 +128,12 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STATICFILES_DIRS = [
     os.path.join(BASE_DIR, 'static'),  # This points to the global static folder
 ]
+
+# Define the base directory
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# Media files (uploads)
+MEDIA_URL = '/media/'  # URL that handles media served from MEDIA_ROOT
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')  # Absolute path to the media directory
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field

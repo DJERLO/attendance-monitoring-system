@@ -3,7 +3,7 @@
     --max-height: 1920px;
 }
 
-html{
+body{
     width: 100%;
     height: 100%;
 }
@@ -99,4 +99,5 @@ img {
     max-width: 100%; /* Make sure image is responsive */
     border-radius: 5px; /* Add rounded corners to images */
     margin-top: 10px; /* Space above the image */
+    border: 5px solid blue; /* Or any color you prefer */
 }

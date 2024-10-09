@@ -1,0 +1,126 @@
+{% load widget_tweaks %}
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Employee Registration</title>
+    <link href="{% static 'css/bootstrap.min.css' %}" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
+</head>
+<style>
+    .img-preview {
+            display: flex;
+            justify-content: center;
+            align-content: center;
+            max-width: 150px;
+            max-height: 150px;
+            aspect-ratio: 1/1;
+        }
+</style>
+<body>
+    <div class="container mt-5">
+       
+        <form class="row gy-4" method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+            <div class="col-md-6 p-4 border border-4">
+                <div class="row mx-2">
+                    <h2 class="display-3 text-center">Employee Registration</h2>
+                    <p class=" lead text-muted text-center">
+                        Please fill out the form below with the employee's details. Ensure that all required fields are completed. You can upload a profile picture and multiple recent images for facial recognition. Once you have entered all the information, click the "Register" button to save the employee details.
+                    </p>
+                    
+                </div>
+            </div>
+            <div class="col-md-6 p-4 border border-4">
+                <div class="row">
+                    <div class="col-12 mb-3 d-flex flex-column align-items-center justify-content-center">
+                        <h2 class="my-4 text-center">Register Employee</h2>
+                        <img class="" id="image-preview" src="{% static 'img/blank_profile.webp' %}" class="img-preview" alt="Image Preview" width="150px" height="150px">
+                    </div>
+                    <div class="mb-3">
+                        <label for="{{ form.employee_id.id_for_label }}">Employee ID</label>
+                        {% render_field form.employee_id class="form-control" %}
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.first_name.id_for_label }}">First Name</label>
+                        {% render_field form.first_name class="form-control" %}
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.middle_name.id_for_label }}">Middle Name</label>
+                        {% render_field form.middle_name class="form-control" %}
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.last_name.id_for_label }}">Last Name</label>
+                        {% render_field form.last_name class="form-control" %}
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.email.id_for_label }}">Email</label>
+                        {% render_field form.email class="form-control" %}
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.contact_number.id_for_label }}">Contact Number</label>
+                        {% render_field form.contact_number class="form-control" %}
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.profile_image.id_for_label }}">Profile Image</label>
+                        {% render_field form.profile_image class="form-control" id="image-upload" %}
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary w-100 p-2 g-3 mb-3">Register</button>
+                </div>
+            </div>
+        </form>
+    </div>
+    <script src="{% static 'js/bootstrap.bundle.min.js' %}"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.all.min.js"></script>
+    {% if form.errors %}
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            // Prepare the error messages
+            var errors = [];
+            {% for field, errors in form.errors.items %}
+                errors.push("{{ field|capfirst }}: {{ errors|join:', ' }}");
+            {% endfor %}
+
+            // Show SweetAlert2
+            Swal.fire({
+                icon: 'error',
+                title: 'Form Submission Error',
+                html: errors.join('<br>'), // Display errors
+                timer: 2000, // Auto close after 2 seconds
+                timerProgressBar: true,
+                willClose: () => {
+                    // You can add any additional cleanup code here if needed
+                }
+            });
+        });
+    </script>
+    {% endif %}
+    <script>
+        document.getElementById('image-upload').addEventListener('change', function(event) {
+            const file = event.target.files[0];  // Get the selected file
+
+            if (file) {
+                const reader = new FileReader();
+
+                reader.onload = function(e) {
+                    // Display the image preview
+                    const preview = document.getElementById('image-preview');
+                    preview.src = e.target.result;
+                    preview.style.display = 'flex';
+                };
+
+                reader.readAsDataURL(file);  // Read the file as a data URL
+            }
+        });
+    </script>
+</body>
+</html>

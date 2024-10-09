@@ -1,0 +1,200 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token }}">
+    <link href="{% static 'css/bootstrap.min.css' %}" rel="stylesheet">
+    <link href="{% static 'css/attendance.css' %}" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    
+    <title>Face Uploader</title>
+</head>
+
+<body>
+    <main>
+        <div class="container text-center mt-4">
+            <h2>Capture Your Face for Registration</h2>
+            <div class="row justify-content-center g-4">
+                <div class="col-md-6 d-block" id="video-container">
+                    <video id="video" autoplay muted></video>
+                    <button class="btn btn-primary mt-3" id="capture-btn">Capture Image</button>
+                    <button class="btn btn-primary mt-3" id="check-btn">Check your Face</button>
+                    <canvas id="canvas" class="d-none"></canvas>
+                </div>
+                <div class="col-md-6 d-none" id="preview-container">
+                    <h3>Preview</h3>
+                    <img class="w-100" id="captured-image" src="" class="img-fluid" alt="Your captured image will appear here.">
+                    <button class="btn btn-success mt-3" id="proceed-btn">Upload</button>
+                    <button class="btn btn-danger mt-3" id="cancel-btn">Try Again</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Toast Container -->
+        <div aria-live="polite" aria-atomic="true" style="position: relative; min-height: 200px;">
+            <div class="toast-container position-fixed bottom-0 end-0 p-3">
+                <!-- Toasts will be dynamically added here -->
+            </div>
+        </div>
+    </main>
+
+    <script defer src="{% static 'js/bootstrap.bundle.min.js' %}"></script>
+    <script defer src="{% static 'js/face-api.min.js' %}"></script>
+    <script type="module">
+        import tensorflowtfjs from 'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.21.0/+esm'
+    </script>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            const video = document.getElementById('video');
+            const canvas = document.getElementById('canvas');
+            const context = canvas.getContext('2d');
+            const capturedImage = document.getElementById('captured-image');
+            
+            const captureBtn = document.getElementById('capture-btn');
+            const checkBtn = document.getElementById('check-btn');
+            const proceedBtn = document.getElementById('proceed-btn');
+            const cancelBtn = document.getElementById('cancel-btn')
+
+            const videoContainer = document.getElementById('video-container');
+            const previewContainer = document.getElementById('preview-container');
+            
+            function adjustCanvasSize(video, canvas) {
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+            }
+
+            function getCameraStream() {
+                const constraints = {
+                    video: {
+                        width: { ideal: 640 },
+                        height: { ideal: 480 },
+                        facingMode: "user"
+                    }
+                };
+
+                navigator.mediaDevices.getUserMedia(constraints)
+                    .then(stream => {
+                        video.srcObject = stream;
+                        video.addEventListener('loadedmetadata', () => {
+                            adjustCanvasSize(video, canvas);
+                        });
+                    })
+                    .catch(err => {
+                        console.error("Error accessing webcam: " + err);
+                        alert("Could not access the camera. Please check camera permissions and try again.");
+                    });
+            }
+
+            checkBtn.addEventListener('click', () => {
+                window.location.href = "/check";
+            });
+
+            captureBtn.addEventListener('click', () => {
+                // Capture the current frame from the video
+                context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+                // Convert canvas data to a base64 image
+                const imageData = canvas.toDataURL('image/jpeg');
+
+                // Set the captured image to the preview
+                capturedImage.src = imageData;
+
+                //Hide the Video Container and show the Preview of your Image that you capture
+                videoContainer.classList.remove('d-block');
+                videoContainer.classList.add('d-none');
+
+                // Show the Preview Container
+                previewContainer.classList.remove('d-none');
+                previewContainer.classList.add('d-block');
+    
+            });
+
+            proceedBtn.addEventListener('click', async() => {
+                // Proceed with registration (for now, just display a success message)
+                showToast('Success!', 'Image captured successfully! Proceeding to registration...', 'success');
+
+                // Use Django template syntax to insert the dynamic employee ID
+                const employeeID = "{{ employee_id }}";  // This gets the employee ID from the context
+                
+                // Convert the captured image to a base64 string
+                const imageData = capturedImage.src.split(',')[1]; // Extract base64 part
+                const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+                
+                // Create JSON payload
+                const payload = {
+                    employee_id: employeeID,
+                    image: imageData
+                };
+
+                try {
+                    const response = await fetch(`/register-face/${employeeID}`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': csrfToken  // Add CSRF token for security
+                        },
+                        body: JSON.stringify(payload)  // Convert the payload to a JSON string
+                    });
+
+                    if (response.ok) {
+                        const responseData = await response.json();  // Parse the JSON response if needed
+                        showToast('Success!', responseData.message, 'success');
+                        // Redirect or perform further actions here
+                    } else {
+                        const errorData = await response.json();
+                        showToast('Error!', errorData.message || 'Failed to upload the image.', 'danger');
+                    }
+                } catch (error) {
+                    showToast('Error!', 'An unexpected error occurred.', 'danger');
+                }
+            });
+
+            cancelBtn.addEventListener('click', () => {
+                //Show the Video Container Again
+                videoContainer.classList.remove('d-none');
+                videoContainer.classList.add('d-block');
+
+                //Hides the Preview Container
+                previewContainer.classList.remove('d-block');
+                previewContainer.classList.add('d-none');
+            });
+
+            function showToast(title, message, type) {
+                const toastContainer = document.querySelector('.toast-container');
+
+                const toast = document.createElement('div');
+                const timeString = new Date().toLocaleTimeString();
+                toast.className = `toast align-items-center text-bg-${type} border-0`;
+                toast.role = 'alert';
+                toast.ariaLive = 'assertive';
+                toast.ariaAtomic = 'true';
+                toast.style = 'min-width: 200px;';
+                
+                toast.innerHTML = `
+                    <div class="toast-header text-white bg-primary">
+                        <strong class="me-auto">${title}</strong>
+                        <small class="text-white">${timeString}</small>
+                    </div>
+                    <div class="toast-body">
+                        ${message}
+                    </div>
+                `;
+
+                toastContainer.appendChild(toast);
+
+                const bsToast = new bootstrap.Toast(toast, { delay: 3000 });
+                bsToast.show();
+
+                toast.addEventListener('hidden.bs.toast', () => {
+                    toast.remove();
+                });
+            }
+
+            getCameraStream();
+        });
+    </script>
+</body>
+</html>

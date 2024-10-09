@@ -9,11 +9,12 @@ from PIL import Image
 import io
 import os
 import cv2
+from django.conf import settings  # Import settings to access MEDIA_ROOT
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
-KNOWN_FACES_DIR = os.path.join(CURRENT_DIR, 'known_faces')
+KNOWN_FACES_DIR = os.path.join(settings.MEDIA_ROOT, 'known_faces')  # Path to the known faces directory
 MODEL_PATH = os.path.join(CURRENT_DIR, 'training.pth')
-TOLERANCE = 0.4
+TOLERANCE = 0.5
 FAKE_TOLERANCE_HIGH = 0.75  # Threshold for definitely fake
 FAKE_TOLERANCE_LOW = 0.50   # Threshold for definitely real
 
@@ -31,24 +32,44 @@ transform = transforms.Compose([
 EYE_CASCADE_PATH = cv2.data.haarcascades + 'haarcascade_eye.xml'
 eye_cascade = cv2.CascadeClassifier(EYE_CASCADE_PATH)
 
+# Load the Haar Cascade for face detection
+FACE_CASCADE_PATH = cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
+face_cascade = cv2.CascadeClassifier(FACE_CASCADE_PATH)
+
 # Load known faces once and store them in a global variable
 known_face_encodings = []
 known_face_names = []
+employee_ids = []  # List to store employee IDs
 
-def load_known_faces(known_faces_dir):
-    global known_face_encodings, known_face_names
-    for name in os.listdir(known_faces_dir):
-        person_folder = os.path.join(known_faces_dir, name)
+def load_known_faces(KNOWN_FACES_DIR):
+    global known_face_encodings, known_face_names, employee_ids
+    
+    # Check if the directory exists, and if not, create it
+    if not os.path.exists(KNOWN_FACES_DIR):
+        os.makedirs(KNOWN_FACES_DIR)
+        print(f"Directory '{KNOWN_FACES_DIR}' created for storing known faces.")
+    
+    # Proceed with loading faces if the directory exists
+    for name in os.listdir(KNOWN_FACES_DIR):
+        person_folder = os.path.join(KNOWN_FACES_DIR, name)
         if os.path.isdir(person_folder):
-            for filename in os.listdir(person_folder):
-                image_path = os.path.join(person_folder, filename)
-                try:
-                    image = face_recognition.load_image_file(image_path)
-                    encoding = face_recognition.face_encodings(image)[0]
-                    known_face_encodings.append(encoding)
-                    known_face_names.append(name)
-                except Exception as e:
-                    print(f"Error processing {image_path}: {e}")
+            # Split the folder name to extract employee ID and full name
+            try:
+                employee_id, full_name = name.split(" - ", 1)  # Split into two parts
+                print(f"Processing Employee ID: {employee_id}, Full Name: {full_name}")
+
+                for filename in os.listdir(person_folder):
+                    image_path = os.path.join(person_folder, filename)
+                    try:
+                        image = face_recognition.load_image_file(image_path)
+                        encoding = face_recognition.face_encodings(image)[0]
+                        known_face_encodings.append(encoding)
+                        known_face_names.append(full_name)  # Use the full name
+                        employee_ids.append(employee_id)  # Store employee ID
+                    except Exception as e:
+                        print(f"Error processing {image_path}: {e}")
+            except ValueError:
+                print(f"Skipping folder '{name}': it does not match expected format.")
 
 # Load the deepfake detection model using PyTorch
 class FakeFaceDetector(nn.Module):
@@ -72,6 +93,25 @@ def load_model():
         return None
     return model
 
+def detect_face_opencv(image_array):
+    """
+    Detect faces in an image using OpenCV's Haar Cascade.
+    Returns the largest detected face as a PIL image or None if no face is found.
+    """
+    # Convert the image to grayscale for the face detector
+    gray_image = cv2.cvtColor(image_array, cv2.COLOR_BGR2GRAY)
+
+    # Detect faces using Haar Cascade
+    faces = face_cascade.detectMultiScale(gray_image, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
+
+    if len(faces) > 0:
+        # If faces are found, use the largest one
+        x, y, w, h = max(faces, key=lambda rect: rect[2] * rect[3])  # Get the largest face
+        face_image = image_array[y:y + h, x:x + w]
+        return Image.fromarray(face_image)
+    else:
+        return None  # No face found
+
 def crop_face(image_array):
     """
     Detects and crops the largest face in the image.
@@ -85,7 +125,7 @@ def crop_face(image_array):
         face_image = image_array[top:bottom, left:right]
         return Image.fromarray(face_image)
     else:
-        return None  # No face found
+        return detect_face_opencv(image_array)  # No face found
 
 def detect_fake_face(image_data):
     """
@@ -168,30 +208,26 @@ def recognize_faces_from_image(image_data):
 
         for face_encoding in unknown_face_encodings:
             matches = face_recognition.compare_faces(known_face_encodings, face_encoding, TOLERANCE)
-            face_distances = face_recognition.face_distance(known_face_encodings, face_encoding)
+            name = "Unknown"
+            employee_id = "N/A"  # Default if not recognized
 
-            best_match_index = np.argmin(face_distances)
+            # Check if we have a match
+            if True in matches:
+                # Find the indexes of all matched faces
+                matched_indexes = [i for (i, b) in enumerate(matches) if b]
 
-            if matches[best_match_index]:
-                name = known_face_names[best_match_index]
-                results.append({
-                    "status": "Match found",
-                    "name": name,
-                    "distance": face_distances[best_match_index]
-                })
-                print(f"Recognized: {name}")
-            else:
-                results.append({
-                    "message": "No match found",
-                    "name": None
-                })
-                print("No match found for the detected face.")
-        # Return results for all detected faces
-        return results
+                # Use the first matched face (could also average scores)
+                first_match_index = matched_indexes[0]
+                name = known_face_names[first_match_index]
+                employee_id = employee_ids[first_match_index]  # Get corresponding employee ID
+
+            results.append({"name": name, "employee_id": employee_id})  # Append result
+
+        return results  # Return results
 
     except Exception as e:
-        print(f"Error processing image: {e}")
-        return {"error": f"Error processing image: {str(e)}"}
+        print(f"Error during recognition: {e}")
+        return []
 
-# Call this function when your application starts
+# Load known faces when the module is loaded
 load_known_faces(KNOWN_FACES_DIR)
