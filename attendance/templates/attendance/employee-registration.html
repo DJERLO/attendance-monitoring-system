@@ -20,60 +20,67 @@
         }
 </style>
 <body>
-    <div class="container mt-5">
-       
-        <form class="row gy-4" method="post" enctype="multipart/form-data">
+    <div class="container">
+        <form class="row needs-validation" method="post" action="/register/" enctype="multipart/form-data" novalidate>
             {% csrf_token %}
             <div class="col-md-6 p-4 border border-4">
                 <div class="row mx-2">
                     <h2 class="display-3 text-center">Employee Registration</h2>
-                    <p class=" lead text-muted text-center">
+                    <p class="lead text-muted text-center">
                         Please fill out the form below with the employee's details. Ensure that all required fields are completed. You can upload a profile picture and multiple recent images for facial recognition. Once you have entered all the information, click the "Register" button to save the employee details.
                     </p>
-                    
                 </div>
             </div>
+            
             <div class="col-md-6 p-4 border border-4">
                 <div class="row">
                     <div class="col-12 mb-3 d-flex flex-column align-items-center justify-content-center">
                         <h2 class="my-4 text-center">Register Employee</h2>
-                        <img class="" id="image-preview" src="{% static 'img/blank_profile.webp' %}" class="img-preview" alt="Image Preview" width="150px" height="150px">
+                        <img id="image-preview" src="{% static 'img/blank_profile.webp' %}" class="img-preview" alt="Image Preview" width="150px" height="150px">
                     </div>
+                    
                     <div class="mb-3">
                         <label for="{{ form.employee_id.id_for_label }}">Employee ID</label>
                         {% render_field form.employee_id class="form-control" %}
+                        <div class="invalid-feedback">Please provide a valid Employee ID.</div>
                     </div>
-                    
+        
                     <div class="mb-3">
                         <label for="{{ form.first_name.id_for_label }}">First Name</label>
                         {% render_field form.first_name class="form-control" %}
+                        <div class="invalid-feedback">Please provide a first name.</div>
                     </div>
-                    
+        
                     <div class="mb-3">
                         <label for="{{ form.middle_name.id_for_label }}">Middle Name</label>
                         {% render_field form.middle_name class="form-control" %}
+                        <div class="valid-feedback">Please provide a middle name (Optional).</div>
                     </div>
-                    
+        
                     <div class="mb-3">
                         <label for="{{ form.last_name.id_for_label }}">Last Name</label>
                         {% render_field form.last_name class="form-control" %}
+                        <div class="invalid-feedback">Please provide a last name.</div>
                     </div>
-                    
+        
                     <div class="mb-3">
                         <label for="{{ form.email.id_for_label }}">Email</label>
                         {% render_field form.email class="form-control" %}
+                        <div class="invalid-feedback">Please provide a valid email.</div>
                     </div>
-                    
+        
                     <div class="mb-3">
                         <label for="{{ form.contact_number.id_for_label }}">Contact Number</label>
                         {% render_field form.contact_number class="form-control" %}
+                        <div class="invalid-feedback">Please provide a valid contact number.</div>
                     </div>
-                    
+        
                     <div class="mb-3">
                         <label for="{{ form.profile_image.id_for_label }}">Profile Image</label>
-                        {% render_field form.profile_image class="form-control" id="image-upload" %}
+                        {% render_field form.profile_image class="form-control" id="image-upload" accept="image/*" title="Please upload a valid image file (jpg, png, gif)." %}
+                        <div class="valid-feedback">(Optional) Please upload a valid profile image under 2MB (jpg, png).</div>
                     </div>
-                    
+        
                     <button type="submit" class="btn btn-primary w-100 p-2 g-3 mb-3">Register</button>
                 </div>
             </div>
@@ -86,29 +93,58 @@
         document.addEventListener('DOMContentLoaded', function () {
             // Prepare the error messages
             var errors = [];
-            {% for field, errors in form.errors.items %}
-                errors.push("{{ field|capfirst }}: {{ errors|join:', ' }}");
+            {% for field, error_list in form.errors.items %}
+                {% for error in error_list %}
+                    errors.push("{{ error }}");  // Push only the error message
+                {% endfor %}
             {% endfor %}
 
             // Show SweetAlert2
             Swal.fire({
                 icon: 'error',
                 title: 'Form Submission Error',
-                html: errors.join('<br>'), // Display errors
-                timer: 2000, // Auto close after 2 seconds
-                timerProgressBar: true,
+                html: errors.join('<br>'),  // Display errors
                 willClose: () => {
                     // You can add any additional cleanup code here if needed
                 }
             });
         });
-    </script>
-    {% endif %}
-    <script>
+
+        //Display Image when it get changed
         document.getElementById('image-upload').addEventListener('change', function(event) {
             const file = event.target.files[0];  // Get the selected file
 
             if (file) {
+                // Define valid image types
+                const validImageTypes = ['image/jpeg', 'image/png'];
+                const maxSize = 2 * 1024 * 1024; // 2MB file size limit
+
+                // Check the file type
+                if (!validImageTypes.includes(file.type)) {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Invalid File Type',
+                        text: 'Please upload a valid image file (jpg, png).',
+                        timer: 2000,
+                        timerProgressBar: true
+                    });
+                    event.target.value = "";  // Clear the file input
+                    return;
+                }
+
+                // Check the file size
+                if (file.size > maxSize) {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'File Too Large',
+                        text: 'Please upload an image smaller than 2MB.',
+                        timer: 2000,
+                        timerProgressBar: true
+                    });
+                    event.target.value = "";  // Clear the file input
+                    return;
+                }
+
                 const reader = new FileReader();
 
                 reader.onload = function(e) {
@@ -121,6 +157,24 @@
                 reader.readAsDataURL(file);  // Read the file as a data URL
             }
         });
+
+        (function () {
+            'use strict'
+            var forms = document.querySelectorAll('.needs-validation')
+
+            Array.prototype.slice.call(forms).forEach(function (form) {
+                form.addEventListener('submit', function (event) {
+                    // Regex checks can go here if needed for custom validation.
+                    if (!form.checkValidity()) {
+                        event.preventDefault()
+                        event.stopPropagation()
+                    }
+                    form.classList.add('was-validated')
+                }, false)
+            })
+        })();
+
     </script>
+    {% endif %}
 </body>
 </html>

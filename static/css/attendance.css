@@ -3,9 +3,17 @@
     --max-height: 1920px;
 }
 
+html{
+    font-size: 12px;
+}
+
 body{
     width: 100%;
-    height: 100%;
+    height: 100dvh;
+    font-size: 1.5em;
+    display: grid;
+    place-content: center;
+    position: relative;
 }
 
 #video-container {
@@ -27,7 +35,8 @@ video, canvas {
     height: auto; 
     max-width: var(--max-width);
     object-fit: cover;
-    border: 5px solid blue; /* Or any color you prefer */
+    border: 5px solid rgb(255, 255, 255); /* Or any color you prefer */
+    box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19);
 }
 
 canvas {
@@ -40,34 +49,6 @@ canvas {
     
 }
 
-#form-container {
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    border: 5px solid #007bff;
-    border-radius: 5px;
-    padding: 20px;
-    background-color: #e9ecef;
-    margin-top: 20px; /* Space above the form */
-    max-width: var(--max-width);
-}
-
-#nameTag {
-    display: block;
-    margin-top: 10px;
-}
-
-.name-tag {
-    border: 2px solid #007bff;
-    border-radius: 5px;
-    padding: 10px;
-    background-color: #e9ecef;
-    text-align: center;
-    font-weight: bold;
-    font-size: 1.2em;
-}
-
 #button-container {
     border: 2px solid #007bff;
     border-radius: 5px;
@@ -78,26 +59,84 @@ canvas {
     font-size: 1.2em;
 }
 
-#resultLabel {
-    margin-top: 20px;
-    font-size: 1.5em;
-    color: #333;
-}
+/* Responsive for screens with max-width 768px */
+@media only screen and (max-width: 768px) {
+    html {
+        font-size: 10px; /* Slightly reduce font size for smaller screens */
+    }
 
-/* Form styles */
-.form-group {
-    margin-bottom: 15px;
+    body{
+        font-size: small;
+    }
+
+    #form-container {
+        padding: 15px;
+    }
+
+    #video-container {
+        width: 100dvw;
+        max-width: 100%;
+        height: calc(50dvh); /* 40% of the viewport height */
+    }
+
+    video, canvas {
+        width: 100%;
+        height: auto;
+    }
+
+    video {
+        object-fit: cover; /* Ensure the video fits properly in smaller viewports */
+    }
+
+    canvas {
+        object-fit: cover;
+    }
+}
+/* This is for the loader */
+.loader-container {
+    position: fixed;
+    top: 0;
+    left: 0;
     width: 100%;
+    height: 100%;
+    background: rgba(255, 255, 255);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
 }
 
-.form-control {
-    font-size: 1.2em; /* Increase font size for readability */
-    background-color: #f8f9fa; /* Light background for input fields */
+.ripple {
+    position: relative;
+    width: 50px;
+    height: 50px;
 }
 
-img {
-    max-width: 100%; /* Make sure image is responsive */
-    border-radius: 5px; /* Add rounded corners to images */
-    margin-top: 10px; /* Space above the image */
-    border: 5px solid blue; /* Or any color you prefer */
+.ripple::before, .ripple::after {
+    content: '';
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    border: 4px solid #FF5C35;
+    opacity: 0;
+    animation: ripple 3s infinite;
+}
+
+.ripple::after {
+    animation-delay: 1.5s;
+}
+
+@keyframes ripple {
+    0% {
+        transform: scale(0.5);
+        opacity: 0;
+    }
+    25% {
+        opacity: 1;
+    }
+    100% {
+        transform: scale(2.5);
+        opacity: 0;
+    }
 }

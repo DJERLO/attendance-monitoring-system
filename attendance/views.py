@@ -1,9 +1,10 @@
 import datetime
 import os
 import base64
-from django.shortcuts import render, redirect
+from django.shortcuts import get_object_or_404, render, redirect
 from django.contrib import messages
 from django.http import HttpResponse, JsonResponse
+from django.urls import reverse
 from django.conf import settings
 from asgiref.sync import sync_to_async
 import logging
@@ -23,6 +24,11 @@ def async_recognize_faces(img_data):
 def async_detect_fake_face(img_data):
     """Asynchronous wrapper for fake face detection."""
     return detect_fake_face(img_data)
+
+@sync_to_async
+def get_employee_by_id(employee_id):
+    """Fetch employee from the database by employee_id."""
+    return get_object_or_404(Employee, employee_id=employee_id)
 
 def check_attendance(request):
     """Renders the attendance page."""
@@ -47,7 +53,30 @@ async def attendance(request):
 
             if result == 'Real':
                 verify = await async_recognize_faces(data['image'])  # Again, use original data
-                return JsonResponse({"result": verify}, status=200)
+                logger.info("Verification result: %s", verify)
+
+                # Assuming verify contains a list of dictionaries with name and employee_id
+                if verify and isinstance(verify, list) and len(verify) > 0:
+                    employee = None
+                    employee_data = verify[0]
+                    employee_id = employee_data.get('employee_id')
+                    
+                    if employee_id:  # Check if employee_id is not None
+                        # Fetch employee profile using employee_id asynchronously
+                        employee = await get_employee_by_id(employee_id)
+                    
+                    if employee:  # Check if employee is found
+                        profile_image_url = request.build_absolute_uri(employee.avatar_url)
+                        return JsonResponse({
+                            "result": [{
+                                "name": employee_data.get('name'),
+                                "employee_id": employee_id,
+                                "profile_image_url": profile_image_url
+                            }]
+                        }, status=200)
+                    else:
+                        logger.warning("Employee with ID %s not found.", employee_id)
+                        return JsonResponse({"result": [{"message": "Employee not found."}]}, status=404)
             
             if result == 'Fake':
                 print('Spoofing Detected')
@@ -61,16 +90,14 @@ async def attendance(request):
             logger.error("Error: %s", e)
             return JsonResponse({"error": [str(e)]}, status=500)
 
-    return JsonResponse({"error":[{"message": "No Content"}]}, status=204)
+    return JsonResponse({"result":[{"status": "No Content"}]}, status=200)
 
 # Register New Employee
 def employee_registration(request):
     if request.method == 'POST':
         form = EmployeeRegistrationForm(request.POST, request.FILES)
-        print("Form submitted:", form)  # Debug statement
         if form.is_valid():
             person = form.save()  # Save the employee
-            print(person)
             return redirect('facial-registration', employee_id=person.employee_id)  # Redirect to the face upload view
         else:
             print("Form errors:", form.errors)  # Debug statement for form errors

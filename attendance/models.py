@@ -1,18 +1,34 @@
+import os
+from django.core.exceptions import ValidationError
+from django.conf import settings
 from django.db import models
 from django.utils import timezone
 
 # Create your models here.
 class Employee(models.Model):
-    employee_id = models.CharField (max_length=50, unique=True)
+    employee_id = models.CharField(max_length=50, unique=True)
     first_name = models.CharField(max_length=50)
     middle_name = models.CharField(max_length=50, blank=True, null=True)
     last_name = models.CharField(max_length=50)
     email = models.EmailField(unique=True)
     contact_number = models.CharField(max_length=15)
-    profile_image = models.ImageField(upload_to='profiles/', blank=True, null=True)
-    
-    #For Facial Recognition(Needed every employee to take photos atleast 5 minimum)
-    recent_image = models.ImageField(upload_to='known_faces/', blank=True, null=True)
+    profile_image = models.ImageField(upload_to='profiles/', blank=True, null=True, default='profiles/default_avatar.webp')
+
+    def save(self, *args, **kwargs):
+        # Ensure the default avatar is not duplicated
+        if self.profile_image and self.profile_image.name != 'profiles/default_avatar.webp':
+            # Check if the image already exists
+            if Employee.objects.filter(profile_image=self.profile_image).exists():
+                raise ValidationError("This profile image already exists.")
+        
+        super(Employee, self).save(*args, **kwargs)
+
+    @property
+    def avatar_url(self):
+        if self.profile_image:
+            return self.profile_image.url
+        else:
+            return os.path.join(settings.MEDIA_URL, 'profiles/default_avatar.png')
     
 
     def full_name(self):
