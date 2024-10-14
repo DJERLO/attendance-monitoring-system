@@ -44,10 +44,16 @@ class FaceImage(models.Model):
     uploaded_at = models.DateTimeField(default=timezone.now)
 
     
-class Attendance(models.Model):
+class CheckIn(models.Model):
     employee = models.ForeignKey(Employee, on_delete=models.CASCADE)
-    full_name = models.CharField(max_length=150)  # This is stored for easier querying/reporting
     timestamp = models.DateTimeField(default=timezone.now)
 
     def __str__(self):
-        return f"{self.full_name} - {self.timestamp.strftime('%Y-%m-%d %H:%M:%S')}"
+        return f"{self.employee.full_name()} checked in at {self.timestamp.strftime('%Y-%m-%d %H:%M:%S')}"
+
+class CheckOut(models.Model):
+    employee = models.ForeignKey(Employee, on_delete=models.CASCADE)
+    timestamp = models.DateTimeField(default=timezone.now)
+
+    def __str__(self):
+        return f"{self.employee.full_name()} checked out at {self.timestamp.strftime('%Y-%m-%d %H:%M:%S')}"

@@ -46,8 +46,9 @@
             
             let lastDetectionTime = Date.now();
             const detectionInterval = 2000; // 2 seconds between consecutive face captures
-            let matches = [];  // Array to hold recognized names
-            let employee_ids = [];
+            let matches = [];        // Array to hold recognized names
+            let employee_ids = [];  // hold recognized employee_ids
+            let messages = [];       // hold recognized employee_ids
 
             let employeeName = document.getElementById('employeeName');
             let employeeID = document.getElementById('employeeID');
@@ -96,7 +97,7 @@
             }
 
             async function detectAndCaptureFaces() {
-                console.log(employee_ids)
+                console.log(messages)
                 const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions())
                     .withFaceLandmarks()
                     .withFaceDescriptors();
@@ -152,45 +153,76 @@
                     console.log('Server response:', data);
                     
                     // Assuming your server sends back the names of matched faces
-                    matches = data.result.map(item => item.name || item.employee_id || item.message);
+                    matches = data.result.map(item => item.name || item.employee_id);
                     employee_id = data.result.map(item => item.employee_id || "N/A");
                     profile_image = data.result.map(item => item.profile_image_url || "N/A");
-                    // Update the result label with all recognized names
+                    messages = data.result.map(item => item.message);
                     
                     // Check for valid matches (excluding "Unknown" and "No match found")
                     const validMatches = matches.filter(name => name !== "Unknown" && name !== "No match found");
                     const validEmployeeID = employee_id.filter(employee_id => employee_id !== "N/A");
+                    const message = messages.filter(messages => messages !== `${matches} has already checked in today.`);
+                    
                     // Check if a fake face was detected
                     if (matches.includes("Face not recognized")) {
                         matches[0] = null
-                        
-                        
                     } else if (validMatches.length > 0 && Array.isArray(matches) && matches.every(match => match !== '' && match !== null && match !== undefined)) {
-                        
-                        
+                       
+                        //Successful attendance
+                        if (!messages.some(msg => msg.includes(`has already checked in today.`))){
+                           
+                            Swal.fire({
+                                imageUrl: profile_image, // URL of the image
+                                heightAuto: false,
+                                title: 'Check-In Successful!',
+                                html: `Hello, ${validMatches[0]}! Your attendance has been successfully recorded. Thank you for checking in!`,
+                                timer: 2000, // Auto close after 2 seconds
+                                timerProgressBar: true,
+                                showConfirmButton: false, // Hide the OK button
+                                willClose: () => {
+                                    // Additional cleanup if needed
+                                }
+                            });
 
-                        Swal.fire({
-                            imageUrl: profile_image, // URL of the image
-                            icon: 'success',
-                            heightAuto: false,
-                            title: 'Check-In Successful!',
-                            html: `Hello, ${validMatches[0]}! Your attendance has been successfully recorded. Thank you for checking in!`,
-                            timer: 2000, // Auto close after 2 seconds
-                            timerProgressBar: true,
-                            showConfirmButton: false, // Hide the OK button
-                            willClose: () => {
-                                // Additional cleanup if needed
-                            }
-                        });
+                        }
+
+                        if (messages.some(msg => msg.includes(`has already checked in today.`))){
+                            //Prompt users Check-In Again Tommorow
+                            Swal.fire({
+                                imageUrl: profile_image,
+                                icon: 'info', 
+                                heightAuto: false,
+                                title: 'Attendance Already Marked!',
+                                html: `Hello, ${validMatches[0]}! You have already checked in today. Thank you for your diligence!`,
+                                timer: 2000, // Auto close after 2 seconds
+                                timerProgressBar: true,
+                                showConfirmButton: false, // Hide the OK button
+                                willClose: () => {
+                                    // Additional cleanup if needed
+                                }
+                            });
+                        }
+
+                        if (messages.some(msg => msg.includes(`Possible Spoofing Detected`))) {
+                            // Prompt users of possible spoofing attack
+                            Swal.fire({
+                                icon: 'warning', // Use a warning icon to indicate seriousness
+                                heightAuto: false,
+                                title: 'Possible Spoofing Detected!',
+                                html: `Alert: Possible spoofing detected during your attendance check-in. Please verify your credentials and contact support if you think this is an error.`,
+                                confirmButtonText: 'Okay', // Allow users to acknowledge the alert
+                                showCloseButton: true, // Show a close button for user convenience
+                                willClose: () => {
+                                    // Additional cleanup if needed
+                                }
+                            });
+                        }
+
 
                     } else if (matches.includes("No match found")) {
                         matches[0] = null
-                        
-                       
                     } else{
                         matches[0] = null
-                    
-                       
                     }
                     
                 })

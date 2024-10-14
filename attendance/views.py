@@ -6,11 +6,13 @@ from django.contrib import messages
 from django.http import HttpResponse, JsonResponse
 from django.urls import reverse
 from django.conf import settings
+from django.utils import timezone
 from asgiref.sync import sync_to_async
 import logging
 import json
 from attendance.forms import EmployeeRegistrationForm
-from attendance.models import Employee, FaceImage
+from attendance.models import CheckIn, Employee, FaceImage
+
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +31,17 @@ def async_detect_fake_face(img_data):
 def get_employee_by_id(employee_id):
     """Fetch employee from the database by employee_id."""
     return get_object_or_404(Employee, employee_id=employee_id)
+
+@sync_to_async
+def check_in(employee_id):
+    today = timezone.now().date() # Get Todat's Date
+    employee = get_object_or_404(Employee, employee_id=employee_id) #Get Employee Id Number and find that person
+    return CheckIn.objects.filter(employee=employee, timestamp__date=today).exists() #Check if the person already check-in
+
+@sync_to_async
+def mark_attendance(employee_id):
+    employee = get_object_or_404(Employee, employee_id=employee_id)
+    return CheckIn.objects.create(employee=employee)
 
 def check_attendance(request):
     """Renders the attendance page."""
@@ -66,21 +79,47 @@ async def attendance(request):
                         employee = await get_employee_by_id(employee_id)
                     
                     if employee:  # Check if employee is found
+                        # Check if the employee has already checked in today
+                        checkin_exists = await check_in(employee_id)
                         profile_image_url = request.build_absolute_uri(employee.avatar_url)
-                        return JsonResponse({
-                            "result": [{
-                                "name": employee_data.get('name'),
-                                "employee_id": employee_id,
-                                "profile_image_url": profile_image_url
-                            }]
-                        }, status=200)
+                        
+                        if not checkin_exists:
+                            
+                            try:
+                                submit = await mark_attendance(employee_id)
+                                print(submit)
+                                return JsonResponse({
+                                    "result": [{
+                                        "name": employee_data.get('name'),
+                                        "employee_id": employee_id,
+                                        "profile_image_url": profile_image_url
+                                    }]
+                                }, status=200)
+                            except Exception as e:
+                                logger.error("Error recording attendance: %s", e)
+                                return JsonResponse({
+                                    "result": [{
+                                        "message": "Error recording attendance. Please try again later."
+                                    }]
+                                }, status=500)
+
+                        else:
+                            return JsonResponse({
+                                "result": [{
+                                    "name": employee_data.get('name'),
+                                    "employee_id": employee_id,
+                                    "profile_image_url": profile_image_url,
+                                    "message": f"{employee_data.get('name')} has already checked in today.",
+                                }]
+                            }, status=400)
+
                     else:
                         logger.warning("Employee with ID %s not found.", employee_id)
                         return JsonResponse({"result": [{"message": "Employee not found."}]}, status=404)
             
             if result == 'Fake':
                 print('Spoofing Detected')
-                return JsonResponse({"result":[{"message": ""}]}, status=200)
+                return JsonResponse({"result":[{"message": "Possible Spoofing Detected"}]}, status=200)
             
 
         except json.JSONDecodeError as e:
