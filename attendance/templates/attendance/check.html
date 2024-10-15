@@ -47,8 +47,8 @@
             let lastDetectionTime = Date.now();
             const detectionInterval = 2000; // 2 seconds between consecutive face captures
             let matches = [];        // Array to hold recognized names
-            let employee_ids = [];  // hold recognized employee_ids
-            let messages = [];       // hold recognized employee_ids
+            let employee_numbers = [];  // hold recognized employee_ids
+            let messages = [];       // hold recognized messages
 
             let employeeName = document.getElementById('employeeName');
             let employeeID = document.getElementById('employeeID');
@@ -109,7 +109,7 @@
                     const box = detection.detection.box;
                     // Determine if the face is recognized or not
                     const name = matches[index] || "Unknown";  
-                    const employeeID = employee_ids[index] || "N/A";
+                    const employeeID = employee_numbers[index] || "N/A";
                     faceNames.push(name);
 
                     // Draw bounding box and label
@@ -154,20 +154,16 @@
                     
                     // Assuming your server sends back the names of matched faces
                     matches = data.result.map(item => item.name || item.employee_id);
-                    employee_id = data.result.map(item => item.employee_id || "N/A");
+                    employee_number = data.result.map(item => item.employee_number || "N/A");
                     profile_image = data.result.map(item => item.profile_image_url || "N/A");
                     messages = data.result.map(item => item.message);
                     
                     // Check for valid matches (excluding "Unknown" and "No match found")
                     const validMatches = matches.filter(name => name !== "Unknown" && name !== "No match found");
-                    const validEmployeeID = employee_id.filter(employee_id => employee_id !== "N/A");
+                    const validEmployeeNumber = employee_numbers.filter(employee_number => employee_number !== "N/A");
                     const message = messages.filter(messages => messages !== `${matches} has already checked in today.`);
                     
-                    // Check if a fake face was detected
-                    if (matches.includes("Face not recognized")) {
-                        matches[0] = null
-                    } else if (validMatches.length > 0 && Array.isArray(matches) && matches.every(match => match !== '' && match !== null && match !== undefined)) {
-                       
+                    if (validMatches.length > 0 && Array.isArray(matches) && matches.every(match => match !== '' && match !== null && match !== undefined)) {
                         //Successful attendance
                         if (!messages.some(msg => msg.includes(`has already checked in today.`))){
                            

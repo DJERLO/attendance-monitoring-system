@@ -7,172 +7,256 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Employee Registration</title>
     <link href="{% static 'css/bootstrap.min.css' %}" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
 </head>
 <style>
     .img-preview {
-            display: flex;
-            justify-content: center;
-            align-content: center;
-            max-width: 150px;
-            max-height: 150px;
-            aspect-ratio: 1/1;
-        }
+        display: flex;
+        justify-content: center;
+        align-content: center;
+        max-width: 150px;
+        max-height: 150px;
+        aspect-ratio: 1;
+    }
 </style>
-<body>
-    <div class="container">
-        <form class="row needs-validation" method="post" action="/register/" enctype="multipart/form-data" novalidate>
+<body class="d-flex w-100 h-100 p-5 g-0 align-items-stretch">
+    <div class="container w-100 h-75 justify-content-center align-self-center">
+        <form class="row w-100 h-100 mt-4 p-4 needs-validation" method="post" action="{% url 'employee-registration' %}" enctype="multipart/form-data" novalidate>
             {% csrf_token %}
-            <div class="col-md-6 p-4 border border-4">
-                <div class="row mx-2">
-                    <h2 class="display-3 text-center">Employee Registration</h2>
-                    <p class="lead text-muted text-center">
-                        Please fill out the form below with the employee's details. Ensure that all required fields are completed. You can upload a profile picture and multiple recent images for facial recognition. Once you have entered all the information, click the "Register" button to save the employee details.
-                    </p>
+            <!-- Section for User and Employee Form -->
+            <div class="order-1 col-md-6 p-4 justify-content-center align-self-stretch border border-3 border-dark">
+                <h3 class="text-center">User Information</h3>
+
+                <div class="m-2 d-flex justify-content-center align-self-stretch">
+                    <img class="img-fluid border border-dark border-2 rounded-circle" id="image-preview" src="{% static 'img/blank_profile.webp' %}" width="130px" height="130px">
                 </div>
-            </div>
-            
-            <div class="col-md-6 p-4 border border-4">
-                <div class="row">
-                    <div class="col-12 mb-3 d-flex flex-column align-items-center justify-content-center">
-                        <h2 class="my-4 text-center">Register Employee</h2>
-                        <img id="image-preview" src="{% static 'img/blank_profile.webp' %}" class="img-preview" alt="Image Preview" width="150px" height="150px">
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label for="{{ form.employee_id.id_for_label }}">Employee ID</label>
-                        {% render_field form.employee_id class="form-control" %}
-                        <div class="invalid-feedback">Please provide a valid Employee ID.</div>
-                    </div>
-        
-                    <div class="mb-3">
-                        <label for="{{ form.first_name.id_for_label }}">First Name</label>
-                        {% render_field form.first_name class="form-control" %}
-                        <div class="invalid-feedback">Please provide a first name.</div>
-                    </div>
-        
-                    <div class="mb-3">
-                        <label for="{{ form.middle_name.id_for_label }}">Middle Name</label>
-                        {% render_field form.middle_name class="form-control" %}
-                        <div class="valid-feedback">Please provide a middle name (Optional).</div>
-                    </div>
-        
-                    <div class="mb-3">
-                        <label for="{{ form.last_name.id_for_label }}">Last Name</label>
-                        {% render_field form.last_name class="form-control" %}
-                        <div class="invalid-feedback">Please provide a last name.</div>
-                    </div>
-        
-                    <div class="mb-3">
-                        <label for="{{ form.email.id_for_label }}">Email</label>
-                        {% render_field form.email class="form-control" %}
+
+                <div class="mb-2">
+                    <label for="{{ user_form.email.id_for_label }}">Email</label>
+                    <div class="input-group mb-3">
+                        <span class="input-group-text fw-bold" id="email">@</span>
+                        {% render_field user_form.email class="form-control" aria-label="Email" aria-describedby="email" %}
                         <div class="invalid-feedback">Please provide a valid email.</div>
+                        <div class="valid-feedback">Looking Good!</div>
                     </div>
-        
-                    <div class="mb-3">
-                        <label for="{{ form.contact_number.id_for_label }}">Contact Number</label>
-                        {% render_field form.contact_number class="form-control" %}
-                        <div class="invalid-feedback">Please provide a valid contact number.</div>
-                    </div>
-        
-                    <div class="mb-3">
-                        <label for="{{ form.profile_image.id_for_label }}">Profile Image</label>
-                        {% render_field form.profile_image class="form-control" id="image-upload" accept="image/*" title="Please upload a valid image file (jpg, png, gif)." %}
-                        <div class="valid-feedback">(Optional) Please upload a valid profile image under 2MB (jpg, png).</div>
-                    </div>
-        
-                    <button type="submit" class="btn btn-primary w-100 p-2 g-3 mb-3">Register</button>
                 </div>
+
+                <div class="mb-2">
+                    <label for="{{ user_form.username.id_for_label }}">Username</label>
+                    {% render_field user_form.username class="form-control" %}
+                    <div class="invalid-feedback">Please provide a Username.</div>
+                    <div class="valid-feedback">Looking Good!</div>
+                </div>
+
+                <div class="mb-2">
+                    <label for="{{ user_form.password.id_for_label }}">Password</label>
+                    <div class="input-group mb-3">
+                        <button class="btn btn-outline-primary fw-bold" type="button" id="togglePassword">
+                            <i id="passwordIcon" class="bi bi-eye"></i>
+                        </button>
+                        {% render_field user_form.password id="passwordField" class="form-control" aria-label="Password" aria-describedby="togglePassword" %}
+                        <div class="invalid-feedback">Please provide a password.</div>
+                        <div class="valid-feedback">Looking good!</div>
+                    </div>
+                </div>
+    
+                <div class="mb-2">
+                    <label for="{{ employee_form.profile_image.id_for_label }}">Profile Image</label>
+                    {% render_field employee_form.profile_image class="form-control" id="image-upload" accept="image/*" title="Please upload a valid image file (jpg, png)." %}
+                    <div class="valid-feedback">(Optional) Please upload a valid profile image under 2MB (jpg, png).</div>
+                </div>
+
+                
+                   
+            </div>
+    
+            <div class="order-2 col-md-6 p-4 justify-content-center align-self-stretch border border-3 border-dark">
+
+                <h3 class="text-center">Employee Information</h3>
+                
+                <div class="mb-2">
+                    <label for="{{ employee_form.employee_number.id_for_label }}">Employee ID</label>
+                    {% render_field employee_form.employee_number class="form-control" %}
+                    <div class="invalid-feedback">Please provide a valid Employee ID.</div>
+                    <div class="valid-feedback">Looking Good!</div>
+                </div>
+
+                <div class="mb-2">
+                    <label for="{{ user_form.first_name.id_for_label }}">First Name</label>
+                    {% render_field user_form.first_name class="form-control" %}
+                    <div class="invalid-feedback">Please provide a first name.</div>
+                    <div class="valid-feedback">Looking Good!</div>
+                </div>
+
+                <div class="mb-2">
+                    <label for="{{ employee_form.middle_name.id_for_label }}">Middle Name</label>
+                    {% render_field employee_form.middle_name class="form-control" %}
+                    <div class="valid-feedback">(Optional) Please provide a middle name.</div>
+                </div>
+    
+                <div class="mb-2">
+                    <label for="{{ user_form.last_name.id_for_label }}">Last Name</label>
+                    {% render_field user_form.last_name class="form-control" %}
+                    <div class="invalid-feedback">Please provide a last name.</div>
+                    <div class="valid-feedback">Looking Good!</div>
+                </div>
+    
+                <div class="mb-2">
+                    <label for="{{ employee_form.contact_number.id_for_label }}">Contact Number</label>
+                    {% render_field employee_form.contact_number class="form-control" %}
+                    <div class="invalid-feedback">Please provide a valid contact number.</div>
+                    <div class="valid-feedback">Looking Good!</div>
+                </div>
+
+                <div class="mb-2">
+                    <div class="mb-2 form-check">
+                        <input type="checkbox" class="form-check-input" id="termsCheckbox" required>
+                        <label class="form-check-label" for="termsCheckbox">
+                            I agree to the <a href="#" data-bs-toggle="modal" data-bs-target="#termsModal">terms and conditions</a>.
+                        </label>
+                        <div class="invalid-feedback">You must agree to the terms and conditions before submitting.</div>
+                    </div>
+                    <!-- Centering the button outside of the checkbox -->
+                    <div class="d-flex justify-content-center mt-3">
+                        <button id="registerBtn" type="submit" class="btn btn-primary w-100 p-3" disabled>Register</button>
+                    </div>
+                </div>
+                
             </div>
         </form>
+
+        <!-- Modal for Terms and Conditions -->
+        <div class="modal fade" id="termsModal" tabindex="-1" aria-labelledby="termsModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="termsModalLabel">Terms and Conditions</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p>Your terms and conditions text goes here. Make sure to include all relevant details that users need to agree to.</p>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
+
+
+    </div>
+
     <script src="{% static 'js/bootstrap.bundle.min.js' %}"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.all.min.js"></script>
-    {% if form.errors %}
+
+    {% if user_form.errors or employee_form.errors %}
     <script>
         document.addEventListener('DOMContentLoaded', function () {
             // Prepare the error messages
-            var errors = [];
-            {% for field, error_list in form.errors.items %}
+            var errors = new Set();  // Using a Set to avoid duplicate messages
+            var fields = new Set();
+            {% for field_list, error_list in user_form.errors.items %}
+                {% for field in field_list %}
+                    fields.add("{{ field }}");
+                {% endfor %}
                 {% for error in error_list %}
-                    errors.push("{{ error }}");  // Push only the error message
+                    errors.add("{{ error }}");
+                {% endfor %}
+            {% endfor %}
+            {% for field_list, error_list in employee_form.errors.items %}
+                {% for field in field_list %}
+                    fields.add("{{ field }}");
+                {% endfor %}
+                {% for error in error_list %}
+                    errors.add("{{ error }}");
                 {% endfor %}
             {% endfor %}
 
-            // Show SweetAlert2
-            Swal.fire({
-                icon: 'error',
-                title: 'Form Submission Error',
-                html: errors.join('<br>'),  // Display errors
-                willClose: () => {
-                    // You can add any additional cleanup code here if needed
-                }
-            });
+            console.log(fields);
+
+            // Show SweetAlert2 if there is errors
+            if (errors) {
+                    Swal.fire({
+                    icon: 'error',
+                    heightAuto: false,
+                    title: 'Form Submission Error',
+                    html: Array.from(errors).join('<br>'),
+                    willClose: () => {
+                        // Run Bootstrap validation after the alert is closed
+                        // Bootstrap validation
+                        (function () {
+                            'use strict';
+                            var forms = document.querySelectorAll('.needs-validation');
+                            Array.prototype.slice.call(forms).forEach(function (form) {
+                                if (!form.checkValidity()) {
+                                    form.classList.add('was-validated');  // Add validation class to show feedback
+                                }
+                            });
+                        })();
+                    }
+                });
+            }
+
         });
 
-        //Display Image when it get changed
+        // Display Image Preview
         document.getElementById('image-upload').addEventListener('change', function(event) {
-            const file = event.target.files[0];  // Get the selected file
-
+            const file = event.target.files[0];
             if (file) {
-                // Define valid image types
-                const validImageTypes = ['image/jpeg', 'image/png'];
-                const maxSize = 2 * 1024 * 1024; // 2MB file size limit
+                const validImageTypes = ['image/jpeg', 'image/png', 'image/jpg'];
+                const maxSize = 2 * 1024 * 1024; // 2MB
 
-                // Check the file type
-                if (!validImageTypes.includes(file.type)) {
+                if (!validImageTypes.includes(file.type) || file.size > maxSize) {
                     Swal.fire({
                         icon: 'error',
-                        title: 'Invalid File Type',
-                        text: 'Please upload a valid image file (jpg, png).',
-                        timer: 2000,
-                        timerProgressBar: true
+                        title: 'Invalid File',
+                        text: 'Please upload a valid image under 2MB.',
                     });
-                    event.target.value = "";  // Clear the file input
-                    return;
-                }
-
-                // Check the file size
-                if (file.size > maxSize) {
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'File Too Large',
-                        text: 'Please upload an image smaller than 2MB.',
-                        timer: 2000,
-                        timerProgressBar: true
-                    });
-                    event.target.value = "";  // Clear the file input
+                    event.target.value = "";
                     return;
                 }
 
                 const reader = new FileReader();
-
                 reader.onload = function(e) {
-                    // Display the image preview
-                    const preview = document.getElementById('image-preview');
-                    preview.src = e.target.result;
-                    preview.style.display = 'flex';
+                    document.getElementById('image-preview').src = e.target.result;
                 };
-
-                reader.readAsDataURL(file);  // Read the file as a data URL
+                reader.readAsDataURL(file);
             }
         });
 
-        (function () {
-            'use strict'
-            var forms = document.querySelectorAll('.needs-validation')
+        const passwordField = document.getElementById('passwordField');
+        const togglePassword = document.getElementById('togglePassword');
+        const passwordIcon = document.getElementById('passwordIcon');
 
-            Array.prototype.slice.call(forms).forEach(function (form) {
-                form.addEventListener('submit', function (event) {
-                    // Regex checks can go here if needed for custom validation.
-                    if (!form.checkValidity()) {
-                        event.preventDefault()
-                        event.stopPropagation()
-                    }
-                    form.classList.add('was-validated')
-                }, false)
-            })
-        })();
+        togglePassword.addEventListener('click', function () {
+            // Toggle the type attribute of the password input field
+            const type = passwordField.getAttribute('type') === 'password' ? 'text' : 'password';
+            passwordField.setAttribute('type', type);
+
+            // Toggle the eye/eye-slash icon
+            if (type === 'password') {
+                passwordIcon.classList.remove('bi-eye-slash');
+                passwordIcon.classList.add('bi-eye');
+            } else {
+                passwordIcon.classList.remove('bi-eye');
+                passwordIcon.classList.add('bi-eye-slash');
+            }
+        });
+
+        // Get references to the checkbox and button
+        const termsCheckbox = document.getElementById('termsCheckbox');
+        const registerBtn = document.getElementById('registerBtn');
+
+        // Disable the button initially
+        registerBtn.disabled = true;
+
+        // Add an event listener to the checkbox
+        termsCheckbox.addEventListener('change', function () {
+            // Enable the button if checked, disable if unchecked
+            registerBtn.disabled = !termsCheckbox.checked;
+        });
 
     </script>
     {% endif %}

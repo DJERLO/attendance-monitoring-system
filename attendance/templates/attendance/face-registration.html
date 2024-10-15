@@ -117,7 +117,7 @@
                 showToast('Success!', 'Image captured successfully! Proceeding to registration...', 'success');
 
                 // Use Django template syntax to insert the dynamic employee ID
-                const employeeID = "{{ employee_id }}";  // This gets the employee ID from the context
+                const employeeID = "{{ employee_number }}";  // This gets the employee ID from the context
                 
                 // Convert the captured image to a base64 string
                 const imageData = capturedImage.src.split(',')[1]; // Extract base64 part

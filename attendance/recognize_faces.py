@@ -39,10 +39,10 @@ face_cascade = cv2.CascadeClassifier(FACE_CASCADE_PATH)
 # Load known faces once and store them in a global variable
 known_face_encodings = []
 known_face_names = []
-employee_ids = []  # List to store employee IDs
+employee_numbers = []  # List to store employee IDs
 
 def load_known_faces(KNOWN_FACES_DIR):
-    global known_face_encodings, known_face_names, employee_ids
+    global known_face_encodings, known_face_names, employee_numbers
     
     # Check if the directory exists, and if not, create it
     if not os.path.exists(KNOWN_FACES_DIR):
@@ -55,8 +55,8 @@ def load_known_faces(KNOWN_FACES_DIR):
         if os.path.isdir(person_folder):
             # Split the folder name to extract employee ID and full name
             try:
-                employee_id, full_name = name.split(" - ", 1)  # Split into two parts
-                print(f"Processing Employee ID: {employee_id}, Full Name: {full_name}")
+                employee_number, full_name = name.split(" - ", 1)  # Split into two parts
+                print(f"Processing Employee ID: {employee_number}, Full Name: {full_name}")
 
                 for filename in os.listdir(person_folder):
                     image_path = os.path.join(person_folder, filename)
@@ -65,7 +65,7 @@ def load_known_faces(KNOWN_FACES_DIR):
                         encoding = face_recognition.face_encodings(image)[0]
                         known_face_encodings.append(encoding)
                         known_face_names.append(full_name)  # Use the full name
-                        employee_ids.append(employee_id)  # Store employee ID
+                        employee_numbers.append(employee_number)  # Store employee ID
                     except Exception as e:
                         print(f"Error processing {image_path}: {e}")
             except ValueError:
@@ -209,7 +209,7 @@ def recognize_faces_from_image(image_data):
         for face_encoding in unknown_face_encodings:
             matches = face_recognition.compare_faces(known_face_encodings, face_encoding, TOLERANCE)
             name = "Unknown"
-            employee_id = "N/A"  # Default if not recognized
+            employee_number = "N/A"  # Default if not recognized
 
             # Check if we have a match
             if True in matches:
@@ -219,9 +219,9 @@ def recognize_faces_from_image(image_data):
                 # Use the first matched face (could also average scores)
                 first_match_index = matched_indexes[0]
                 name = known_face_names[first_match_index]
-                employee_id = employee_ids[first_match_index]  # Get corresponding employee ID
+                employee_number = employee_numbers[first_match_index]  # Get corresponding employee ID
 
-            results.append({"name": name, "employee_id": employee_id})  # Append result
+            results.append({"name": name, "employee_number": employee_number})  # Append result
 
         return results  # Return results
 
