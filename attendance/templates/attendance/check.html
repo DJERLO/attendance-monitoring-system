@@ -165,10 +165,11 @@
                     
                     if (validMatches.length > 0 && Array.isArray(matches) && matches.every(match => match !== '' && match !== null && match !== undefined)) {
                         //Successful attendance
-                        if (!messages.some(msg => msg.includes(`has already checked in today.`))){
+                        if (messages.some(msg => msg.includes(`has checked in today.`))){
                            
                             Swal.fire({
                                 imageUrl: profile_image, // URL of the image
+                                icon: 'success', 
                                 heightAuto: false,
                                 title: 'Check-In Successful!',
                                 html: `Hello, ${validMatches[0]}! Your attendance has been successfully recorded. Thank you for checking in!`,

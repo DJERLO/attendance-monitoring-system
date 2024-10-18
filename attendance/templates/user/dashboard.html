@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load socialaccount %}
+
+{% block content %}
+<div class="container">
+    <h1>{% trans "Welcome, " %} {{ user.username }}!</h1>
+    <p>{% trans "This is your dashboard." %}</p>
+
+    <!-- Add the logout link -->
+    <a href="{% url 'account_logout' %}" class="btn btn-danger">Logout</a>
+
+    {% if user.socialaccount_set.all %}
+   <a href="{% url 'socialaccount_connections' %}" class="btn btn-warning">
+       {% trans "Manage Connected Accounts" %}
+   </a>
+    {% endif %}
+
+    <!-- Check if the user is already connected to Google -->
+    <div class="mt-3">
+        {% if not user.socialaccount_set.all %}
+            <a href="{% provider_login_url 'google' %}" class="btn btn-primary">
+                {% trans "Connect Google Account" %}
+            </a>
+        {% else %}
+            <p>{% trans "You have connected your Google account." %}</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

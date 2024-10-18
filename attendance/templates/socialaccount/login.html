@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+{% load socialaccount %}
+
+{% block content %}
+<div class="container d-flex justify-content-center align-items-center" style="height: 100vh;">
+    <div class="col-md-4">
+        <h3 class="text-center mb-4">{% trans "Continue witb Google" %}</h3>
+        <form class="form-control justify-content-center py-5" action="" method="post" action>
+            {% csrf_token %}
+            <!-- Social Login Options -->
+            <div class="text-center">
+                <!-- Google Login Button -->
+                <button type="submit" class="btn btn-outline-danger w-100 mb-3 p-4 d-flex align-items-center justify-content-start" href="{% provider_login_url 'google' %}">
+                    <div class="me-5 fs-1">  <!-- Add margin to the right -->
+                        <i class="bi bi-google"></i>
+                    </div>
+                    <div class="justify-content-center">
+                        {% trans "Log in with Google" %}
+                    </div>
+                </button>
+                
+                <!-- Add other providers like Twitter, GitHub, etc., if configured -->
+            </div>
+        </form>
+
+        <hr>
+
+        <div class="text-center">
+            <p>{% trans "Already have an account?" %} 
+                <a href="{% url 'account_login' %}">{% trans "Sign in" %}</a>
+            </p>
+        </div>
+    </div>
+</div>
+{% endblock %}

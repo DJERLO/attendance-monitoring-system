@@ -14,10 +14,17 @@
     .img-preview {
         display: flex;
         justify-content: center;
-        align-content: center;
-        max-width: 150px;
-        max-height: 150px;
-        aspect-ratio: 1;
+        align-items: center; /* Use align-items instead of align-content */
+        width: 150px; /* Fixed width */
+        height: 150px; /* Fixed height */
+        border: 1px solid #ccc; /* Optional: Add a border for better visibility */
+        overflow: hidden; /* Hide any overflow from the image */
+    }
+
+    .img-preview img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover; /* Ensure the image covers the square area */
     }
 </style>
 <body class="d-flex w-100 h-100 p-5 g-0 align-items-stretch">
@@ -26,21 +33,13 @@
             {% csrf_token %}
             <!-- Section for User and Employee Form -->
             <div class="order-1 col-md-6 p-4 justify-content-center align-self-stretch border border-3 border-dark">
-                <h3 class="text-center">User Information</h3>
 
-                <div class="m-2 d-flex justify-content-center align-self-stretch">
-                    <img class="img-fluid border border-dark border-2 rounded-circle" id="image-preview" src="{% static 'img/blank_profile.webp' %}" width="130px" height="130px">
+                <h3 class="text-center">Employee Information</h3>
+
+                <div class="mb-2 d-flex justify-content-center align-self-stretch">
+                    <img class="img-fluid border border-dark border-2 rounded-circle" id="image-preview" src="{% static 'img/blank_profile.webp' %}" width="250px" height="250px">
                 </div>
 
-                <div class="mb-2">
-                    <label for="{{ user_form.email.id_for_label }}">Email</label>
-                    <div class="input-group mb-3">
-                        <span class="input-group-text fw-bold" id="email">@</span>
-                        {% render_field user_form.email class="form-control" aria-label="Email" aria-describedby="email" %}
-                        <div class="invalid-feedback">Please provide a valid email.</div>
-                        <div class="valid-feedback">Looking Good!</div>
-                    </div>
-                </div>
 
                 <div class="mb-2">
                     <label for="{{ user_form.username.id_for_label }}">Username</label>
@@ -48,32 +47,18 @@
                     <div class="invalid-feedback">Please provide a Username.</div>
                     <div class="valid-feedback">Looking Good!</div>
                 </div>
-
-                <div class="mb-2">
-                    <label for="{{ user_form.password.id_for_label }}">Password</label>
-                    <div class="input-group mb-3">
-                        <button class="btn btn-outline-primary fw-bold" type="button" id="togglePassword">
-                            <i id="passwordIcon" class="bi bi-eye"></i>
-                        </button>
-                        {% render_field user_form.password id="passwordField" class="form-control" aria-label="Password" aria-describedby="togglePassword" %}
-                        <div class="invalid-feedback">Please provide a password.</div>
-                        <div class="valid-feedback">Looking good!</div>
-                    </div>
-                </div>
     
                 <div class="mb-2">
                     <label for="{{ employee_form.profile_image.id_for_label }}">Profile Image</label>
                     {% render_field employee_form.profile_image class="form-control" id="image-upload" accept="image/*" title="Please upload a valid image file (jpg, png)." %}
                     <div class="valid-feedback">(Optional) Please upload a valid profile image under 2MB (jpg, png).</div>
                 </div>
-
-                
                    
             </div>
     
             <div class="order-2 col-md-6 p-4 justify-content-center align-self-stretch border border-3 border-dark">
 
-                <h3 class="text-center">Employee Information</h3>
+                
                 
                 <div class="mb-2">
                     <label for="{{ employee_form.employee_number.id_for_label }}">Employee ID</label>
@@ -150,7 +135,7 @@
 
     <script src="{% static 'js/bootstrap.bundle.min.js' %}"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.all.min.js"></script>
-
+    
     {% if user_form.errors or employee_form.errors %}
     <script>
         document.addEventListener('DOMContentLoaded', function () {
@@ -200,7 +185,9 @@
             }
 
         });
-
+    </script>
+    {% endif %}
+    <script>
         // Display Image Preview
         document.getElementById('image-upload').addEventListener('change', function(event) {
             const file = event.target.files[0];
@@ -226,25 +213,6 @@
             }
         });
 
-        const passwordField = document.getElementById('passwordField');
-        const togglePassword = document.getElementById('togglePassword');
-        const passwordIcon = document.getElementById('passwordIcon');
-
-        togglePassword.addEventListener('click', function () {
-            // Toggle the type attribute of the password input field
-            const type = passwordField.getAttribute('type') === 'password' ? 'text' : 'password';
-            passwordField.setAttribute('type', type);
-
-            // Toggle the eye/eye-slash icon
-            if (type === 'password') {
-                passwordIcon.classList.remove('bi-eye-slash');
-                passwordIcon.classList.add('bi-eye');
-            } else {
-                passwordIcon.classList.remove('bi-eye');
-                passwordIcon.classList.add('bi-eye-slash');
-            }
-        });
-
         // Get references to the checkbox and button
         const termsCheckbox = document.getElementById('termsCheckbox');
         const registerBtn = document.getElementById('registerBtn');
@@ -259,6 +227,6 @@
         });
 
     </script>
-    {% endif %}
+    
 </body>
 </html>

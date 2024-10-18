@@ -11,7 +11,9 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 """
 import os
 from pathlib import Path
-from decouple import config
+from dotenv import load_dotenv
+# Load environment variables from .env file
+load_dotenv()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -21,12 +23,12 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = config('SECRET_KEY')
+SECRET_KEY = os.getenv('SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.getenv('DEBUG') == 'True'
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', '[::1]']
 
 # Application definition
 
@@ -52,17 +54,35 @@ AUTHENTICATION_BACKENDS = (
     'django.contrib.auth.backends.ModelBackend',  # Default
     'allauth.account.auth_backends.AuthenticationBackend',  # Required for allauth
 )
+ACCOUNT_EMAIL_VERIFICATION = 'mandatory'
+ACCOUNT_EMAIL_REQUIRED = True
+ACCOUNT_AUTHENTICATION_METHOD = 'email'
 
-ACCOUNT_EMAIL_VERIFICATION = 'none'  # Change to 'mandatory' if you want email verification
-LOGIN_REDIRECT_URL = '/'  # Redirect URL after login
-LOGOUT_REDIRECT_URL = '/'  # Redirect URL after logout
+ACCOUNT_AUTHENTICATED_LOGIN_REDIRECTS = True  # Default is True
+ACCOUNT_LOGIN_ON_EMAIL_CONFIRMATION = True
+
+ACCOUNT_FORMS = {
+    'reset_password_from_key': 'attendance.forms.MyCustomResetPasswordKeyForm',
+}
+
+
+LOGIN_URL = '/accounts/login/'
+LOGIN_REDIRECT_URL = '/dashboard/'  # Redirect URL after login
+LOGOUT_REDIRECT_URL = '/accounts/login/'  # Redirect URL after logout
 
 SOCIALACCOUNT_PROVIDERS = {
     'google': {
         'APP': {
-            'client_id': config('CLIENT_ID'),
-            'secret': config('CLIENT_SECRET'),
+            'client_id': os.getenv('CLIENT_ID'),
+            'secret': os.getenv('CLIENT_SECRET'),
             'key': ''
+        },
+        'SCOPE': [
+            'profile',  # Requests basic profile info
+            'email',    # Requests the email address
+        ],
+        'AUTH_PARAMS': {
+            'access_type': 'online',  # Can be 'offline' if you need refresh tokens
         }
     }
 }
@@ -83,9 +103,8 @@ ROOT_URLCONF = 'attendance_system.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [BASE_DIR / 'templates'],  # Include your templates directory here
+        'DIRS': [BASE_DIR / 'templates', os.path.join(BASE_DIR, 'attendance', 'templates')],
         'APP_DIRS': True,
-        'DIRS': [os.path.join(BASE_DIR, 'attendance', 'templates')],
         'OPTIONS': {
             'context_processors': [
                 'django.template.context_processors.debug',
@@ -97,6 +116,7 @@ TEMPLATES = [
     },
 ]
 
+
 WSGI_APPLICATION = 'attendance_system.wsgi.application'
 
 
@@ -105,12 +125,12 @@ WSGI_APPLICATION = 'attendance_system.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': config('DB_ENGINE', default='django.db.backends.sqlite3'),
-        'NAME': config('DB_NAME', default=BASE_DIR / 'db.sqlite3'),
-        'USER': config('DB_USER', default=''),
-        'PASSWORD': config('DB_PASSWORD', default=''),
-        'HOST': config('DB_HOST', default='localhost'),
-        'PORT': config('DB_PORT', default=''),
+        'ENGINE': os.getenv('DB_ENGINE', default='django.db.backends.sqlite3'),
+        'NAME': os.getenv('DB_NAME', default=str(BASE_DIR / 'db.sqlite3')),  # Ensure BASE_DIR is a string
+        'USER': os.getenv('DB_USER', default=''),
+        'PASSWORD': os.getenv('DB_PASSWORD', default=''),
+        'HOST': os.getenv('DB_HOST', default='localhost'),
+        'PORT': os.getenv('DB_PORT', default=''),
     }
 }
 
@@ -170,3 +190,43 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')  # Absolute path to the media direc
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Email Server
+EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+
+
+MESSAGE_STORAGE = 'django.contrib.messages.storage.session.SessionStorage'
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {message}',
+            'style': '{',
+        },
+        'simple': {
+            'format': '{levelname} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'simple',
+        },
+        'file': {
+            'level': 'ERROR',
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(BASE_DIR, 'django_error.log'),
+            'formatter': 'verbose',
+        },
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console', 'file'],
+            'level': 'ERROR',
+            'propagate': True,
+        },
+    },
+}

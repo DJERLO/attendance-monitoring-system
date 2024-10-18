@@ -3,6 +3,7 @@ import os
 import base64
 import logging
 import json
+import re
 from django.shortcuts import get_object_or_404, render, redirect
 from django.contrib import messages
 from django.http import HttpResponse, JsonResponse
@@ -11,14 +12,27 @@ from django.conf import settings
 from django.utils import timezone
 from asgiref.sync import sync_to_async
 from django.views.decorators.csrf import csrf_exempt
+from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth.decorators import login_required
 from attendance.forms import EmployeeRegistrationForm, UserRegistrationForm
+from django.contrib.auth.models import User
 from attendance.models import CheckIn, Employee, FaceImage
 from .model_evaluation import predict_from_base64
 
 
 logger = logging.getLogger(__name__)
 
-from .recognize_faces import recognize_faces_from_image, detect_fake_face  # Ensure these functions are implemented
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+KNOWN_FACES_DIR = os.path.join(settings.MEDIA_ROOT, 'known_faces')  # Path to the known faces directory
+MODEL_PATH = os.path.join(CURRENT_DIR, 'training.pth')
+
+from .recognize_faces import load_known_faces, recognize_faces_from_image, detect_fake_face  # Ensure these functions are implemented
+#Load Faces before check-in connection established
+@sync_to_async
+def async_load_known_faces(KNOWN_FACES_DIR):
+    """Asynchronous wrapper for face recognition."""
+    return load_known_faces(KNOWN_FACES_DIR)
+
 @sync_to_async
 def async_recognize_faces(img_data):
     """Asynchronous wrapper for face recognition."""
@@ -49,13 +63,10 @@ def check_attendance(request):
     """Renders the attendance page."""
     return render(request, 'attendance/check.html')
 
-def login(request):
-    """Renders the attendance page."""
-    return render(request, 'accounts/login.html')
-
 async def attendance(request):
     """Handles the attendance face recognition."""
-    logger.info("Received request: %s", request.body)  # Log the incoming request
+    logger.info("Received request: %s", request.body)
+    async_load_known_faces(KNOWN_FACES_DIR)
     if request.method == 'POST':
         try:
             data = json.loads(request.body)
@@ -79,6 +90,7 @@ async def attendance(request):
                     employee = None
                     employee_data = verify[0]
                     employee_number = employee_data.get('employee_number')
+                    print(employee_number)
                     
                     if employee_number:  # Check if employee_id is not None
                         # Fetch employee profile using employee_id asynchronously
@@ -98,7 +110,8 @@ async def attendance(request):
                                     "result": [{
                                         "name": employee_data.get('name'),
                                         "employee_number": employee_number,
-                                        "profile_image_url": profile_image_url
+                                        "profile_image_url": profile_image_url,
+                                        "message": f"{employee_data.get('name')} has checked in today.",
                                     }]
                                 }, status=200)
                             except Exception as e:
@@ -139,27 +152,68 @@ async def attendance(request):
 
 # Register New Employee
 def user_registration(request):
-    if request.method == 'POST':
-        user_form = UserRegistrationForm(request.POST)
-        employee_form = EmployeeRegistrationForm(request.POST, request.FILES)
+    user = None  
+    #Check if user is authenticated
+    if request.user.is_authenticated:
+        user = request.user  # Get the user
+        
+        # If user already registered employee, redirect to the dashboard
+        if Employee.objects.filter(user=user).exists():
+            messages.info(request, "You are already registered as an employee.")
+            return redirect('dashboard')
+        
+        #If user hasn't registed yet for employee, redirect to the registration process
+        if request.method == 'POST':
+            user_form = UserRegistrationForm(request.POST, instance=user)
+            employee_form = EmployeeRegistrationForm(request.POST, request.FILES)
 
-        if user_form.is_valid() and employee_form.is_valid():
-            # Create User instance
-            user = user_form.save()
-            # Create Employee instance and link to User
-            employee = employee_form.save(commit=False)
-            employee.user = user  # Link employee to the user
-            employee.first_name = user.first_name  # Set first name from user
-            employee.last_name = user.last_name    # Set last name from user
-            employee.email = user.email            # Set email from user
-            employee.save()  # Save employee instance
+            if user_form.is_valid() and employee_form.is_valid():
+                # Create User instance
+                user = user_form.save()
+                # Create Employee instance and link to User
+                employee = employee_form.save(commit=False)
+                employee.user = user  # Link employee to the user
+                employee.first_name = user.first_name  # Set first name from user
+                employee.last_name = user.last_name    # Set last name from user
+                employee.email = user.email            # Set email from user
+                employee.save()  # Save employee instance
 
-            messages.success(request, "Employee registered successfully! Please proceed to facial registration.")
-            return redirect('facial-registration', employee_number=employee.employee_number)  # Redirect to a face registration page to capture their face for face recognition
+                messages.success(request, "Employee registered successfully! Please proceed to facial registration.")
+                return redirect('facial-registration', employee_number=employee.employee_number)  # Redirect to a face registration page to capture their face for face recognition
 
+        else:
+            # Pre-fill the forms with user's information
+            user_form = UserRegistrationForm(initial={
+                'email': user.email,
+                'first_name': user.first_name,
+                'last_name': user.last_name,
+                'username': user.username,  # If you want to pre-fill the username as well
+            })
+            employee_form = EmployeeRegistrationForm()
+        
     else:
-        user_form = UserRegistrationForm()
-        employee_form = EmployeeRegistrationForm()
+        #If user choose to register without linking Google or any Third party
+        if request.method == 'POST':
+            user_form = UserRegistrationForm(request.POST)
+            employee_form = EmployeeRegistrationForm(request.POST, request.FILES)
+
+            if user_form.is_valid() and employee_form.is_valid():
+                # Create User instance
+                user = user_form.save()
+                # Create Employee instance and link to User
+                employee = employee_form.save(commit=False)
+                employee.user = user  # Link employee to the user
+                employee.first_name = user.first_name  # Set first name from user
+                employee.last_name = user.last_name    # Set last name from user
+                employee.email = user.email            # Set email from user
+                employee.save()  # Save employee instance
+
+                messages.success(request, "Employee registered successfully! Please proceed to facial registration.")
+                return redirect('facial-registration', employee_number=employee.employee_number)  # Redirect to a face registration page to capture their face for face recognition
+
+        else:
+            user_form = UserRegistrationForm()
+            employee_form = EmployeeRegistrationForm()
 
     return render(request, 'attendance/employee-registration.html', {
         'user_form': user_form,
@@ -250,3 +304,21 @@ def online_training(request):
         except Exception as e:
             return JsonResponse({'error': str(e)}, status=400)
     return render(request, 'training/training.html')
+
+
+# Login User
+@login_required
+def dashboard(request):
+    user = request.user  # Get the logged-in user
+    
+    try:
+        employee = Employee.objects.get(user=request.user)
+        # Continue to the dashboard since employee exists
+        return render(request, 'user/dashboard.html',{ 
+                    'user': user, 
+                    'employee': employee})
+    
+    except Employee.DoesNotExist:
+        # Redirect to employee registration to continue
+        return redirect('employee-registration')
+    
