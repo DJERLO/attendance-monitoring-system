@@ -8,6 +8,28 @@ This guide will help you set up the Attendance Monitoring System on your local m
 - A working internet connection.
 - Basic knowledge of Django and web development.
 
+### Hardware Used for Development
+
+#### **Hardware Setup:**
+- **Camera**: A4TECH PK-635G Anti-glare USB Webcam with Built-in Microphone
+- **CPU**: [Intel® Core™ i3-9100F Processor](https://www.intel.com/content/www/us/en/products/sku/190886/intel-core-i39100f-processor-6m-cache-up-to-4-20-ghz/specifications.html)
+- **GPU**: GeForce GTX 1050 2G OC
+
+### Model & Training Details
+
+- **Model**: For our anti-spoofing solution, we utilized **ResNet-50**, a powerful deep convolutional neural network (CNN) known for its ability to learn complex features through residual learning.
+
+- **Pre-trained Dataset**: The model was initially pre-trained on **ImageNet1K**, which includes over 1 million images across 1,000 categories. This pre-training helps the model capture a wide variety of features and enhances performance on subsequent tasks.
+
+- **Fine-tuning Dataset**: We fine-tuned the ResNet-50 model using the **CASIA-FASD** dataset, which features close-up images of both real faces and various spoofing attacks. This dataset is crucial for our project, as it includes examples of printed photos, video replays, and 3D masks. You can access the dataset [here on Kaggle](https://www.kaggle.com/datasets/minhnh2107/casiafasd).
+
+- **Project Purpose**: The primary objective of this project is to improve security in face recognition systems by accurately distinguishing between genuine human faces and spoofing attempts. The ResNet-50 architecture's capacity to analyze subtle differences in features makes it especially well-suited for this application.
+
+For a demonstration of how anti-spoofing works in recognizing spoofing attacks within the attendance system using facial recognition technologies, please refer to the video below:
+
+**Reference Video**:  
+[Anti-Spoofing Example](https://github.com/user-attachments/assets/01a5fe4c-66f5-4362-b39b-65d6a23ee912)
+
 ## Steps to Set Up
 
 ### 1. Clone the Repository
@@ -131,6 +153,39 @@ You can now access the application at `http://127.0.0.1:8000/` in your web brows
 ### 10. Access the Admin Interface
 
 To access the admin interface, go to `http://127.0.0.1:8000/admin/` and log in with the superuser credentials you created earlier.
+
+### 11. Train Your Own Model (Optional, but Recommended)
+
+While the model files are available in the repository, we recommend that users train their own model to ensure optimal performance based on their specific hardware configurations. Follow these steps to generate your own `training_resnet50.pth` file:
+
+1. **Prepare Your Dataset**
+   - We encourage you to explore Kaggle for suitable datasets, such as the CASIA-FASD dataset, which contains images labeled as 'real' and 'fake'. You can download it directly from Kaggle using the following command:
+   ```python
+   path = kagglehub.dataset_download("minhnh2107/casiafasd")
+   ```
+   - Ensure you have a dataset structured correctly for the model training script.
+
+2. **Update the Dataset Path**
+   - Open the training script located at `attendance/train_model.py` and ensure the path to your dataset is correctly set in the script configuration. Since datasets may have different structures, adjust the paths according to your dataset.
+
+3. **Execute the Training Script**
+   - Run the following command in your terminal to start the training process:
+   ```bash
+   python attendance/train_model.py
+   ```
+
+4. **Monitor Training Progress**
+   - The script will display training loss and other metrics in the terminal. Keep an eye on these outputs to track the training process.
+
+5. **Completion**
+   - Once training is complete, your trained model will be saved in the `model` directory. You can now use this model for predictions in the Attendance Monitoring System.
+
+### Important Note
+- Although the pre-trained model is available for use, training your own version can lead to better accuracy tailored to your hardware specifications. If you choose to change the dataset or use your own, please ensure you understand the dataset structure and how it integrates with the training script to avoid errors.
+
+### Additional Notes
+- The training process may take time depending on your hardware specifications. Ensure your environment is set up for optimal performance.
+- If you have any questions or encounter issues while training the model, feel free to reach out for help or consult the documentation for more details.
 
 ## Troubleshooting
 
