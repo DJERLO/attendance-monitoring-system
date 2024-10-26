@@ -19,7 +19,13 @@ DATASET_PATH = os.getenv('DATASET_PATH')
 path = kagglehub.dataset_download("minhnh2107/casiafasd")
 print("Dataset downloaded to:", path)  # Print the download path
 
-MODEL_SAVE_PATH = os.path.join(CURRENT_DIR, 'training_resnet50.pth')
+# Create a directory named 'model' to store the trained model weights. 
+# The directory will be created if it does not already exist.
+MODEL_DIR = os.path.join(CURRENT_DIR, 'model')
+os.makedirs(MODEL_DIR, exist_ok=True)  
+
+# Define the path for saving the trained ResNet-50 model weights in the 'model' directory.
+MODEL_SAVE_PATH = os.path.join(MODEL_DIR, 'training_resnet50.pth')
 
 # Define paths for training images
 train_color_folder = os.path.join(path, 'train_img', 'train_img', 'color')

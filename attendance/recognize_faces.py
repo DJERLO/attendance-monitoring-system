@@ -13,7 +13,6 @@ from django.conf import settings  # Import settings to access MEDIA_ROOT
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 KNOWN_FACES_DIR = os.path.join(settings.MEDIA_ROOT, 'known_faces')  # Path to the known faces directory
-MODEL_PATH = os.path.join(CURRENT_DIR, 'training_resnet50.pth')
 TOLERANCE = 0.5
 
 # Define the transformation for the images

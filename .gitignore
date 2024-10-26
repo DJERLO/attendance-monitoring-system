@@ -15,6 +15,7 @@ db.sqlite3
 /attendance/sample.py
 /attendance/face_uploader.py
 /attendance/casiafasd/
+/attendance/model
 
 # Ignore migrations
 */migrations/*

@@ -9,7 +9,7 @@ from torchvision import models
 
 # Load the model
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
-MODEL_PATH = os.path.join(CURRENT_DIR, 'training_resnet50.pth')
+MODEL_PATH = os.path.join(CURRENT_DIR, 'model', 'training_resnet50.pth')
 
 model = models.resnet50(weights='IMAGENET1K_V1')
 
