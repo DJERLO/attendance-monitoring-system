@@ -2,14 +2,14 @@
 
 ## Project Overview
 
-The purpose of this project is to implement a web-based attendance tracking system for employees using facial recognition technology. The system allows employees to log their attendance remotely, either onsite or offsite, using a webcam or device camera and a web browser.
+The purpose of this project is to implement a web-based attendance tracking system for employees using facial recognition technology. The system allows employees to log their attendance remotely, either onsite or offsite, using a webcam or device camera and a web browser. User authentication is managed using Django Allauth, ensuring that only registered users can access the attendance functionality.
 
 ## Scope
 
 ### The system will:
 - Detect faces using a real-time camera feed on the client side.
 - Ensure anti-spoofing mechanisms are in place before recognizing the employee.
-- Register attendance data (with timestamp) for recognized employees and log it to a database.
+- Automatically record attendance data (with timestamp) for recognized employees without requiring explicit registration steps after facial recognition and log it to a database.
 - Be accessible both onsite and remotely, allowing employees to log attendance from any location with an internet connection.
 
 ### The system will not:
@@ -18,6 +18,10 @@ The purpose of this project is to implement a web-based attendance tracking syst
 - Store facial data locally on the client side.
 
 ## Functional Requirements
+
+### User Authentication:
+- The system shall use Django Allauth to manage user registrations and logins.
+- Only authenticated users will have access to the attendance features.
 
 ### Face Detection:
 - The system shall detect a face from the camera stream on the client side using the `face-api.js` library.
@@ -31,7 +35,7 @@ The purpose of this project is to implement a web-based attendance tracking syst
 
 ### Facial Recognition:
 - The system shall match the detected face with registered employees in the database using a facial recognition model implemented in Python.
-- If a match is found, the system shall retrieve the corresponding employee’s information.
+- If a match is found, the system shall retrieve the corresponding employee’s information and automatically record their attendance.
 - If no match is found, the system shall reject the attendance attempt.
 
 ### Attendance Logging:
@@ -49,6 +53,7 @@ The purpose of this project is to implement a web-based attendance tracking syst
 ### Security:
 - Facial data shall not be stored locally on the client side but processed in real-time for recognition.
 - Data transferred between the client and server must be encrypted to ensure the security and privacy of employee information.
+- User authentication data will be securely managed using Django Allauth.
 
 ### Usability:
 - The system interface must be user-friendly and accessible to employees without requiring technical knowledge.
@@ -68,6 +73,7 @@ The purpose of this project is to implement a web-based attendance tracking syst
 - The facial recognition model is pre-trained and capable of accurately identifying registered employees from live camera feeds.
 
 ## Technologies Used
+- **User Authentication**: Utilizes Django Allauth for managing user accounts and authentication.
 - **Face Detection**: Utilizes the `face-api.js` library for real-time face detection in the browser.
 - **Anti-Spoofing**: Employs the CASIA-FASD dataset to train anti-spoofing algorithms, ensuring that detected faces are not images or videos.
 - **Facial Recognition**: Implements a facial recognition model using Python to match detected faces with registered employee data.
@@ -83,3 +89,5 @@ If you'd like to contribute to this project, please fork the repository and crea
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+---
