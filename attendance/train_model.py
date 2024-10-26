@@ -16,11 +16,10 @@ CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 DATASET_PATH = os.getenv('DATASET_PATH')
 
 # Step 1: Define dataset download path from the .env file
-# Load the dataset path from the .env file
 path = kagglehub.dataset_download("minhnh2107/casiafasd")
 print("Dataset downloaded to:", path)  # Print the download path
 
-MODEL_SAVE_PATH = os.path.join(CURRENT_DIR, 'training.pth')
+MODEL_SAVE_PATH = os.path.join(CURRENT_DIR, 'training_resnet50.pth')
 
 # Define paths for training images
 train_color_folder = os.path.join(path, 'train_img', 'train_img', 'color')
@@ -43,7 +42,6 @@ class RealFakeDataset(torch.utils.data.Dataset):
     def _load_images(self, folder):
         for filename in os.listdir(folder):
             if filename.endswith('.jpg'):
-                print(f"Processing file: {filename}")
                 if 'real' in filename:
                     label = 1  # 1 for Real
                     self.real_count += 1  # Increment real count
@@ -90,16 +88,16 @@ train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=32, shuffle
 real_count = train_dataset.real_count  # Access the real count from the dataset
 fake_count = train_dataset.fake_count  # Access the fake count from the dataset
 
-# Step 4: Define your model (using MobileNetV2 instead of ResNet18)
-model = models.mobilenet_v2(weights='IMAGENET1K_V1')  # Use pre-trained weights
-num_features = model.classifier[1].in_features  # Get input features from the classifier
+# Step 4: Define your model (using ResNet-50 instead of MobileNetV2)
+model = models.resnet50(weights='IMAGENET1K_V1')  # Use pre-trained weights
+num_features = model.fc.in_features  # Get the number of input features to the final fully connected layer
 
 # Print the number of input features to the final layer
 print("Number of input features to the final layer:", num_features)
 print("Train dataset classes: ", len(train_dataset.classes))
 
 # Adjust the final fully connected layer for the number of classes
-model.classifier[1] = nn.Linear(num_features, len(train_dataset.classes))  # 2 classes: Real and Fake
+model.fc = nn.Linear(num_features, len(train_dataset.classes))  # 2 classes: Real and Fake
 
 # Step 5: Set up training parameters
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

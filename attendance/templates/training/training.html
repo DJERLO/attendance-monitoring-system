@@ -41,7 +41,7 @@
             const form = document.getElementById('form-container');
             
             let lastDetectionTime = Date.now();
-            const detectionInterval = 500; // 2 seconds between consecutive face captures
+            const detectionInterval = 3000; // 2 seconds between consecutive face captures
             let matches = [];        // Array to hold recognized names
             let employee_numbers = [];  // hold recognized employee_ids
             let messages = [];       // hold recognized messages
@@ -94,6 +94,7 @@
 
             async function detectAndCaptureFaces() {
                 console.log(messages)
+                isFaceCloseEnough = true
                 const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions())
                     .withFaceLandmarks()
                     .withFaceDescriptors();
@@ -103,31 +104,90 @@
 
                 detections.forEach((detection, index) => {
                     const box = detection.detection.box;
-                    // Determine if the face is recognized or not
-                    const name = messages[index] || "Unknown";  
-                    const employeeID = employee_numbers[index] || "N/A";
-                    faceNames.push(name);
+                    const faceSize = box.width * box.height;
+                    const canvasSize = canvas.width * canvas.height;
+                    var name = "";  
+                    const employeeID = employee_numbers[index] || "";
+                    
+                    if (faceSize < canvasSize * 0.1) {
+                        // Face is too small, prompt user to move closer
+                        context.font = '20px Arial';
+                        context.fillStyle = 'white'; // Text color
 
-                    // Draw bounding box and label
-                    context.beginPath();
-                    context.rect(box.x, box.y, box.width, box.height);
-                    context.lineWidth = 5;
-                    context.strokeStyle = (name === "Fake") ? 'red' : 
-                      (name === "Uncertain") ? 'yellow' : 'green';
-                    context.stroke();
+                        // Calculate the dimensions of the text
+                        const text = 'Please move closer to the camera';
+                        const textWidth = context.measureText(text).width;
+                        const textHeight = 20; // Approximate height based on font size
 
-                    context.font = '20px Arial';
-                    context.fillStyle = (name === "Fake") ? 'red' : 
-                      (name === "Uncertain") ? 'yellow' : 'green';
-                    context.fillText(name, box.x, box.y > 10 ? box.y - 5 : 10);  
+                        // Padding for the rectangle
+                        const messagepadding = 10;
+
+                        // Calculate rectangle position and dimensions
+                        const rectX = (canvas.width - textWidth) / 2 - messagepadding; // Center the rectangle
+                        const rectY = (canvas.height - textHeight) / 2 - messagepadding; // Center vertically
+                        const rectWidth = textWidth + messagepadding * 2; // Width of rectangle
+                        const rectHeight = textHeight + messagepadding * 2; // Height of rectangle
+
+                        // Draw the background rectangle
+                        context.fillStyle = 'rgba(255, 0, 0, 0.7)'; // Semi-transparent red
+                        context.fillRect(rectX, rectY, rectWidth, rectHeight);
+
+                        // Draw the text on top of the rectangle
+                        context.fillStyle = 'white'; // Set text color to white
+                        context.fillText(text, (canvas.width / 2) - (textWidth / 2), (canvas.height / 2) + (textHeight / 4));
+                        
+                        //Set isFaceCloseEnough to false so it won't send the draw an image on the canvas
+                        isFaceCloseEnough = false
+                        name = messages[index];
+                        faceNames.push(name);
+
+                        // Draw the rectangle around the face
+                        context.beginPath();
+                        context.rect(box.x, box.y, box.width, box.height);
+                        context.lineWidth = 5;
+                        context.strokeStyle = 'red';
+                        context.stroke();
+
+                        // Set the fill style for the text background
+                        context.fillStyle = 'rgba(255, 0, 0, 0.7)'; // Semi-transparent red
+                        const padding = 10; // Padding around the text
+
+                        // Draw the background rectangle for the text
+                        context.fillRect(box.x, box.y > 10 ? box.y - 30 : 10, context.measureText('Move Closer').width + padding * 2, 30);
+
+                        // Set text properties
+                        context.fillStyle = 'white'; // Text color
+                        context.font = '20px Arial';
+                        context.fillText('Move Closer', box.x + padding, box.y > 10 ? box.y - 10 : 20); // Adjust position with padding  
+                    }
+                    
+                    else{
+                        // Determine if the face is recognized or not
+                        name = messages[index];
+                        faceNames.push(name);
+
+                        // Draw bounding box and label
+                        context.beginPath();
+                        context.rect(box.x, box.y, box.width, box.height);
+                        context.lineWidth = 5;
+                        context.strokeStyle = (name === "Fake") ? 'red' : 
+                        (name === undefined) ? 'yellow' : 'green';
+                        context.stroke();
+
+                        context.font = '20px Arial';
+                        context.fillStyle = (name === "Fake") ? 'red' : 
+                        (name === undefined) ? 'yellow' : 'green';
+                        context.fillText(name, box.x, box.y > 10 ? box.y - 5 : 10);  
+                    }
+
+                    
                 });
-
-                if (detections.length > 0 && (Date.now() - lastDetectionTime > detectionInterval)) {
+                //Check if the face is close enough and there is a detection of the face
+                if (isFaceCloseEnough && detections.length > 0 && (Date.now() - lastDetectionTime > detectionInterval)) {
                     lastDetectionTime = Date.now(); 
                     await captureAndSendImage(faceNames); 
                 } else if (detections.length === 0 && (Date.now() - lastDetectionTime > detectionInterval)) {
                     console.log('No faces detected.');
-                    
                 }
 
                 requestAnimationFrame(detectAndCaptureFaces);
@@ -149,8 +209,24 @@
                 .then(response => response.json())
                 .then(data => {
                     console.log('Server response:', data);
-                    const { class_index, confidence, message } = data.result;
-                    messages = [message]; // Set the messages array to contain only the latest message
+                    
+                    
+                    // Check if 'results' exists and has entries
+                    if (data.results && data.results.length > 0) {
+                        // Loop through each result
+                        messages = new Array(data.results.length);
+                        data.results.forEach((result, index) => {
+                            const { class_index, confidence, message, coordinates } = result;
+
+                            // Store the message in the messages array at the current index
+                            messages[index] = message; 
+
+                        });
+                    } else if (data.error) {
+                        console.error('Error:', data.error); // Log any error message returned from the server
+                    } else {
+                        console.log('No faces detected.');
+                    }
                 
                 })
                 .catch((error) => {

@@ -1,10 +1,10 @@
 from django.conf import settings
 from django.conf.urls.static import static
-from django.urls import include, path
+from django.urls import path
 from . import views
 urlpatterns = [
     path('check/', views.check_attendance, name='check_attendance'),
-    path('attendance/', views.attendance, name='attendance'),  # Updated path to use the new attendance view
+    path('attendance/', views.attendance, name='attendance'),
     path('register/', views.user_registration, name='employee-registration'),
     path('register-face/<str:employee_number>', views.user_face_registration, name = 'facial-registration'),
     path('online-training/', views.online_training, name='online_training'),

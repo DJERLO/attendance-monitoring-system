@@ -153,14 +153,14 @@
                     console.log('Server response:', data);
                     
                     // Assuming your server sends back the names of matched faces
-                    matches = data.result.map(item => item.name || item.employee_id);
+                    matches = data.result.map(item => item.name || item.employee_id || "Unknown");
                     employee_number = data.result.map(item => item.employee_number || "N/A");
                     profile_image = data.result.map(item => item.profile_image_url || "N/A");
-                    messages = data.result.map(item => item.message);
+                    messages = data.result.map(item => item.message || "No Content");
                     
                     // Check for valid matches (excluding "Unknown" and "No match found")
-                    const validMatches = matches.filter(name => name !== "Unknown" && name !== "No match found");
-                    const validEmployeeNumber = employee_numbers.filter(employee_number => employee_number !== "N/A");
+                    const validMatches = matches.filter(name => name !== "No match found");
+                    const validEmployeeNumber = employee_numbers.filter(employee_number => employee_number !== "Unknown");
                     const message = messages.filter(messages => messages !== `${matches} has already checked in today.`);
                     
                     if (validMatches.length > 0 && Array.isArray(matches) && matches.every(match => match !== '' && match !== null && match !== undefined)) {
@@ -200,15 +200,20 @@
                             });
                         }
 
-                        if (messages.some(msg => msg.includes(`Possible Spoofing Detected`))) {
+                        if (messages.includes('Possible Spoofing Detected')) {
                             // Prompt users of possible spoofing attack
                             Swal.fire({
-                                icon: 'warning', // Use a warning icon to indicate seriousness
+                                icon: 'warning',
+                                imageUrl: 'https://tarand.io/images/2024/04/Deepfake-Awareness-Training-01-scaled_jpg.webp', 
                                 heightAuto: false,
-                                title: 'Possible Spoofing Detected!',
-                                html: `Alert: Possible spoofing detected during your attendance check-in. Please verify your credentials and contact support if you think this is an error.`,
-                                confirmButtonText: 'Okay', // Allow users to acknowledge the alert
-                                showCloseButton: true, // Show a close button for user convenience
+                                title: 'Warning: Possible Spoofing Detected!',
+                                html: `We have detected a possible spoofing attempt during your attendance check-in. 
+                                    Please be aware that this may affect your attendance record. 
+                                    If you have any concerns or believe this is an error, please contact support for assistance.`,
+                                timer: 2000, // Auto close after 2 seconds
+                                timerProgressBar: true,
+                                showConfirmButton: false, // Hide the OK button
+                                height: '250px',
                                 willClose: () => {
                                     // Additional cleanup if needed
                                 }

@@ -1,7 +1,5 @@
 # Django settings
 SECRET_KEY=''  # Set your Django secret key here
-DEBUG=True  # Set to False in production
-ALLOWED_HOSTS=  # Add your production domains here, e.g., localhost,127.0.0.1
 
 # Google OAuth 2.0 credentials for application authentication
 CLIENT_ID=''  # Your Google OAuth client ID
@@ -19,3 +17,7 @@ DB_USER=''  # Database user
 DB_PASSWORD=''  # Database password
 DB_HOST=''  # Database host, e.g., localhost
 DB_PORT=''  # Database port, e.g., 5432 for PostgreSQL
+
+#Email Server
+EMAIL_HOST_USER = 'your-email@gmail.com'
+EMAIL_HOST_PASSWORD = 'your-email-password'

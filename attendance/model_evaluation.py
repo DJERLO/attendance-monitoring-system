@@ -9,15 +9,17 @@ from torchvision import models
 
 # Load the model
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
-MODEL_PATH = os.path.join(CURRENT_DIR, 'training.pth')
+MODEL_PATH = os.path.join(CURRENT_DIR, 'training_resnet50.pth')
 
-model = models.mobilenet_v2(weights='IMAGENET1K_V1')
-num_features = model.classifier[1].in_features
-model.classifier[1] = nn.Linear(num_features, 2)  # Adjust for number of classes
+model = models.resnet50(weights='IMAGENET1K_V1')
+
+# Adjust the final fully connected layer (fc) for 2 classes
+num_features = model.fc.in_features  # Access the fc layer instead of classifier
+model.fc = nn.Linear(num_features, 2)  # Adjust for the number of classes (2 in this case)
 
 # Load your trained model
 try:
-    model.load_state_dict(torch.load(MODEL_PATH, weights_only=True))
+    model.load_state_dict(torch.load(MODEL_PATH, map_location=torch.device('cpu'), weights_only=True))
 except FileNotFoundError:
     raise RuntimeError(f"Model file not found at {MODEL_PATH}")
 except Exception as e:
@@ -31,14 +33,19 @@ model.to(device)
 
 # Define your image transformations
 data_transforms = transforms.Compose([
-    transforms.Resize((224, 224)),
-    transforms.ToTensor(),           # Convert images to tensors
+    transforms.CenterCrop(224),  # Center crop to 224x224 (or another size)
+    transforms.Resize((224, 224)),  # Resize if needed
+    transforms.ToTensor(),
+    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])  # Normalize
 ])
 
-def predict_from_base64(base64_image):
-    # Decode the base64 image
-    image_data = base64.b64decode(base64_image)
-    image = Image.open(io.BytesIO(image_data)).convert("RGB")  # Convert to RGB
+def detect_face_spoof(base64_image):
+
+    # Decode the base64 image if not already in bytes
+    if isinstance(base64_image, str):
+        base64_image = base64.b64decode(base64_image)
+
+    image = Image.open(io.BytesIO(base64_image)).convert("RGB")  # Convert to RGB
 
     # Apply transformations
     image_tensor = data_transforms(image).unsqueeze(0)  # Add batch dimension
@@ -53,6 +60,6 @@ def predict_from_base64(base64_image):
     class_idx = predicted.item()
     confidence = torch.nn.functional.softmax(outputs, dim=1)[0][class_idx].item()
 
-    message = 'Real' if class_idx == 0 else 'Fake'
+    message = 'Real' if class_idx == 1 else 'Fake'
 
     return class_idx, confidence, message
