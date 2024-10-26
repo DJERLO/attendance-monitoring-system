@@ -46,6 +46,8 @@ The purpose of this project is to implement a web-based attendance tracking syst
 - The system shall allow employees to log attendance from any location with internet access, using their webcam.
 - Attendance can be marked remotely or onsite as long as the employee's face is recognized by the system.
 
+## Non-Functional Requirements
+
 ### Performance:
 - The system must detect and recognize faces with a response time of less than 500 milliseconds.
 - The system should only process and send face data to the server every 2000 milliseconds to prevent excessive server requests.
