@@ -64,15 +64,41 @@ The purpose of this project is to implement a web-based attendance tracking syst
 ### Availability:
 - The system must be available 24/7, allowing employees working different shifts or remotely to log their attendance anytime.
 
-## Constraints
-- The system requires an internet connection for both client and server communication.
-- Employees must be registered in the system before using the facial recognition attendance feature.
-- The system will only send a new frame every 2000 milliseconds, ensuring no duplicate attendance entries for a single employee.
+### Constraints
 
-## Assumptions
-- Employees have access to a web browser and a functioning camera to log their attendance.
-- The system can be accessed remotely, but it assumes employees will have stable internet access.
-- The facial recognition model is pre-trained and capable of accurately identifying registered employees from live camera feeds.
+1. **Device Compatibility**: The system is designed to work optimally on devices with modern web browsers (Chrome, Firefox, Safari, etc.) and may not function correctly on outdated browsers or devices.
+  
+2. **Camera Quality**: The effectiveness of the facial recognition feature depends on the quality of the camera used. Low-resolution cameras may result in inaccurate identification.
+
+3. **Lighting Conditions**: The system requires adequate lighting for effective face detection and recognition. Poor lighting conditions may lead to failures in recognition.
+
+4. **User Privacy**: The system must comply with relevant data protection regulations (such as GDPR or CCPA) concerning employee privacy and data handling.
+
+5. **Server Load**: The system’s performance may be affected during peak usage times if the server cannot handle the volume of concurrent connections.
+
+6. **Training Data Updates**: Regular updates and retraining of the facial recognition model may be necessary to maintain accuracy as employee appearances change over time.
+
+7. **Network Latency**: A stable internet connection is crucial; high latency may impact the responsiveness of the attendance system.
+
+8. **Hardware Limitations**: The performance of the facial recognition feature may vary based on the hardware specifications of the user's device.
+
+### Assumptions
+
+1. **User Familiarity**: It is assumed that employees are comfortable using web applications and have basic technical skills.
+
+2. **Browser Permissions**: Users will grant the necessary permissions for camera access in their browsers.
+
+3. **Registration Process**: Employees will complete the registration process correctly, including uploading a clear image for facial recognition.
+
+4. **Camera Positioning**: It is assumed that users will set up their cameras in a position that allows for clear visibility of their faces.
+
+5. **Stable Environment**: Employees will log their attendance from a stable environment without significant background movement that could interfere with facial recognition.
+
+6. **Internet Bandwidth**: It is assumed that employees have sufficient internet bandwidth to support real-time video streaming for face detection.
+
+7. **Software Updates**: Users will keep their web browsers and other relevant software updated to the latest versions for optimal functionality.
+
+8. **Fallback Mechanism**: It is assumed there will be a fallback mechanism (such as manual attendance) in case the facial recognition system fails to recognize an employee.
 
 ## Technologies Used
 - **User Authentication**: Utilizes Django Allauth for managing user accounts and authentication.
