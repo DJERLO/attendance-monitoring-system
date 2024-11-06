@@ -39,6 +39,24 @@ class Employee(models.Model):
     def __str__(self):
         return self.full_name()
     
+    def total_hours_worked(self):
+        """Calculate total hours worked across all shift records."""
+        total_hours = 0
+        shift_records = ShiftRecord.objects.filter(employee=self)
+
+        for record in shift_records:
+            total_hours += record.total_hours
+
+        return total_hours
+
+    def average_hours_worked(self):
+        """Calculate average hours worked per shift."""
+        shift_records = ShiftRecord.objects.filter(employee=self)
+        if shift_records.count() == 0:
+            return 0
+        total_hours = self.total_hours_worked()
+        return total_hours / shift_records.count()
+    
 # Model to store multiple face images for facial recognition
 class FaceImage(models.Model):
     employee = models.ForeignKey(Employee, related_name='face_images', on_delete=models.CASCADE)
@@ -46,16 +64,34 @@ class FaceImage(models.Model):
     uploaded_at = models.DateTimeField(default=timezone.now)
 
     
-class CheckIn(models.Model):
+# Model to track attendance with clock in and out
+class ShiftRecord(models.Model):
     employee = models.ForeignKey(Employee, on_delete=models.CASCADE)
-    timestamp = models.DateTimeField(default=timezone.now)
+    date = models.DateField(default=timezone.now)
+    
+    # Clock-in and clock-out timestamps
+    clock_in_at_am = models.DateTimeField(blank=True, null=True)
+    clock_out_at_am = models.DateTimeField(blank=True, null=True)
+    clock_in_at_pm = models.DateTimeField(blank=True, null=True)
+    clock_out_at_pm = models.DateTimeField(blank=True, null=True)
 
     def __str__(self):
-        return f"{self.employee.full_name()} checked in at {self.timestamp.strftime('%Y-%m-%d %H:%M:%S')}"
+        return f"{self.employee.full_name()} Attendance on {self.date}"
 
-class CheckOut(models.Model):
-    employee = models.ForeignKey(Employee, on_delete=models.CASCADE)
-    timestamp = models.DateTimeField(default=timezone.now)
+    @property
+    def total_hours(self):
+        # Calculate total hours worked if all clock-ins and clock-outs are present
+        total = 0
+        if self.clock_in_at_am and self.clock_out_at_am:
+            total += (self.clock_out_at_am - self.clock_in_at_am).seconds / 3600  # convert to hours
+        if self.clock_in_at_pm and self.clock_out_at_pm:
+            total += (self.clock_out_at_pm - self.clock_in_at_pm).seconds / 3600  # convert to hours
+        return total
+    
+    def employee_full_name(self):
+        return self.employee.full_name()  # Calls the Employee model's full_name method
+    employee_full_name.short_description = "Employee Full Name"
 
-    def __str__(self):
-        return f"{self.employee.full_name()} checked out at {self.timestamp.strftime('%Y-%m-%d %H:%M:%S')}"
+    def employee_profile_picture(self):
+        return self.employee.avatar_url  # Calls the Employee model's avatar_url property
+    employee_profile_picture.short_description = "Employee Profile Picture"

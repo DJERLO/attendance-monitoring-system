@@ -1,0 +1,291 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="{% static 'css/bootstrap.min.css' %}" rel="stylesheet">
+    <link href="{% static 'css/attendance.css' %}" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
+    <title>Check In</title>
+</head>
+<body class="bg bg-dark">
+    <div class="loader-container" id="loader">
+        <div class="ripple"></div>
+    </div>
+    <main>
+        <div class="container text-center">
+            <h1 class="text-white">Attendance Check-In</h1>
+            <h2 class="text-white">Current Time: <span id="current-time">{{ timestamp }}</span></h2>
+            <h2 class="text-white">Current Mode: {{ time }}</h2>
+            <div class="row g-0"> 
+                <div class="col-md-12" id="video-container">
+                    <canvas class="align-self-stretch" id="canvas"></canvas>
+                    <video class="align-self-stretch" id="video" autoplay muted></video>
+                    
+                </div>
+                <div class="col">
+                    <a class="p-3 btn btn-success w-100 mt-3" href="/register/">Register</a>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.all.min.js"></script>
+    <script defer src="{% static 'js/bootstrap.bundle.min.js' %}"></script>
+    <script defer src="{% static 'js/face-api.min.js' %}"></script>
+    <script type="module">
+        import tensorflowtfjs from 'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.21.0/+esm'
+    </script>   
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+
+            // Function to format the date and time
+            function updateCurrentTime() {
+                const currentTimeElement = document.getElementById('current-time');
+                
+                // Create a new Date object
+                const now = new Date();
+
+                // Format the date and time
+                const options = {
+                    year: 'numeric', 
+                    month: '2-digit', 
+                    day: '2-digit', 
+                    hour: '2-digit', 
+                    minute: '2-digit', 
+                    second: '2-digit',
+                    hour12: true // Use 12-hour format
+                };
+                
+                // Get formatted date string
+                const formattedTime = now.toLocaleString('en-PH', options);
+                
+                // Update the innerText of the span
+                currentTimeElement.innerText = formattedTime;
+            }
+
+            // Initial call to display the time immediately
+            updateCurrentTime();
+
+            // Update the time every second
+            setInterval(updateCurrentTime, 1000);
+
+            const loader = document.getElementById('loader');
+            const video = document.getElementById('video');
+            const canvas = document.getElementById('canvas');
+            const context = canvas.getContext('2d');
+            const form = document.getElementById('form-container');
+            
+            let lastDetectionTime = Date.now();
+            const detectionInterval = 2000; // 2 seconds between consecutive face captures
+            let matches = [];        // Array to hold recognized names
+            let employee_numbers = [];  // hold recognized employee_ids
+            let messages = [];       // hold recognized messages
+
+            let employeeName = document.getElementById('employeeName');
+            let employeeID = document.getElementById('employeeID');
+
+
+            function adjustCanvasSize(video, canvas) {
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                video.width = video.videoWidth;
+                video.height = video.videoHeight;
+            }
+
+            function getCameraStream() {
+                const constraints = {
+                    video: {
+                        width: { ideal: window.innerWidth },
+                        height: { ideal: window.innerHeight },
+                        facingMode: "user"
+                    }
+                };
+
+                // Access webcam stream
+                navigator.mediaDevices.getUserMedia(constraints)
+                .then(stream => {
+                    video.srcObject = stream;
+                    video.addEventListener('loadedmetadata', () => {
+                        adjustCanvasSize(video, canvas);
+                    });
+                })
+                .catch(err => {
+                    console.error("Error accessing webcam: " + err);
+                    alert("Could not access the camera. Please check camera permissions and try again.");
+                });
+            }
+
+            async function loadModels() {
+                try {
+                    const modelPath = '{% static "js/" %}';
+                    await faceapi.nets.ssdMobilenetv1.loadFromUri(modelPath);
+                    await faceapi.nets.tinyFaceDetector.loadFromUri(modelPath);
+                    await faceapi.nets.faceLandmark68Net.loadFromUri(modelPath);
+                    await faceapi.nets.faceRecognitionNet.loadFromUri(modelPath);
+                } catch (error) {
+                    console.error("Error loading models:", error);
+                }
+            }
+
+            async function detectAndCaptureFaces() {
+                console.log(messages)
+                const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions())
+                    .withFaceLandmarks()
+                    .withFaceDescriptors();
+
+                context.clearRect(0, 0, canvas.width, canvas.height);
+                let faceNames = [];
+
+                detections.forEach((detection, index) => {
+                    const box = detection.detection.box;
+                    // Determine if the face is recognized or not
+                    const name = matches[index] || "Unknown";  
+                    const employeeID = employee_numbers[index] || "N/A";
+                    faceNames.push(name);
+
+                    // Draw bounding box and label
+                    context.beginPath();
+                    context.rect(box.x, box.y, box.width, box.height);
+                    context.lineWidth = 5;
+                    context.strokeStyle = (name === "Unknown") ? 'red' : 'green';
+                    context.stroke();
+
+                    context.font = '20px Arial';
+                    context.fillStyle = (name === "Unknown") ? 'red' : 'green';
+                    context.fillText(name, box.x, box.y > 10 ? box.y - 5 : 10);  
+                });
+
+                if (detections.length > 0 && (Date.now() - lastDetectionTime > detectionInterval)) {
+                    lastDetectionTime = Date.now(); 
+                    await captureAndSendImage(faceNames); 
+                } else if (detections.length === 0 && (Date.now() - lastDetectionTime > detectionInterval)) {
+                    console.log('No faces detected.');
+                    
+                }
+
+                requestAnimationFrame(detectAndCaptureFaces);
+            }
+
+            async function captureAndSendImage(faceNames) {
+                console.log("Matching...");
+                context.drawImage(video, 0, 0, canvas.width, canvas.height);
+                const imgData = canvas.toDataURL('image/jpeg');
+                const timemode = '{{ time }}'.toLowerCase();  // Convert the time to lowercase
+                
+                fetch(`/attendance/check-in/${timemode}/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token }}',
+                    },
+                    body: JSON.stringify({ image: imgData }),
+                })
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Server response:', data);
+                    
+                    // Assuming your server sends back the names of matched faces
+                    matches = data.result.map(item => item.name || item.employee_id || "Unknown");
+                    employee_number = data.result.map(item => item.employee_number || "N/A");
+                    profile_image = data.result.map(item => item.profile_image_url || "N/A");
+                    messages = data.result.map(item => item.message || "No Content");
+                    
+                    // Check for valid matches (excluding "Unknown" and "No match found")
+                    const validMatches = matches.filter(name => name !== "No match found");
+                    const validEmployeeNumber = employee_numbers.filter(employee_number => employee_number !== "Unknown");
+                    const message = messages.filter(messages => messages !== `${matches} has already checked in today.`);
+                    
+                    if (validMatches.length > 0 && Array.isArray(matches) && matches.every(match => match !== '' && match !== null && match !== undefined)) {
+                        //Successful attendance
+                        if (messages.some(msg => msg.includes(`has checked in today.`))){
+                           
+                            Swal.fire({
+                                imageUrl: profile_image, // URL of the image
+                                icon: 'success', 
+                                heightAuto: false,
+                                title: 'Check-In Successful!',
+                                html: `Hello, ${validMatches[0]}! Your attendance has been successfully recorded. Thank you for checking in!`,
+                                timer: 2000, // Auto close after 2 seconds
+                                timerProgressBar: true,
+                                showConfirmButton: false, // Hide the OK button
+                                willClose: () => {
+                                    // Additional cleanup if needed
+                                }
+                            });
+
+                        }
+
+                        if (messages.some(msg => msg.includes(`has already checked in today.`))){
+                            //Prompt users Check-In Again Tommorow
+                            Swal.fire({
+                                imageUrl: profile_image,
+                                icon: 'info', 
+                                heightAuto: false,
+                                title: 'Attendance Already Marked!',
+                                html: `Hello, ${validMatches[0]}! You have already checked in today. Thank you for your diligence!`,
+                                timer: 2000, // Auto close after 2 seconds
+                                timerProgressBar: true,
+                                showConfirmButton: false, // Hide the OK button
+                                willClose: () => {
+                                    // Additional cleanup if needed
+                                }
+                            });
+                        }
+
+                        if (messages.includes('Possible Spoofing Detected')) {
+                            // Prompt users of possible spoofing attack
+                            Swal.fire({
+                                icon: 'warning',
+                                imageUrl: 'https://tarand.io/images/2024/04/Deepfake-Awareness-Training-01-scaled_jpg.webp', 
+                                heightAuto: false,
+                                title: 'Warning: Possible Spoofing Detected!',
+                                html: `We have detected a possible spoofing attempt during your attendance check-in. 
+                                    Please be aware that this may affect your attendance record. 
+                                    If you have any concerns or believe this is an error, please contact support for assistance.`,
+                                timer: 2000, // Auto close after 2 seconds
+                                timerProgressBar: true,
+                                showConfirmButton: false, // Hide the OK button
+                                willClose: () => {
+                                    // Additional cleanup if needed
+                                }
+                            });
+                        }
+
+
+                    } else if (matches.includes("No match found")) {
+                        matches[0] = null
+                    } else{
+                        matches[0] = null
+                    }
+                    
+                })
+                .catch((error) => {
+                    console.error('Error:', error);
+                    
+                });
+            }
+
+            await loadModels();
+            getCameraStream();
+    
+            window.onresize = function() {
+                video.pause();
+                getCameraStream();
+                adjustCanvasSize(video, canvas);
+            };
+    
+            video.addEventListener('loadedmetadata', () => {
+                detectAndCaptureFaces();
+            });
+
+            setTimeout(() => {
+                loader.style.display = 'none'; // Hide the spinner after 5 seconds
+            }, 6000);
+        });
+    </script>    
+</body>
+</html>

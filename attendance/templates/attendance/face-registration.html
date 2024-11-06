@@ -16,7 +16,7 @@
     <main>
         <div class="container text-center mt-4">
             <h2>Capture Your Face for Registration</h2>
-            <div class="row justify-content-center g-4">
+            <div class="row justify-content-center g-4 w-100 h-100">
                 <div class="col-md-6 d-block" id="video-container">
                     <video id="video" autoplay muted></video>
                     <button class="btn btn-primary mt-3" id="capture-btn">Capture Image</button>
@@ -69,8 +69,8 @@
             function getCameraStream() {
                 const constraints = {
                     video: {
-                        width: { ideal: 640 },
-                        height: { ideal: 480 },
+                        width: { ideal:  window.innerWidth },
+                        height: { ideal:  window.innerHeight },
                         facingMode: "user"
                     }
                 };
@@ -174,7 +174,7 @@
                 toast.style = 'min-width: 200px;';
                 
                 toast.innerHTML = `
-                    <div class="toast-header text-white bg-primary">
+                    <div class="toast-header text-white bg-${type}">
                         <strong class="me-auto">${title}</strong>
                         <small class="text-white">${timeString}</small>
                     </div>

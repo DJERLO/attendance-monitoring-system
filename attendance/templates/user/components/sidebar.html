@@ -1,0 +1,88 @@
+{% load static %}
+<!-- Sidebar for navigation -->
+<div class="sidebar">
+    <div class="logo-details">
+      <!-- Icon and logo name -->
+      <!-- <i class='bx bxl-c-plus-plus icon'></i> -->
+      <img class="icon me-2" src="{% static 'img/logo.png' %}" alt="">
+      <div class="logo_name">Attendance</div>
+      <i class='bx bx-menu' id="btn"></i> <!-- Menu button to toggle sidebar -->
+    </div>
+    <ul class="navigation-list">
+      <!-- Search bar -->
+      <!-- <li>
+        <i class='bx bx-search'></i>
+        <input type="text" placeholder="Search...">
+        <span class="tooltip">Search</span>
+      </li> -->
+      <!-- List of navigation items -->
+      <li>
+        <a href="{% url 'dashboard' %}" class="{% if request.path == '/dashboard/' %}active{% endif %}">
+          <i class='bx bx-grid-alt'></i>
+          <span class="links_name">Dashboard</span>
+        </a>
+        <span class="tooltip">Dashboard</span>
+      </li>
+      <!-- Additional navigation items -->
+      <li>
+        <a href="#">
+          <i class='bx bx-user'></i>
+          <span class="links_name">User</span>
+        </a>
+        <span class="tooltip">Account</span>
+      </li>
+      <li>
+        <a href="{% url 'attendance-sheet' %}" class="{% if request.path == '/attendance-sheet/' %}active{% endif %}">
+          <i class='bx bx-check-square'></i>
+          <span class="links_name">Attendance</span>
+        </a>
+        <span class="tooltip">Attendance</span>
+      </li>
+      <li>
+        <a href="#">
+          <i class='bx bx-pie-chart-alt-2'></i>
+          <span class="links_name">Analytics</span>
+        </a>
+        <span class="tooltip">Analytics</span>
+      </li>
+      <li>
+        <a href="#">
+          <i class='bx bx-folder'></i>
+          <span class="links_name">File Manager</span>
+        </a>
+        <span class="tooltip">Files</span>
+      </li>
+      <li>
+        <a href="#">
+          <i class='bx bx-cart-alt'></i>
+          <span class="links_name">Order</span>
+        </a>
+        <span class="tooltip">Order</span>
+      </li>
+      <li>
+        <a href="#">
+          <i class='bx bx-heart'></i>
+          <span class="links_name">Saved</span>
+        </a>
+        <span class="tooltip">Saved</span>
+      </li>
+      <li>
+        <a href="#">
+          <i class='bx bx-cog'></i>
+          <span class="links_name">Setting</span>
+        </a>
+        <span class="tooltip">Setting</span>
+      </li>
+      <!-- Profile section -->
+      <li class="profile">
+        <div class="profile-details">
+          <!--<img src="profile.jpg" alt="profileImg">-->
+          <div class="name_job">
+            <div class="name">St. Clare College</div>
+            <div class="job">@stclarecollege</div>
+          </div>
+        </div>
+        <a href="{% url 'account_logout' %}"><i class='bx bx-log-out' id="log_out"></i></a> <!-- Logout icon -->
+      </li>
+    </ul>
+  </div>

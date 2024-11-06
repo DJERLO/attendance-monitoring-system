@@ -1,0 +1,322 @@
+{% load timecard %}
+{% load static %}
+<style>
+    /* Basic table styling */
+    table {
+        table-layout: fixed;
+        border-collapse: collapse;
+        width: clamp(100px, 100vw, 100%);
+        font-size: clamp(10px, 2vw, 18px);
+        font-family: Arial, sans-serif;
+        margin: 20px 0;  /* Adds margin above and below the table */
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);  /* Adds a subtle shadow for depth */
+    }
+
+    /* Styling for the table header */
+    th, td {
+        
+        border: 1px solid #ddd;
+        padding: 12px 15px; /* Increases padding for better spacing */
+        text-align: center;
+        vertical-align: middle; /* Ensures cells are aligned vertically */
+    }
+
+    /* Table header background color and font styles */
+    th {
+        background-color: #f8f8f8;
+        color: #333;
+        font-weight: bold;
+    }
+
+    /* Alternate row colors for better readability */
+    tr:nth-child(even) {
+        background-color: #f9f9f9; /* Light grey for even rows */
+    }
+
+    tr:nth-child(odd) {
+        background-color: #ffffff; /* White for odd rows */
+    }
+
+    /* Hover effect for rows */
+    tr:hover {
+        background-color: #f1f1f1; /* Light grey hover effect */
+        cursor: pointer; /* Indicates that rows are clickable */
+    }
+
+    /* Add focus to headers */
+    th:hover {
+        background-color: #e0e0e0; /* Slightly darker on hover */
+    }
+
+    /* Styling for table cells */
+    td {
+        color: #555;
+    }
+
+    /* Add a more prominent hover effect when hovering over cells */
+    td:hover {
+        background-color: #eef2f7;
+    }
+
+    /* Month Filter Section */
+    #filter {
+        margin-top: 20px;
+        margin-bottom: 20px;
+    }
+
+    .input-group-text {
+        width: 140px;
+    }
+
+    .signature-container {
+        position: relative;
+        top: 5%;
+        text-align: center;
+        margin-top: 50px;
+    }
+
+    .signature-line {
+        width: 250px;
+        border-bottom: 1px solid black;
+        margin: 20px auto;
+    }
+
+    .printed-name {
+        font-weight: bold;
+        margin-top: 5px;
+    }
+
+</style>
+<div class="container">
+    <!-- Month Filter -->
+    
+    <div id="filter" class="filter d-flex flex-nowrap align-self-stretch justify-content-center align-content-center mb-3">
+        <div class="input-group w-100">
+            <span class="input-group-text" id="monthLabel">Select Month:</span>
+            <input type="month" class="form-control" id="monthInput" onchange="filterRecords()">
+            <button class="btn btn-primary print" onclick="printAttendanceRecords()"><i class='bx bxs-printer'></i> Print</button>
+        </div>
+    </div>
+</div>
+
+
+<!-- Print Table -->
+<main>
+    <div id="printableTable">
+        <div>
+            <h1 id="header" class="text-center" style="text-align: center;">Attendance Records</h1>
+            <table id="attendanceRecords">
+                <thead>
+                    <tr>
+                        <th class="bg-dark text-white" rowspan="2">Date</th>
+                        <th class="bg-dark text-white" colspan="2">Morning Shift</th>
+                        <th class="bg-dark text-white" colspan="2">Afternoon Shift</th>
+                        <th class="bg-dark text-white" rowspan="2">Total Hours</th>
+                    </tr>
+                    <tr>
+                        <th class="bg-success text-white">Clock In</th>
+                        <th class="bg-danger text-white">Clock Out AM</th>
+                        <th class="bg-success text-white">Clock In PM</th>
+                        <th class="bg-danger text-white">Clock Out PM</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for date in all_dates %}
+                        {% with record=shift_records|get_item:date %}
+                            <tr>
+                                <td>{{ date|date:"M j, Y" }}</td>
+                                {% if record %}
+                                    <td>{{ record.clock_in_at_am|time:"g:i A"|default:"No Record" }}</td>
+                                    <td>{{ record.clock_out_at_am|time:"g:i A"|default:"No Record" }}</td>
+                                    <td>{{ record.clock_in_at_pm|time:"g:i A"|default:"No Record" }}</td>
+                                    <td>{{ record.clock_out_at_pm|time:"g:i A"|default:"No Record" }}</td>
+                                    <td>{{ record.total_hours|floatformat:2|default:0 }}</td>
+                                {% else %}
+                                    <td>{{ record.clock_in_at_am|time:"g:i A"|default:"No Record" }}</td>
+                                    <td>{{ record.clock_out_at_am|time:"g:i A"|default:"No Record" }}</td>
+                                    <td>{{ record.clock_in_at_pm|time:"g:i A"|default:"No Record" }}</td>
+                                    <td>{{ record.clock_out_at_pm|time:"g:i A"|default:"No Record" }}</td>
+                                    <td>{{ record.total_hours|floatformat:2|default:0 }}</td>
+                                {% endif %}
+                            </tr>
+                        {% endwith %}
+                    {% endfor %}
+                </tbody>
+            </table>
+            <div class="signature-container">
+                <!-- Signature line -->
+                <div class="signature-line"></div>
+                <!-- Printed name below the signature -->
+                <div class="printed-name">Signiture over Printed Name</div>
+            </div>
+        </div>
+
+        <!-- No Records Found Message -->
+        <div id="noRecordsMessage" class="text-center" style="display: none;">
+            <p>No records found for the selected month yet.</p>
+        </div>
+
+        
+
+    </div>
+</main>
+<script src="{% static 'js/print.min.js' %}"></script>
+
+<script>
+    const monthInput = document.getElementById('monthInput');
+
+    // Array of month names
+    const months = [
+            "January", "February", "March", "April", "May", "June",
+            "July", "August", "September", "October", "November", "December"
+    ];
+    
+    // Add an event listener to detect when the value changes
+    monthInput.addEventListener('change', function() {
+        filterRecords(); // Call filterRecords to show records for the current month
+    });
+    
+    // Set the default month input to the current month
+    function setDefaultMonth() {
+        const header = document.getElementById('header');
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0'); // Month is zero-indexed
+        document.getElementById('monthInput').value = `${year}-${month}`;
+        const getFullMonth = now.getMonth();
+        
+
+        // Get the full month name
+        const fullMonthName = months[getFullMonth];
+        
+        header.innerHTML = `Attendance Records of ${fullMonthName}`;
+        
+        filterRecords(); // Call filterRecords to show records for the current month
+    }
+
+    function filterRecords() {
+        const header = document.getElementById('header');
+        const monthInput = document.getElementById('monthInput').value;
+        const signatureContainer = document.querySelector('.signature-container');
+        const records = document.querySelectorAll('#attendanceRecords tbody tr');
+        const printBtn = document.querySelector('.print')
+        let anyRecordsVisible = false; // Track visibility of records
+
+        
+
+        // Check if a month has been selected
+        if (!monthInput) {
+            records.forEach(row => row.style.display = '');
+            return;
+        }
+
+        // Extract the selected month and year
+        const [year, month] = monthInput.split('-'); // month is zero-indexed (0-11)
+        
+        // Array of month names
+        const months = [
+            "January", "February", "March", "April", "May", "June",
+            "July", "August", "September", "October", "November", "December"
+        ];
+
+        // Get the full month name
+        const fullMonthName = months[month-1];
+        
+        header.innerHTML = `Attendance Records of ${fullMonthName} ${year}`;
+
+        // Helper function to filter rows based on the selected month
+        records.forEach(row => {
+            const dateCell = row.children[0].textContent; // Get the date cell, index 0 for Date
+            const rowDate = new Date(dateCell);
+
+            // Check if the row's date matches the selected month and year
+            const isSameMonth = (rowDate.getFullYear() == year && rowDate.getMonth() == month - 1);
+
+            // Show or hide the row based on the selected month
+            row.style.display = isSameMonth ? '' : 'none';
+
+            // Track if any records are visible
+            if (isSameMonth) {
+                anyRecordsVisible = true;
+            }
+        });
+
+        
+
+        // Show or hide the no records message
+        const noRecordsMessage = document.getElementById('noRecordsMessage');
+        noRecordsMessage.style.display = anyRecordsVisible ? 'none' : 'block';
+        signatureContainer.style.display = anyRecordsVisible ? 'block' : 'none';
+        printBtn.disabled = !anyRecordsVisible;
+    }
+
+    // Call the setDefaultMonth function when the page loads
+    window.onload = setDefaultMonth;
+
+
+
+    // Print function
+    function printAttendanceRecords() {
+        printJS({
+            
+            printable: 'printableTable',
+            type: 'html',
+            style: `
+                
+                h1{
+                    text-align: center;
+                    font-weight: bold;
+                }
+
+                table {
+                    border-collapse: collapse;
+                    width: 100vw;
+                    height: auto;
+                    font-family: Arial, sans-serif;
+                    font-size: 10px;
+                    margin: 0;
+                    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+                }
+                
+                th, td {
+                    border: 1px solid #ddd;
+                    padding: 4px 6px;
+                    text-align: center;
+                    vertical-align: middle;
+                    max-width: 80px; /* Limit max width */
+                    word-wrap: break-word;
+                }
+                
+                th {
+                    background-color: #f8f8f8;
+                    color: #333;
+                    font-weight: bold;
+                }
+                
+                tr:nth-child(even) {
+                    background-color: #f9f9f9;
+                }
+                
+                tr:nth-child(odd) {
+                    background-color: #ffffff;
+                }
+                .signature-container {
+                    position: relative;
+                    top: 6%;
+                    text-align: center;
+                }
+
+                .signature-line {
+                    width: 250px;
+                    border-bottom: 1px solid black;
+                    margin: 20px auto;
+                }
+
+                .printed-name {
+                    font-weight: bold;
+                    margin-top: 5px;
+                }
+            `,
+        });
+    }
+</script>

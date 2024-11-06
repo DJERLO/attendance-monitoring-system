@@ -1,0 +1,20 @@
+{% extends "user/base.html" %}
+{% load i18n %}
+{% load socialaccount %}
+{% load static %}
+{% load timecard %}
+{% block title %}Attendance Sheet{% endblock %}
+{% block content %}
+<div class="container-fluid">      
+    <div class="row d-flex justify-content-center">
+        <!-- Navbar -->
+        {% include 'user/components/navbar.html' %}
+        <div class="p-5">
+            <!-- Status of User's Attendance -->
+            {% include 'user/components/attendance_table.html' %}
+        </div>
+        <!-- Footer -->
+        {% include 'user/components/footer.html' %}  
+    </div>
+</div>
+{% endblock %}

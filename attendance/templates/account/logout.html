@@ -6,13 +6,18 @@
 {% url 'account_logout' as action_url %}
 <div class="container d-flex justify-content-center align-items-center" style="height: 100vh;">
     <div class="col-md-4 text-center">
-
-        <form action="{{action_url}}" method="post">
+        <form id="logoutForm" action="{{action_url}}" method="post">
             {% csrf_token %}
             <h3>{% trans "You have been logged out." %}</h3>
             <p>{% trans "Thank you for using our service. We hope to see you again soon!" %}</p>
-            <button type="submit" class="btn btn-primary">{% trans "Log In Again" %}</button>
+            <p>{% trans "You will be redirected in 5 seconds." %}</p>
         </form>
     </div>
 </div>
+<script>
+    // Redirect to login page after 5 seconds
+    setTimeout(function() {
+        document.getElementById('logoutForm').submit();
+    }, 5000); // 5000 milliseconds = 5 seconds
+</script>
 {% endblock %}

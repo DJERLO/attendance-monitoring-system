@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload Image with Bounding Box, Zoom, and Pan</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            font-family: Arial, sans-serif;
+        }
+        
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 600px;
+            padding: 20px;
+            background: #fff;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+
+        #uploadForm {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        #imageInput {
+            padding: 8px;
+            font-size: 16px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            width: 100%;
+        }
+
+        #uploadForm button {
+            padding: 10px 20px;
+            font-size: 16px;
+            color: #fff;
+            background-color: #007bff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        #canvas {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            width: 500px;
+            height: 500px;
+            cursor: grab;
+        }
+
+        .zoom-controls {
+            margin-top: 10px;
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .zoom-button {
+            padding: 5px 15px;
+            font-size: 16px;
+            border: 1px solid #007bff;
+            border-radius: 5px;
+            cursor: pointer;
+            background-color: #007bff;
+            color: #fff;
+            transition: background-color 0.3s;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Upload Image for Anti-Spoofing</h2>
+        <form id="uploadForm">
+            <input type="file" id="imageInput" accept="image/*">
+            <button type="submit">Upload</button>
+        </form>
+
+        <!-- Canvas where the image and bounding box will be drawn -->
+        <canvas id="canvas"></canvas>
+
+        <!-- Zoom controls -->
+        <div class="zoom-controls">
+            <button class="zoom-button" id="zoomIn">Zoom In</button>
+            <button class="zoom-button" id="zoomOut">Zoom Out</button>
+            <button class="zoom-button" id="resetZoom">Reset Zoom</button>
+        </div>
+    </div>
+
+    <script>
+        let scale = 1;
+        const scaleFactor = 0.1;
+        const canvas = document.getElementById("canvas");
+        const ctx = canvas.getContext("2d");
+        let imageData, boundingBoxes;
+        let originX = 0, originY = 0;  // Pan offset
+        let isDragging = false;
+        let dragStartX, dragStartY;
+
+        document.getElementById("uploadForm").addEventListener("submit", function(event) {
+            event.preventDefault();
+            const fileInput = document.getElementById("imageInput");
+            const file = fileInput.files[0];
+
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    const img = new Image();
+                    img.onload = function() {
+                        canvas.width = img.width;
+                        canvas.height = img.height;
+
+                        // Clear the canvas and draw the uploaded image
+                        ctx.clearRect(0, 0, canvas.width, canvas.height);
+                        ctx.drawImage(img, 0, 0);
+
+                        imageData = img; // Store the image data for redrawing on zoom/pan
+                        const base64Image = canvas.toDataURL("image/jpeg");
+
+                        // Send the image to the Django backend
+                        fetch("/api/v1/face/anti-spoof", {
+                            method: "POST",
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({ base64_image: base64Image })
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            boundingBoxes = data.results;
+                            drawImageWithBoundingBoxes();
+                        })
+                        .catch(error => {
+                            console.error("Error:", error);
+                        });
+                    };
+                    img.src = event.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        // Draw the image and bounding boxes with panning and scaling
+        function drawImageWithBoundingBoxes() {
+            ctx.save();
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.translate(originX, originY); // Apply pan offset
+            ctx.scale(scale, scale); // Apply scaling
+
+            // Draw the image
+            ctx.drawImage(imageData, 0, 0);
+
+            // Draw bounding boxes with responsive text
+            if (boundingBoxes) {
+                boundingBoxes.forEach(result => {
+                    const { x, y, w, h } = result.coordinates;
+                    const label = result.message;
+
+                    // Set the line width for bounding box, scaled
+                    ctx.lineWidth = 2 / scale;
+                    ctx.strokeStyle = label.toLowerCase() === "fake" ? "red" : "green";
+                    ctx.fillStyle = ctx.strokeStyle;
+
+                    // Draw the bounding box
+                    ctx.beginPath();
+                    ctx.rect(x, y, w, h);
+                    ctx.stroke();
+
+                    // Set font size based on bounding box height, making it responsive
+                    const fontSize = Math.max(12, h / 8); // Adjust 5 to scale font size as needed
+                    ctx.font = `${fontSize / scale}px Arial`;  // Scale font size by zoom factor
+                    ctx.textBaseline = "top";
+
+                    // Draw the label text inside the bounding box
+                    ctx.fillText(label, x, y - fontSize / scale - 5);  // Position text above box
+                });
+            }
+
+            ctx.restore();
+        }
+
+        // Zoom functions
+        document.getElementById("zoomIn").addEventListener("click", (e) => zoom(e, scaleFactor));
+        document.getElementById("zoomOut").addEventListener("click", (e) => zoom(e, -scaleFactor));
+        document.getElementById("resetZoom").addEventListener("click", () => {
+            scale = 1;
+            originX = 0;
+            originY = 0;
+            drawImageWithBoundingBoxes();
+        });
+
+        function zoom(event, factor) {
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = (event.clientX - rect.left - originX) / scale;
+            const mouseY = (event.clientY - rect.top - originY) / scale;
+
+            scale += factor;
+            scale = Math.max(scale, scaleFactor);  // Prevent zooming out too far
+
+            originX = event.clientX - rect.left - mouseX * scale;
+            originY = event.clientY - rect.top - mouseY * scale;
+            drawImageWithBoundingBoxes();
+        }
+
+        // Panning functionality
+        canvas.addEventListener("mousedown", (event) => {
+            isDragging = true;
+            dragStartX = event.clientX - originX;
+            dragStartY = event.clientY - originY;
+            canvas.style.cursor = "grabbing";
+        });
+
+        canvas.addEventListener("mousemove", (event) => {
+            if (isDragging) {
+                originX = event.clientX - dragStartX;
+                originY = event.clientY - dragStartY;
+                drawImageWithBoundingBoxes();
+            }
+        });
+
+        canvas.addEventListener("mouseup", () => {
+            isDragging = false;
+            canvas.style.cursor = "grab";
+        });
+
+        canvas.addEventListener("mouseleave", () => {
+            isDragging = false;
+            canvas.style.cursor = "grab";
+        });
+    </script>
+</body>
+</html>

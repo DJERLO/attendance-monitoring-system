@@ -1,0 +1,28 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="{% static 'css/base.css' %}" rel="stylesheet">
+    <link href="{% static 'css/bootstrap.min.css' %}" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/material-design-iconic-font@2.2.0/dist/css/material-design-iconic-font.min.css">
+    <title>{% block title %}Base{% endblock %}</title>
+</head>
+<body>
+  <!-- Sidebar -->
+  {% include 'user/components/sidebar.html' %}
+  
+  <!-- Main content area -->
+  <section class="home-section">
+    {% block content %}
+        <!-- Contents appear here dynamically -->
+    {% endblock %}
+  </section>
+
+</body>
+<script src="{% static 'js/base.js' %}"></script>
+<script src="{% static 'js/time.js' %}"></script>
+<script src="{% static 'js/bootstrap.bundle.min.js' %}"></script>
+</html>
