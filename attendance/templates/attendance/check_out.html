@@ -25,9 +25,6 @@
                     <video class="align-self-stretch" id="video" autoplay muted></video>
                     
                 </div>
-                <div class="col">
-                    <a class="p-3 btn btn-success w-100 mt-3" href="/register/">Register</a>
-                </div>
             </div>
         </div>
     </main>
@@ -201,14 +198,14 @@
                     
                     if (validMatches.length > 0 && Array.isArray(matches) && matches.every(match => match !== '' && match !== null && match !== undefined)) {
                         //Successful attendance
-                        if (messages.some(msg => msg.includes(`has checked in today.`))){
+                        if (messages.some(msg => msg.includes(`has checked out today's morning shift.`)) || messages.some(msg => msg.includes(`has checked out today's afternoon shift.`))){
                            
                             Swal.fire({
                                 imageUrl: profile_image, // URL of the image
                                 icon: 'success', 
                                 heightAuto: false,
-                                title: 'Check-In Successful!',
-                                html: `Hello, ${validMatches[0]}! Your attendance has been successfully recorded. Thank you for checking in!`,
+                                title: 'Check-out Successful!',
+                                html: `Hello, ${validMatches[0]}! Your attendance has been successfully recorded. Thank you for checking out!`,
                                 timer: 2000, // Auto close after 2 seconds
                                 timerProgressBar: true,
                                 showConfirmButton: false, // Hide the OK button
@@ -219,14 +216,31 @@
 
                         }
 
-                        if (messages.some(msg => msg.includes(`has already checked in today.`))){
+                        if (messages.some(msg => msg.includes(`has already checked out for today's morning shift.`)) || messages.some(msg => msg.includes(`has already checked out for today's afternoon shift.`))){
                             //Prompt users Check-In Again Tommorow
                             Swal.fire({
                                 imageUrl: profile_image,
                                 icon: 'info', 
                                 heightAuto: false,
                                 title: 'Attendance Already Marked!',
-                                html: `Hello, ${validMatches[0]}! You have already checked in today. Thank you for your diligence!`,
+                                html: `Hello, ${validMatches[0]}! You have already checked out today. Thank you for your diligence!`,
+                                timer: 2000, // Auto close after 2 seconds
+                                timerProgressBar: true,
+                                showConfirmButton: false, // Hide the OK button
+                                willClose: () => {
+                                    // Additional cleanup if needed
+                                }
+                            });
+                        }
+
+                        if (messages.some(msg => msg.includes(`hasn't checked in for the morning shift.`)) || messages.some(msg => msg.includes(`hasn't checked in for the afternoon shift.`))){
+                            //Prompt users Check-In Again Tommorow
+                            Swal.fire({
+                                imageUrl: profile_image,
+                                icon: 'info', 
+                                heightAuto: false,
+                                title: 'Afternoon Shift Check-In Reminder',
+                                html: `Hello, ${validMatches[0]}! Our records show that you haven't checked in for the afternoon shift yet. Please remember to check in to mark your attendance for today.`,
                                 timer: 2000, // Auto close after 2 seconds
                                 timerProgressBar: true,
                                 showConfirmButton: false, // Hide the OK button

@@ -8,7 +8,7 @@
     <link href="{% static 'css/attendance.css' %}" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
-    <title>Check In</title>
+    <title>Face Verification</title>
 </head>
 <body class="bg bg-dark">
     <div class="loader-container" id="loader">
@@ -16,9 +16,8 @@
     </div>
     <main>
         <div class="container text-center">
-            <h1 class="text-white">Attendance Check-In</h1>
+            <h1 class="text-white">Face Verification Test</h1>
             <h2 class="text-white">Current Time: <span id="current-time">{{ timestamp }}</span></h2>
-            <h2 class="text-white">Current Mode: {{ time }}</h2>
             <div class="row g-0"> 
                 <div class="col-md-12" id="video-container">
                     <canvas class="align-self-stretch" id="canvas"></canvas>
@@ -77,7 +76,7 @@
             const form = document.getElementById('form-container');
             
             let lastDetectionTime = Date.now();
-            const detectionInterval = 2000; // 2 seconds between consecutive face captures
+            const detectionInterval = 1000; // 2 seconds between consecutive face captures
             let matches = [];        // Array to hold recognized names
             let employee_numbers = [];  // hold recognized employee_ids
             let messages = [];       // hold recognized messages
@@ -141,19 +140,30 @@
                     const box = detection.detection.box;
                     // Determine if the face is recognized or not
                     const name = matches[index] || "Unknown";  
-                    const employeeID = employee_numbers[index] || "N/A";
                     faceNames.push(name);
 
-                    // Draw bounding box and label
+                    // Draw the main bounding box
                     context.beginPath();
                     context.rect(box.x, box.y, box.width, box.height);
                     context.lineWidth = 5;
                     context.strokeStyle = (name === "Unknown") ? 'red' : 'green';
                     context.stroke();
 
+                    // Draw a solid rectangle as a background for the name
+                    const textBackgroundWidth = context.measureText(name).width + 10; // Calculate width with padding
+                    const textBackgroundHeight = 24; // Set a fixed height for the background box
+                    const textBackgroundX = box.x;
+                    const textBackgroundY = box.y > 20 ? box.y - 25 : box.y + 5; // Position it slightly above the box or below if necessary
+
+                    context.beginPath();
+                    context.rect(textBackgroundX, textBackgroundY, textBackgroundWidth, textBackgroundHeight);
+                    context.fillStyle = (name === "Unknown") ? 'red' : 'green'; // Match the stroke color logic
+                    context.fill();
+
+                    // Draw the name text on top of the solid rectangle
                     context.font = '20px Arial';
-                    context.fillStyle = (name === "Unknown") ? 'red' : 'green';
-                    context.fillText(name, box.x, box.y > 10 ? box.y - 5 : 10);  
+                    context.fillStyle = 'white'; // Set name text color to white for better contrast
+                    context.fillText(name, textBackgroundX + 5, textBackgroundY + 20);
                 });
 
                 if (detections.length > 0 && (Date.now() - lastDetectionTime > detectionInterval)) {
@@ -173,7 +183,7 @@
                 const imgData = canvas.toDataURL('image/jpeg');
                 const timemode = '{{ time }}'.toLowerCase();  // Convert the time to lowercase
                 
-                fetch(`/attendance/check-in/${timemode}/`, {
+                fetch(`/face-recognition/`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -195,69 +205,7 @@
                     const validMatches = matches.filter(name => name !== "No match found");
                     const validEmployeeNumber = employee_numbers.filter(employee_number => employee_number !== "Unknown");
                     const message = messages.filter(messages => messages !== `${matches} has already checked in today.`);
-                    
-                    if (validMatches.length > 0 && Array.isArray(matches) && matches.every(match => match !== '' && match !== null && match !== undefined)) {
-                        //Successful attendance
-                        if (messages.some(msg => msg.includes(`has checked in today's morning shift.`)) || messages.some(msg => msg.includes(`has checked in today's afternoon shift.`))){
-                           
-                            Swal.fire({
-                                imageUrl: profile_image, // URL of the image
-                                icon: 'success', 
-                                heightAuto: false,
-                                title: 'Check-In Successful!',
-                                html: `Hello, ${validMatches[0]}! Your attendance has been successfully recorded. Thank you for checking in!`,
-                                timer: 2000, // Auto close after 2 seconds
-                                timerProgressBar: true,
-                                showConfirmButton: false, // Hide the OK button
-                                willClose: () => {
-                                    // Additional cleanup if needed
-                                }
-                            });
-
-                        }
-
-                        if (messages.some(msg => msg.includes(`has already checked in for today's morning shift.`)) || messages.some(msg => msg.includes(`has already checked in for today's afternoon shift.`))){
-                            //Prompt users Check-In Again Tommorow
-                            Swal.fire({
-                                imageUrl: profile_image,
-                                icon: 'info', 
-                                heightAuto: false,
-                                title: 'Attendance Already Marked!',
-                                html: `Hello, ${validMatches[0]}! You have already checked in today. Thank you for your diligence!`,
-                                timer: 2000, // Auto close after 2 seconds
-                                timerProgressBar: true,
-                                showConfirmButton: false, // Hide the OK button
-                                willClose: () => {
-                                    // Additional cleanup if needed
-                                }
-                            });
-                        }
-
-                        if (messages.includes('Possible Spoofing Detected')) {
-                            // Prompt users of possible spoofing attack
-                            Swal.fire({
-                                icon: 'warning',
-                                imageUrl: 'https://tarand.io/images/2024/04/Deepfake-Awareness-Training-01-scaled_jpg.webp', 
-                                heightAuto: false,
-                                title: 'Warning: Possible Spoofing Detected!',
-                                html: `We have detected a possible spoofing attempt during your attendance check-in. 
-                                    Please be aware that this may affect your attendance record. 
-                                    If you have any concerns or believe this is an error, please contact support for assistance.`,
-                                timer: 2000, // Auto close after 2 seconds
-                                timerProgressBar: true,
-                                showConfirmButton: false, // Hide the OK button
-                                willClose: () => {
-                                    // Additional cleanup if needed
-                                }
-                            });
-                        }
-
-
-                    } else if (matches.includes("No match found")) {
-                        matches[0] = null
-                    } else{
-                        matches[0] = null
-                    }
+                
                     
                 })
                 .catch((error) => {

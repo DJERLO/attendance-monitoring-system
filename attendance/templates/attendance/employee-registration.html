@@ -47,6 +47,15 @@
                     <div class="invalid-feedback">Please provide a Username.</div>
                     <div class="valid-feedback">Looking Good!</div>
                 </div>
+
+                {% if user_has_social_account %}
+                <div class="mb-2">
+                    <div class="mb-2" id="set-password-section">
+                        <label for="set_password">Set Password</label>
+                        <input type="password" class="form-control" id="set_password" name="set_password" required>
+                    </div>
+                </div>
+                {% endif %}
     
                 <div class="mb-2">
                     <label for="{{ employee_form.profile_image.id_for_label }}">Profile Image</label>
@@ -141,7 +150,7 @@
         document.addEventListener('DOMContentLoaded', function () {
             // Prepare the error messages
             var errors = new Set();  // Using a Set to avoid duplicate messages
-            var fields = new Set();
+            var fields = new Set(); 
             {% for field_list, error_list in user_form.errors.items %}
                 {% for field in field_list %}
                     fields.add("{{ field }}");

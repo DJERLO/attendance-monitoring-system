@@ -2,11 +2,29 @@
 {% load i18n %}
 {% load socialaccount %}
 {% load static %}
-
 {% block content %}
 <div class="container d-flex justify-content-center align-items-center" style="height: 100vh;">
     <div class="col-md-4">
         <h3 class="text-center mb-4">{% trans "Sign Up" %}</h3>
+        {% if form.errors %}
+            <!-- Loop through the form fields and their associated errors -->
+            {% for field in form %}
+                {% for error in field.errors %}
+                    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                        <strong>{{ field.label }}:</strong> {{ error }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                {% endfor %}
+            {% endfor %}
+
+            <!-- Handle non-field-specific errors -->
+            {% for error in form.non_field_errors %}
+                <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                    {{ error }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
         <form method="post" action="{% url 'account_signup' %}">
             {% csrf_token %}
             <div class="form-floating mb-3">
@@ -34,7 +52,7 @@
 
         <div class="text-center">
             <a class="btn btn-outline-danger w-100" href="{% provider_login_url 'google' %}">
-                {% trans "Sign up with Google" %}
+                <i class='bx bxl-google' ></i> {% trans "Sign up with Google" %}
             </a>
         </div>        
 

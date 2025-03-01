@@ -1,0 +1,55 @@
+
+{% extends "user/base.html" %}
+{% load i18n %}
+{% load socialaccount %}
+{% load static %}
+{% block title %}Profile{% endblock %}
+{% block content %}
+<div class="container-fluid">
+    <div class="row justify-content-center">
+        <!-- Navbar -->
+        {% include 'user/components/navbar.html' %}
+        <div class="col-md-8">
+            <div class="card shadow-lg">
+                <div class="card-header text-center bg-primary text-white">
+                    <img src="{% static 'img/logo.png' %}" alt="" width="80" height="80">
+                    <h3>{{ employee.full_name }}</h3>
+                    <small>Employee Number: {{ employee.employee_number }}</small>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-4 text-center">
+                            <img 
+                                src="{{ employee.avatar_url }}" 
+                                alt="Profile Image" 
+                                class="img-fluid rounded-circle mb-3" 
+                                style="max-width: 150px;"
+                            />
+                        </div>
+                        <div class="col-md-8">
+                            <ul class="list-group list-group-flush">
+                                <li class="list-group-item">
+                                    <strong>Email:</strong> {{ employee.email }}
+                                </li>
+                                <li class="list-group-item">
+                                    <strong>Contact Number:</strong> {{ employee.contact_number }}
+                                </li>
+                                <li class="list-group-item">
+                                    <strong>Total Hours Worked:</strong> {{ employee.total_hours_worked|floatformat:2 }}
+                                </li>
+                                <li class="list-group-item">
+                                    <strong>Average Hours Worked per Shift:</strong> {{ employee.average_hours_worked|floatformat:2 }}
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer text-center">
+                    <a href="#" class="btn btn-warning">Edit Profile</a>
+                    <a href="{% url 'socialaccount_connections' %}" class="btn btn-danger">Connected Accounts</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

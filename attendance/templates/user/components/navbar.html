@@ -6,7 +6,7 @@
         <div class="w-100 h-100"> <!-- Flexbox for alignment -->
             <div class="row d-inline-flex text-wrap align-self-stretch">
                 {% if employee.profile_image %}
-                    <img id="profile" src="{{ employee.profile_image.url }}" alt="{{ user.username }}'s profile picture" class="img-fluid img-thumbnail"> 
+                    <img id="profile" src="{{ employee.profile_image.url }}" alt="{{ user.username }}'s profile picture" class="img-fluid img-thumbnail" style="object-fit: cover;"> 
                 {% else %}
                     <img id="profile" src="{% static 'img/blank_profile.webp' %}" alt="Default Profile Picture" class="img-fluid img-thumbnail">
                 {% endif %}

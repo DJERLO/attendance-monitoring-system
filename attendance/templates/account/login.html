@@ -2,7 +2,9 @@
 {% load i18n %}
 {% load static %}
 {% load socialaccount %}
-
+{% block head_title %}
+Login
+{% endblock head_title %}
 {% block content %}
 <div class="container d-flex justify-content-center align-items-center" style="height: 100vh;">
     <div class="col-md-4">
@@ -39,8 +41,11 @@
                 <input type="password" class="form-control" name="password" id="password" placeholder="Password" required>
                 <label for="password">{% trans "Password" %}</label>
             </div>
-            <div class="d-grid">
+            <div class="d-grid mb-3">
                 <button type="submit" class="btn btn-primary btn-block" tags="prominent,login">{% trans "Log in" %}</button>
+            </div>
+            <div class="d-grid mb-3"> 
+                <a class="btn btn-danger btn-block g-0" href="{% provider_login_url 'google' %}"><i class='bx bxl-google' ></i> Sign in with Google</a>
             </div>
         </form>
 
@@ -49,7 +54,7 @@
         </div>
 
         <hr>
-
+    
         <!-- Social Login Options -->
         <div class="mt-3 text-center">
             <p>{% trans "Don't have an account?" %} 

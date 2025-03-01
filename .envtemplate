@@ -7,16 +7,16 @@ CLIENT_SECRET=''  # Your Google OAuth client secret
 
 # Firebase Admin SDK configuration
 FIREBASE_CREDENTIALS=''  # Path to your Firebase Admin SDK JSON credentials file
-FIREBASE_STORAGE_BUCKET=''  # Your Firebase storage bucket URL
-FIREBASE_DATABASE_URL=''  # Your Firebase database URL
+FIREBASE_STORAGE_BUCKET=''  # Your Firebase storage bucket URL.
+FIREBASE_DATABASE_URL=''  # Your Firebase database URL.
 
 # Database (if using PostgreSQL or another DB)
-DB_ENGINE=''  # Database engine, e.g., django.db.backends.postgresql
-DB_NAME=''  # Name of your database
-DB_USER=''  # Database user
-DB_PASSWORD=''  # Database password
-DB_HOST=''  # Database host, e.g., localhost
-DB_PORT=''  # Database port, e.g., 5432 for PostgreSQL
+DB_ENGINE='django.db.backends.sqlite3'
+DB_NAME='db.sqlite3'
+DB_USER=''
+DB_PASSWORD=''
+DB_HOST='localhost'
+DB_PORT=''
 
 #Email Server
 EMAIL_HOST_USER = 'your-email@gmail.com'

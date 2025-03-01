@@ -21,13 +21,18 @@ urlpatterns = [
     path('register/', views.user_registration, name='employee-registration'),
     path('register-face/<str:employee_number>', views.user_face_registration, name = 'facial-registration'),
     
+    #Face Recognition Test Endpoints
+    path('face-verification/', views.face_verification, name='face-verification'),
+    path('face-recognition/', views.face_recognition_test, name="face-recognition"),
+
     # Online-Training for Anti-Spoofing
     path("spoofing-test/", views.upload_image, name="spoofing-test"),
     path('online-training/', views.online_training, name='online_training'),
 
     # Users URL's
     path('dashboard/', views.dashboard, name='dashboard'),  # Dashboard URL
-    path('attendance-sheet/', views.attendance_sheet, name='attendance-sheet'),  # Attendance URL   
+    path('attendance-sheet/', views.attendance_sheet, name='attendance-sheet'),  # Attendance URL
+    path('profile/', views.profile_view, name='profile'),  # Attendance URL            
 ]
 
 # Serve media files during development

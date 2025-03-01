@@ -17,7 +17,7 @@
       </li> -->
       <!-- List of navigation items -->
       <li>
-        <a href="{% url 'dashboard' %}" class="{% if request.path == '/dashboard/' %}active{% endif %}">
+        <a href="{% url 'dashboard' %}" class="{% if request.path == '/dashboard/' %}active{% endif %}" title="Dashboard">
           <i class='bx bx-grid-alt'></i>
           <span class="links_name">Dashboard</span>
         </a>
@@ -25,49 +25,49 @@
       </li>
       <!-- Additional navigation items -->
       <li>
-        <a href="#">
-          <i class='bx bx-user'></i>
-          <span class="links_name">User</span>
+        <a href="{% url 'profile' %}" class="{% if request.path == '/profile/' %}active{% endif %}" title="Account">
+          <i class='bx bx-user' ></i>
+          <span class="links_name">Account</span>
         </a>
         <span class="tooltip">Account</span>
       </li>
       <li>
-        <a href="{% url 'attendance-sheet' %}" class="{% if request.path == '/attendance-sheet/' %}active{% endif %}">
+        <a href="{% url 'attendance-sheet' %}" class="{% if request.path == '/attendance-sheet/' %}active{% endif %}" title="Attendance">
           <i class='bx bx-check-square'></i>
           <span class="links_name">Attendance</span>
         </a>
         <span class="tooltip">Attendance</span>
       </li>
       <li>
-        <a href="#">
+        <a href="#" title="Attendance">
           <i class='bx bx-pie-chart-alt-2'></i>
           <span class="links_name">Analytics</span>
         </a>
         <span class="tooltip">Analytics</span>
       </li>
       <li>
-        <a href="#">
+        <a href="#" title="Attendance">
           <i class='bx bx-folder'></i>
           <span class="links_name">File Manager</span>
         </a>
         <span class="tooltip">Files</span>
       </li>
       <li>
-        <a href="#">
+        <a href="#" title="Attendance">
           <i class='bx bx-cart-alt'></i>
           <span class="links_name">Order</span>
         </a>
         <span class="tooltip">Order</span>
       </li>
       <li>
-        <a href="#">
+        <a href="#" title="Attendance">
           <i class='bx bx-heart'></i>
           <span class="links_name">Saved</span>
         </a>
         <span class="tooltip">Saved</span>
       </li>
       <li>
-        <a href="#">
+        <a href="#" title="Attendance">
           <i class='bx bx-cog'></i>
           <span class="links_name">Setting</span>
         </a>
@@ -82,7 +82,7 @@
             <div class="job">@stclarecollege</div>
           </div>
         </div>
-        <a href="{% url 'account_logout' %}"><i class='bx bx-log-out' id="log_out"></i></a> <!-- Logout icon -->
+        <a href="{% url 'account_logout' %}" id="log_out" title="Log Out"><i class='bx bx-log-out' id="log_out"></i></a> <!-- Logout icon -->
       </li>
     </ul>
   </div>

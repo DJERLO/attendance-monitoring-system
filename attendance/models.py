@@ -79,6 +79,22 @@ class ShiftRecord(models.Model):
         return f"{self.employee.full_name()} Attendance on {self.date}"
 
     @property
+    def total_hours_at_morning(self):
+        # Calculate total hours worked if all clock-ins and clock-outs are present
+        total = 0
+        if self.clock_in_at_am and self.clock_out_at_am:
+            total += (self.clock_out_at_am - self.clock_in_at_am).seconds / 3600  # convert to hours
+        return total
+    
+    @property
+    def total_hours_at_afternoon(self):
+        # Calculate total hours worked if all clock-ins and clock-outs are present
+        total = 0
+        if self.clock_in_at_pm and self.clock_out_at_pm:
+            total += (self.clock_out_at_pm - self.clock_in_at_pm).seconds / 3600  # convert to hours
+        return total
+    
+    @property
     def total_hours(self):
         # Calculate total hours worked if all clock-ins and clock-outs are present
         total = 0

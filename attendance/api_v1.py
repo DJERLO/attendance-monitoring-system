@@ -1,6 +1,5 @@
 import base64
-
-import datetime
+from datetime import date, datetime
 import io
 import json
 import os
@@ -8,21 +7,311 @@ from venv import logger
 import cv2
 from django.conf import settings
 from django.http import JsonResponse
-from ninja import Body, NinjaAPI
+from ninja import Query, Schema, Form, File, FilterSchema, NinjaAPI 
+from ninja.files import UploadedFile
+from ninja.security import HttpBearer
+from typing import Optional
+from django.db.models import F
+from django.db.models.functions import Concat
+from django.db.models import Value
+from django.contrib.auth.models import User
+from django.core.exceptions import ValidationError
 import numpy as np
 from attendance.model_evaluation import detect_face_spoof
-from attendance.models import Employee, FaceImage
+from attendance.models import Employee, FaceImage, ShiftRecord
 from attendance.views import async_detect_fake_face, async_recognize_faces, check_in_at_am, check_in_at_pm, check_out_at_am, check_out_at_pm, clock_in_at_am, clock_in_at_pm, clock_out_at_am, clock_out_at_pm, get_employee_by_id
 from pydantic import BaseModel
 from typing import List, Optional
 from django.views.decorators.csrf import csrf_exempt
 from PIL import Image
+from ninja_jwt.routers.obtain import obtain_pair_router
+from ninja_extra import NinjaExtraAPI
+from ninja_extra import exceptions
+from ninja_jwt.schema import TokenObtainPairInputSchema
+from ninja_jwt.controller import TokenObtainPairController
+from ninja_extra import api_controller, route
 
+class GlobalAuth(HttpBearer):
+    def authenticate(self, request, token):
+        if token == "supersecret":
+            return token
+    
 api = NinjaAPI(
     title="Attendance Monitoring System",
     version="1.0.0",
     description="The Facial Recognition Attendance Monitoring System includes a set of APIs that facilitate communication between the frontend user interface and the backend services. These APIs are designed to handle user interactions, data processing, and system responses efficiently. Below are the specifications for each API endpoint.",
 )
+
+api.add_router('/token', tags=['Auth'], router=obtain_pair_router)
+
+class UserSchema(Schema):
+    first_name: str
+    email: str
+
+class ImageSchema(Schema):
+    base64_image: str
+
+class Unauthorized(Schema):
+    detail:str
+
+class MyTokenObtainPairOutSchema(Schema):
+    refresh: str
+    access: str
+    user: UserSchema
+
+class MyTokenObtainPairSchema(TokenObtainPairInputSchema):
+    def output_schema(self):
+        out_dict = self.get_response_schema_init_kwargs()
+        out_dict.update(user=UserSchema.from_orm(self._user))
+        return MyTokenObtainPairOutSchema(**out_dict)
+
+
+@api_controller('/token', tags=['Auth'])
+class MyTokenObtainPairController(TokenObtainPairController):
+    @route.post(
+        "/pair", response=MyTokenObtainPairOutSchema, url_name="token_obtain_pair"
+    )
+    def obtain_token(self, user_token: MyTokenObtainPairSchema):
+        return user_token.output_schema()
+
+def api_exception_handler(request, exc):
+    headers = {}
+
+    if isinstance(exc.detail, (list, dict)):
+        data = exc.detail
+    else:
+        data = {"detail": exc.detail}
+
+    response = api.create_response(request, data, status=exc.status_code)
+    for k, v in headers.items():
+        response.setdefault(k, v)
+
+    return response
+
+api.exception_handler(exceptions.APIException)(api_exception_handler)
+
+
+# Start (User Registration)
+class UserNotFound(BaseModel):
+    error: str
+
+class UserRegisterSchema(Schema):
+    first_name: str
+    last_name: str 
+    username: str
+    password: str
+    email: str
+
+class UserRegisterResponse(BaseModel):
+    message: str
+    user_id: int
+
+class EmployeeRegistrationSchema(Schema):
+    user_id: int
+    employee_number: int
+    first_name: str
+    middle_name: Optional[str] = None  # This makes the field optional
+    last_name: str
+    contact_number: int
+
+class EmployeeFacialRegistration(Schema):
+    employee_number: str
+    base64_image: str
+
+class SuccessFaceRegistration(BaseModel):
+    message: str
+
+class EmployeeNotFound(BaseModel):
+    message: str
+
+class ErrorAtDecodingImage(BaseModel):
+    message: str
+
+class ErrorAtFaceRegistration(BaseModel):
+    message: str
+
+class EmployeeRegistrationResponse(BaseModel):
+    message: str
+    employee_number: int
+
+@api.post("/user/register", summary="User Registration", tags=["User Registration"], auth=GlobalAuth(), response={
+    201: UserRegisterResponse,
+    401: Unauthorized
+})
+def register_user(request, payload: Form[UserRegisterSchema]):
+    try:
+        user = User.objects.create_user(
+            username = payload.username,
+            first_name = payload.first_name,
+            last_name = payload.last_name,
+            email = payload.email,
+            password = payload.password,
+        )
+        return JsonResponse({"message": "User registered successfully", "user_id": user.id}, status=201)
+    except ValidationError as e:
+        return JsonResponse({"error": str(e)}, status=404)
+    except Exception as e:
+        return JsonResponse({"error": "An unexpected error occurred"}, status=500)
+    
+@api.post("/user/employee/register", summary="Employee Registration", tags=["User Registration"], auth=GlobalAuth(),  response={
+    201: EmployeeRegistrationResponse,
+    401: Unauthorized,
+    404: UserNotFound,
+})
+def register_employee(request,  payload: Form[EmployeeRegistrationSchema], profile_image: UploadedFile = File(...)):
+    try:
+        # Check if the user exists
+        try:
+            user = User.objects.get(id=payload.user_id)
+        except User.DoesNotExist:
+            return JsonResponse({"error": "User does not exist"}, status=404)
+
+        # Check if an Employee is already linked to this user
+        if hasattr(user, 'employee'): 
+            return JsonResponse({"error": "An employee record already exists for this user"}, status=409)
+
+
+        # Create the Employee model
+        employee = Employee.objects.create(
+            user=user,
+            employee_number=payload.employee_number,
+            first_name=payload.first_name,
+            middle_name=payload.middle_name,
+            last_name=payload.last_name,
+            email=user.email,
+            contact_number=payload.contact_number,
+            profile_image=profile_image
+        )
+        return JsonResponse({"message": "Employee registered successfully", "employee_number": employee.number}, status=201)
+
+    except ValidationError as e:
+        return JsonResponse({"error": str(e)}, status=400)
+    except Exception as e:
+        return JsonResponse({"error": "An unexpected error occurred"}, status=500)
+    
+@api.post('user/face-registration', summary="Facial Registration for Face Recognition", auth=GlobalAuth(), tags=["User Registration"], response={
+    201: SuccessFaceRegistration, 
+    400: ErrorAtDecodingImage,
+    401: Unauthorized,  
+    404: EmployeeNotFound, 
+    500: ErrorAtFaceRegistration
+})
+def user_face_registration(request, payload: EmployeeFacialRegistration):
+    """
+    Endpoint to register an employee's face image.
+
+    This API accepts a POST request with an image provided as a base64-encoded data URI. The image is processed for Face Recognition System.
+
+    Parameters:
+    - request: The request object containing JSON payload.
+
+    Returns:
+    - JSON response indicating success or error message.
+    """
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            employee_number = data.get("employee_number")
+            base64_image = data.get("base64_image")
+
+            # Check if necessary data is provided
+            if not employee_number or not base64_image:
+                return JsonResponse({"message": "Employee number and image data are required."}, status=400)
+
+            try:
+                # Employee validation
+                person = Employee.objects.get(employee_number=employee_number)
+            except Employee.DoesNotExist:
+                return JsonResponse({"message": "Employee not found."}, status=404)
+
+            # Decode base64 image data
+            image_bytes = base64.b64decode(base64_image.split(",")[1]) if "base64," in base64_image else base64.b64decode(base64_image)
+            image_array = np.frombuffer(image_bytes, np.uint8)
+            image = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
+
+            # Face detection and processing
+            face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+            gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+            faces = face_cascade.detectMultiScale(gray_image, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
+
+            if len(faces) == 0:
+                return JsonResponse({"message": "No face detected in the image."}, status=400)
+
+            (x, y, w, h) = faces[0]
+            cropped_face = image[y:y+h, x:x+w]
+            square_face = cv2.resize(cropped_face, (224, 224), interpolation=cv2.INTER_AREA)
+
+            # Directory creation for storing images
+            employee_folder = os.path.join(settings.MEDIA_ROOT, 'known_faces', f"{person.employee_number} - {person.first_name} {person.last_name}")
+            os.makedirs(employee_folder, exist_ok=True)
+
+            # Image management for limiting the count of stored images
+            existing_face_images = FaceImage.objects.filter(employee=person)
+            if existing_face_images.count() >= 5:
+                oldest_face_image = existing_face_images.order_by('uploaded_at').first()
+                if oldest_face_image and os.path.exists(oldest_face_image.image.path):
+                    os.remove(oldest_face_image.image.path)
+                    oldest_face_image.delete()
+
+            # Save the new image with a timestamped filename
+            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            image_filename = f"{person.employee_number}_face_{timestamp}.jpg"
+            image_path = os.path.join(employee_folder, image_filename)
+            cv2.imwrite(image_path, square_face)
+
+            # Store image metadata in the database
+            FaceImage.objects.create(employee=person, image=image_path)
+
+            return JsonResponse({"message": "Image uploaded successfully."}, status=201)
+
+        except Exception as e:
+            return JsonResponse({"message": "An error occurred: " + str(e)}, status=500)
+
+    return JsonResponse({"message": "Invalid request method."}, status=405)
+# End (User Registration)
+
+#Start Employee API Endpoints 
+class EmployeeFilterSchema(FilterSchema):
+    employee_number: Optional[int] = None
+
+class EmployeeSchema(Schema):
+    employee_number: str
+    first_name: str
+    middle_name: Optional[str]
+    last_name: str
+    email: str
+    contact_number: str
+
+@api.get("/employee", summary="Fetch employee details by employee number or retrieve a list of all registered employees if no filter is applied.", tags=["Employee"], auth=GlobalAuth(), response=list[EmployeeSchema])
+def employee_list(request, filters: EmployeeFilterSchema = Query(...)):
+    employee = Employee.objects.all()
+    employee = filters.filter(employee)
+    return list(employee.values(
+        'employee_number',
+        'first_name',
+        'middle_name',
+        'last_name',
+        'email',
+        'contact_number',
+        'profile_image'
+    ))
+#End Employee API Endpoints 
+
+#Start (Attendance Logging) Endpoints
+
+class AttendanceEmployeeFilterSchema(FilterSchema):
+    employee_number: Optional[int] = None
+    date: Optional[datetime] = None
+
+class ShiftRecordSchema(Schema):
+    employee_number: int  # ID of the employee (Foreign Key reference)
+    name: str
+    date: date
+    clock_in_at_am: Optional[datetime]
+    clock_out_at_am: Optional[datetime]
+    clock_in_at_pm: Optional[datetime]
+    clock_out_at_pm: Optional[datetime]
+    
 
 class SuccessResponse(BaseModel):
     result: List[dict]
@@ -47,19 +336,49 @@ class StatusMessage(BaseModel):
 
 class SpoofingDetectedResponse(BaseModel):
     result: List[StatusMessage]
-    
+
 class NotFoundResponse(BaseModel):
     result: List[StatusMessage]
 
+@api.get('/attendance', summary="Retrieve all attendance shift records or filter by employee number to fetch specific shift records.", tags=["Attendance Logging"], response=List[ShiftRecordSchema] )
+def get_attendance(request, filters: AttendanceEmployeeFilterSchema = Query(...)):
+     # Fetch attendance records and include related employee details
+    attendance = ShiftRecord.objects.select_related('employee').all()
+
+    # Apply filters for date
+    if filters.date:
+        attendance = attendance.filter(date=filters.date)
+
+    # Apply filters for employee_number
+    if filters.employee_number:
+        attendance = attendance.filter(employee__employee_number=filters.employee_number)
+
+    # Annotate employee details in the queryset
+    attendance = attendance.annotate(
+        employee_number=F('employee__employee_number'),
+        name=Concat(F('employee__first_name'), Value(' '), F('employee__last_name'))
+    )
+
+    # Return serialized data
+    return list(attendance.values(
+        'employee_number',
+        'name',
+        'date',
+        'clock_in_at_am',
+        'clock_out_at_am',
+        'clock_in_at_pm',
+        'clock_out_at_pm',
+    ))
 
 # Define the async check_in_morning_shift function as an API endpoint
-@api.post('/attendance/am/check-in/', tags=["Check-In"], response={
+@api.post('/attendance/am/check-in/', summary="Morning Attendance Check-In", auth=GlobalAuth(), tags=["Attendance Logging"], response={
     200: EmployeeCheckInResponse, 
-    400: AlreadyCheckedInResponse, 
+    400: AlreadyCheckedInResponse,
+    401: Unauthorized, 
     403: SpoofingDetectedResponse, 
     404: NotFoundResponse, 
     500: ErrorResponse})
-async def check_in_morning_shift(request, base64_image: str):
+async def check_in_morning_shift(request, payload: ImageSchema):
     """
     Handles the attendance check-in for the morning shift. This endpoint accepts image data for facial recognition to verify employee identity. Upon successful verification, it records the attendance of the employee. If the employee has already checked in for the day or if face spoofing is detected, appropriate responses are returned to inform the user of the status of their check-in attempt.
     """
@@ -67,7 +386,8 @@ async def check_in_morning_shift(request, base64_image: str):
     logger.info("Received request: %s", request.body)
     
     try:
-        img_data = base64_image # Example of ImgData is data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD...
+        data = json.loads(request.body)
+        img_data = data.get("base64_image")
 
         # Extract base64 string from data URL
         if img_data.startswith('data:image/jpeg;base64,'):
@@ -148,20 +468,23 @@ async def check_in_morning_shift(request, base64_image: str):
     return JsonResponse({"result":[{"status": "No Content"}]}, status=200)
 
 # Define the async check_in_afternoon_shift function as an API endpoint
-@api.post('/attendance/pm/check-in/', tags=["Check-In"], response={
+@api.post('/attendance/pm/check-in/', summary="Afternoon Attendance Check-In", auth=GlobalAuth(), tags=["Attendance Logging"], response={
     200: EmployeeCheckInResponse, 
-    400: AlreadyCheckedInResponse, 
+    400: AlreadyCheckedInResponse,
+    401: Unauthorized, 
     403: SpoofingDetectedResponse, 
     404: NotFoundResponse, 
     500: ErrorResponse})
-async def check_in_afternoon_shift (request, base64_image: str):
+async def check_in_afternoon_shift (request, payload: ImageSchema):
     """
     Handles the attendance check-in for the afternoon shift. This endpoint accepts image data for facial recognition to verify employee identity. Upon successful verification, it records the attendance of the employee. If the employee has already checked in for the day or if face spoofing is detected, appropriate responses are returned to inform the user of the status of their check-in attempt.
+    
     """
     logger.info("Received request: %s", request.body)
     if request.method == 'POST':
         try:
-            img_data = base64_image
+            data = json.loads(request.body)
+            img_data = data.get("base64_image")
 
             # Extract base64 string from data URL
             if img_data.startswith('data:image/jpeg;base64,'):
@@ -243,21 +566,24 @@ async def check_in_afternoon_shift (request, base64_image: str):
     return JsonResponse({"result":[{"status": "No Content"}]}, status=200)
 
 # Define the async check_out_morning_shift function as an API endpoint
-@api.post('/attendance/am/check-out/', tags=["Check-Out"], response={
+@api.post('/attendance/am/check-out/',summary="Morning Attendance Check-Out", auth=GlobalAuth(), tags=["Attendance Logging"], response={
     200: EmployeeCheckInResponse, 
-    400: AlreadyCheckedInResponse, 
+    400: AlreadyCheckedInResponse,
+    401: Unauthorized, 
     403: SpoofingDetectedResponse, 
     404: NotFoundResponse, 
     500: ErrorResponse})
-async def check_out_morning_shift (request, base64_image: str):
+async def check_out_morning_shift (request, payload: ImageSchema):
     """
     Handles the attendance check-out for the morning shift. This endpoint accepts image data for facial recognition to verify employee identity. Upon successful verification, it records the attendance of the employee. If the employee has already checked in for the day or if face spoofing is detected, appropriate responses are returned to inform the user of the status of their check-in attempt.
+    
     """
     logger.info("Received request: %s", request.body)
     if request.method == 'POST':
         try:
             
-            img_data = base64_image
+            data = json.loads(request.body)
+            img_data = data.get("base64_image")
 
             # Extract base64 string from data URL
             if img_data.startswith('data:image/jpeg;base64,'):
@@ -352,21 +678,23 @@ async def check_out_morning_shift (request, base64_image: str):
     return JsonResponse({"result":[{"status": "No Content"}]}, status=200)
 
 # Define the async check_out_afternoon_shift function as an API endpoint
-@api.post('/attendance/pm/check-out/', tags=["Check-Out"], response={
+@api.post('/attendance/pm/check-out/', summary="Afternoon Attendance Check-Out", auth=GlobalAuth(), tags=["Attendance Logging"], response={
     200: EmployeeCheckInResponse, 
-    400: AlreadyCheckedInResponse, 
+    400: AlreadyCheckedInResponse,
+    401: Unauthorized, 
     403: SpoofingDetectedResponse, 
     404: NotFoundResponse, 
     500: ErrorResponse})
-async def check_out_afternoon_shift (request, base64_image: str):
+async def check_out_afternoon_shift (request, payload: ImageSchema):
     """
     Handles the attendance check-in for the morning shift. This endpoint accepts image data for facial recognition to verify employee identity. Upon successful verification, it records the attendance of the employee. If the employee has already checked in for the day or if face spoofing is detected, appropriate responses are returned to inform the user of the status of their check-in attempt.
+    
     """
     logger.info("Received request: %s", request.body)
     if request.method == 'POST':
         try:
-            
-            img_data = base64_image
+            data = json.loads(request.body)
+            img_data = data.get("base64_image")
 
             # Extract base64 string from data URL
             if img_data.startswith('data:image/jpeg;base64,'):
@@ -460,117 +788,6 @@ async def check_out_afternoon_shift (request, base64_image: str):
 
     return JsonResponse({"result":[{"status": "No Content"}]}, status=200)
 
-class SuccessFaceRegistration(BaseModel):
-    message: str
-
-class EmployeeNotFound(BaseModel):
-    message: str
-
-class ErrorAtDecodingImage(BaseModel):
-    message: str
-
-class ErrorAtFaceRegistration(BaseModel):
-    message: str
-
-@api.post('face/registration', tags=["Registration"], response={
-    201: SuccessFaceRegistration, 
-    400: ErrorAtDecodingImage,  
-    404: EmployeeNotFound, 
-    500: ErrorAtFaceRegistration
-})
-def user_face_registration(request):
-    """
-    Endpoint to register an employee's face image.
-
-    **Request Payload (JSON):**
-    ```
-    {
-        "employee_number": "string",  # Employee ID or number
-        "base64_image": "string"  # Base64-encoded image data
-    }
-    ```
-
-    **Response Codes:**
-    - 201: Success, face image registered
-    - 400: No Face Detected or other validation issues.
-    - 404: Employee not found
-    - 500: Internal server error during registration
-
-    **Example JSON Payload:**
-    ```json
-    {
-        "employee_number": "12345",
-        "base64_image": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAAAAAA..."
-    }
-    ```
-
-    Parameters:
-    - request: The request object containing JSON payload.
-
-    Returns:
-    - JSON response indicating success or error message.
-    """
-    if request.method == 'POST':
-        try:
-            data = json.loads(request.body)
-            employee_number = data.get("employee_number")
-            base64_image = data.get("base64_image")
-
-            # Check if necessary data is provided
-            if not employee_number or not base64_image:
-                return JsonResponse({"message": "Employee number and image data are required."}, status=400)
-
-            try:
-                # Employee validation
-                person = Employee.objects.get(employee_number=employee_number)
-            except Employee.DoesNotExist:
-                return JsonResponse({"message": "Employee not found."}, status=404)
-
-            # Decode base64 image data
-            image_bytes = base64.b64decode(base64_image.split(",")[1]) if "base64," in base64_image else base64.b64decode(base64_image)
-            image_array = np.frombuffer(image_bytes, np.uint8)
-            image = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
-
-            # Face detection and processing
-            face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
-            gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-            faces = face_cascade.detectMultiScale(gray_image, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
-
-            if len(faces) == 0:
-                return JsonResponse({"message": "No face detected in the image."}, status=400)
-
-            (x, y, w, h) = faces[0]
-            cropped_face = image[y:y+h, x:x+w]
-            square_face = cv2.resize(cropped_face, (224, 224), interpolation=cv2.INTER_AREA)
-
-            # Directory creation for storing images
-            employee_folder = os.path.join(settings.MEDIA_ROOT, 'known_faces', f"{person.employee_number} - {person.first_name} {person.last_name}")
-            os.makedirs(employee_folder, exist_ok=True)
-
-            # Image management for limiting the count of stored images
-            existing_face_images = FaceImage.objects.filter(employee=person)
-            if existing_face_images.count() >= 5:
-                oldest_face_image = existing_face_images.order_by('uploaded_at').first()
-                if oldest_face_image and os.path.exists(oldest_face_image.image.path):
-                    os.remove(oldest_face_image.image.path)
-                    oldest_face_image.delete()
-
-            # Save the new image with a timestamped filename
-            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-            image_filename = f"{person.employee_number}_face_{timestamp}.jpg"
-            image_path = os.path.join(employee_folder, image_filename)
-            cv2.imwrite(image_path, square_face)
-
-            # Store image metadata in the database
-            FaceImage.objects.create(employee=person, image=image_path)
-
-            return JsonResponse({"message": "Image uploaded successfully."}, status=201)
-
-        except Exception as e:
-            return JsonResponse({"message": "An error occurred: " + str(e)}, status=500)
-
-    return JsonResponse({"message": "Invalid request method."}, status=405)
-
 class SuccessCheckFaceSpoofing(BaseModel):
     class_idx: int
     confidence: float
@@ -586,12 +803,12 @@ class InvalidImageFormat(BaseModel):
 class ErrorAtFaceSpoofing(BaseModel):
     error: str
 
-@api.post('face/anti-spoof', tags=["Anti-Spoof"], response={
+@api.post('face/anti-spoof', summary="Face Anti-Spoofing Detection", tags=["Face Anti-Spoofing"], response={
     200: SuccessAntiFaceSpoofing, 
     404: InvalidImageFormat,  
     500: ErrorAtFaceRegistration
 }) 
-def anti_spoof(request):
+def anti_spoof(request, payload: ImageSchema):
     """
     Endpoint for anti-spoofing face recognition.
 
@@ -613,36 +830,21 @@ def anti_spoof(request):
             - 'message': A message indicating the spoof detection outcome.
             - 'coordinates': Coordinates of the detected face in the image.
         - If an error occurs, a JSON object with an 'error' message and HTTP status 400.
-    
-    **Example JSON Payload:**
-    ```json
-    {
-        "base64_image": "string"  # Base64-encoded image data
-    }
-    ```
-
-    **Response Codes:**
-    - 200: Success
-    - 400: No Face Detected or other validation issues.
-    - 500: Internal server error during checking and vaidation
-
-    **Example JSON Payload:**
-    ```json
-    {
-        "base64_image": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAAAAAA..."
-    }
-    ```
-    If no faces are detected or an error occurs, an empty 'results' list or 
-    error message is returned.
     """
     if request.method == 'POST':
         try:
             data = json.loads(request.body)
+            img_data = data.get("base64_image")
             
-            image_data = data.get("base64_image").split(",")[1]
-            image_data = base64.b64decode(image_data)
             
-            image = Image.open(io.BytesIO(image_data)).convert("RGB")  # Convert to RGB
+            # Extract base64 string from data URL
+            if img_data.startswith('data:image/jpeg;base64,'):
+                img_data = img_data.replace('data:image/jpeg;base64,', '')
+                img_data = base64.b64decode(img_data)
+            else:
+                return JsonResponse({"error": "Invalid image format"}, status=400)
+            
+            image = Image.open(io.BytesIO(img_data)).convert("RGB")  # Convert to RGB
 
             # Convert the image to a numpy array for OpenCV
             image_np = np.array(image)
@@ -688,12 +890,10 @@ def anti_spoof(request):
 
             return JsonResponse({
                 'results': results,
-                'processed_image': f"data:image/jpeg;base64,{processed_image_base64}"  # Send base64 image as part of the response
-            })
+            }, status=200)
 
-            return JsonResponse({'results': results})  # Return results for all detected faces
         except Exception as e:
-            return JsonResponse({'error': "No Data URI image Found"}, status=404)
+            return JsonResponse({'error': e}, status=404)
 
 
     

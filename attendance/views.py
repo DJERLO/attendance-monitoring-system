@@ -8,7 +8,8 @@ import cv2
 import numpy as np
 from django.shortcuts import get_object_or_404, render, redirect
 from django.contrib import messages
-from django.http import HttpResponse, JsonResponse
+from django.http import FileResponse, HttpResponse, JsonResponse
+from django.template.loader import get_template
 from django.urls import reverse
 from django.conf import settings
 from django.utils import timezone
@@ -20,6 +21,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.decorators import login_required
 from attendance.forms import EmployeeRegistrationForm, UserRegistrationForm
 from attendance.models import ShiftRecord, Employee, FaceImage
+from xhtml2pdf import pisa
 from .model_evaluation import detect_face_spoof
 from PIL import Image
 import torch
@@ -222,7 +224,7 @@ async def checking_in_at_am(request):
                                         "name": employee_data.get('name'),
                                         "employee_number": employee_number,
                                         "profile_image_url": profile_image_url,
-                                        "message": f"{employee_data.get('name')} has checked in today.",
+                                        "message": f"{employee_data.get('name')} has checked in today's morning shift.",
                                     }]
                                 }, status=200)
                             except Exception as e:
@@ -239,7 +241,7 @@ async def checking_in_at_am(request):
                                     "name": employee_data.get('name'),
                                     "employee_number": employee_number,
                                     "profile_image_url": profile_image_url,
-                                    "message": f"{employee_data.get('name')} has already checked in today.",
+                                    "message": f"{employee_data.get('name')} has already checked in for today's morning shift.",
                                 }]
                             }, status=400)
 
@@ -309,7 +311,7 @@ async def checking_in_at_pm(request):
                                         "name": employee_data.get('name'),
                                         "employee_number": employee_number,
                                         "profile_image_url": profile_image_url,
-                                        "message": f"{employee_data.get('name')} has checked in today.",
+                                        "message": f"{employee_data.get('name')} has checked in today's afternoon shift.",
                                     }]
                                 }, status=200)
                             except Exception as e:
@@ -326,7 +328,7 @@ async def checking_in_at_pm(request):
                                     "name": employee_data.get('name'),
                                     "employee_number": employee_number,
                                     "profile_image_url": profile_image_url,
-                                    "message": f"{employee_data.get('name')} has already checked in today.",
+                                    "message": f"{employee_data.get('name')} has already checked in for today's afternoon shift.",
                                 }]
                             }, status=400)
 
@@ -420,7 +422,7 @@ async def checking_out_at_am(request):
                                         "name": employee_data.get('name'),
                                         "employee_number": employee_number,
                                         "profile_image_url": profile_image_url,
-                                        "message": f"{employee_data.get('name')} has checked out today.",
+                                        "message": f"{employee_data.get('name')} has checked out today's morning shift.",
                                     }]
                                 }, status=200)
                             except Exception as e:
@@ -438,7 +440,7 @@ async def checking_out_at_am(request):
                                         "name": employee_data.get('name'),
                                         "employee_number": employee_number,
                                         "profile_image_url": profile_image_url,
-                                        "message": f"{employee_data.get('name')} has checked out today.",
+                                        "message": f"{employee_data.get('name')} has already checked out for today's morning shift.",
                                     }]
                                 }, status=409)
                         
@@ -449,7 +451,7 @@ async def checking_out_at_am(request):
                                     "name": employee_data.get('name'),
                                     "employee_number": employee_number,
                                     "profile_image_url": profile_image_url,
-                                    "message": f"{employee_data.get('name')} hasn't checked in yet!",
+                                    "message": f"{employee_data.get('name')} hasn't checked in for the morning shift.",
                                 }]
                             }, status=400)
 
@@ -520,7 +522,7 @@ async def checking_out_at_pm(request):
                                         "name": employee_data.get('name'),
                                         "employee_number": employee_number,
                                         "profile_image_url": profile_image_url,
-                                        "message": f"{employee_data.get('name')} has checked out today.",
+                                        "message": f"{employee_data.get('name')} has checked out today's afternoon shift.",
                                     }]
                                 }, status=200)
                             except Exception as e:
@@ -538,7 +540,7 @@ async def checking_out_at_pm(request):
                                     "name": employee_data.get('name'),
                                     "employee_number": employee_number,
                                     "profile_image_url": profile_image_url,
-                                    "message": f"{employee_data.get('name')} has already checked out for today afternoon shift.",
+                                    "message": f"{employee_data.get('name')} has already checked out for today's afternoon shift.",
                                 }]
                             }, status=409)    #Conflict Status
                         
@@ -549,7 +551,7 @@ async def checking_out_at_pm(request):
                                     "name": employee_data.get('name'),
                                     "employee_number": employee_number,
                                     "profile_image_url": profile_image_url,
-                                    "message": f"{employee_data.get('name')} hasn't checked in yet!",
+                                    "message": f"{employee_data.get('name')} hasn't checked in for the afternoon shift.",
                                 }]
                             }, status=400) #Bad Request
 
@@ -571,12 +573,14 @@ async def checking_out_at_pm(request):
     return JsonResponse({"result":[{"status": "No Content"}]}, status=200)
 
 # Register New Employee
+from allauth.socialaccount.models import SocialAccount
+@login_required
 def user_registration(request):
     user = None  
     #Check if user is authenticated
     if request.user.is_authenticated:
         user = request.user  # Get the user
-        
+        user_has_social_account = SocialAccount.objects.filter(user=request.user).exists()  
         # If user already registered employee, redirect to the dashboard
         if Employee.objects.filter(user=user).exists():
             messages.info(request, "You are already registered as an employee.")
@@ -584,6 +588,18 @@ def user_registration(request):
         
         #If user hasn't registed yet for employee, redirect to the registration process
         if request.method == 'POST':
+            # Handle social password setting logic
+            if user_has_social_account:
+                set_password = request.POST.get("set_password", None)
+                if set_password:
+                    # Hash and set password for fallback login
+                    user.set_password(set_password)
+                    user.save()
+                    messages.success(request, "Password successfully set.")
+                else:
+                    messages.error(request, "Please set a password to complete registration.")
+                    return redirect('user-registration')
+
             user_form = UserRegistrationForm(request.POST, instance=user)
             employee_form = EmployeeRegistrationForm(request.POST, request.FILES)
 
@@ -636,11 +652,13 @@ def user_registration(request):
             employee_form = EmployeeRegistrationForm()
 
     return render(request, 'attendance/employee-registration.html', {
+        "user_has_social_account": user_has_social_account,
         'user_form': user_form,
         'employee_form': employee_form,
     })
 
 # Upload Face Images
+@login_required
 def user_face_registration(request, employee_number):
     if request.method == 'POST':
         data = json.loads(request.body)  # Load JSON payload
@@ -727,6 +745,74 @@ def user_face_registration(request, employee_number):
 
     return render(request, 'attendance/face-registration.html', {'employee_number': employee_number})
 
+# Face Verification Process
+def face_verification(request):
+    return render(request, 'attendance/face-verification.html')
+
+async def face_recognition_test(request):
+    """Employee face_recognition_test """
+    logger.info("Received request: %s", request.body)
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            img_data = data.get('image')
+
+            # Extract base64 string from data URL
+            if img_data.startswith('data:image/jpeg;base64,'):
+                img_data = img_data.replace('data:image/jpeg;base64,', '')
+                img_data = base64.b64decode(img_data)
+            else:
+                return JsonResponse({"error": "Invalid image format"}, status=400)
+
+            #This function checking for Face-Spoofing attacks
+            class_idx, confidence, message = await async_detect_fake_face(img_data)
+
+            #Check if the img_data is Real or Fake
+            if message == 'Real':
+                #Start the Facial Recognition Process
+                verify = await async_recognize_faces(img_data)  
+                logger.info("Verification result: %s", verify)
+
+                #Verify may contains employee's name and employee_id
+                if verify and isinstance(verify, list) and len(verify) > 0:
+                    employee = None
+                    employee_data = verify[0]
+                    employee_number = employee_data.get('employee_number')
+                    
+                    if employee_number:  # Check if employee_id is not None
+                        # Fetch employee profile using employee_id asynchronously
+                        employee =  await get_employee_by_id(employee_number)
+                    
+                    if employee:  # Check if employee is found
+                        profile_image_url = request.build_absolute_uri(employee.avatar_url)
+                        return JsonResponse({
+                            "result": [{
+                                "message": f"{employee_data.get('name')} matched",
+                                "name": employee_data.get('name'),
+                                "employee_number": employee_number,
+                                "profile_image_url": profile_image_url,
+                                "class_idx": class_idx,
+                                "confidence": confidence,
+                                "is_face_genuine": message,
+                            }]
+                        }, status=200)
+                    else:
+                        logger.warning("Employee with ID %s not found.", employee_number)
+                        return JsonResponse({"result": [{"message": "Employee not found."}]}, status=404)
+            
+            if message == 'Fake':
+                return JsonResponse({"result":[{"message": "Possible Spoofing Detected"}]}, status=200)
+            
+
+        except json.JSONDecodeError as e:
+            logger.error("JSON Decode Error: %s", e)
+            return JsonResponse({"error": ["Invalid JSON"]}, status=400)
+        except Exception as e:
+            logger.error("Error: %s", e)
+            return JsonResponse({"error": [str(e)]}, status=500)
+
+    return JsonResponse({"result":[{"status": "No Content"}]}, status=200)
+
 #For Training Model Online
 @csrf_exempt  # Use this for testing, consider a better approach for production
 def online_training(request):
@@ -809,11 +895,33 @@ def dashboard(request):
     
     try:
         employee = Employee.objects.get(user=request.user)
-
         total_employees = Employee.objects.all().count()
         
-        # Get today's date
+        # Get today's date and time
         today = timezone.now().date()
+        manila_tz = pytz_timezone('Asia/Manila')
+        current_time = timezone.now().astimezone(manila_tz)  # Convert to Manila timezone
+        current_hour = current_time.hour
+        is_am = 6 <= current_hour < 12  # From 6:00 AM to 11:59 AM
+
+        
+
+        # Fetch attendance based on the time of day
+        if is_am:
+            timemode = 'am'
+        else:
+            timemode = 'pm'
+
+
+        shiftstatus = ShiftRecord.objects.filter(employee=employee, date=today).first()
+        shiftlogs = ShiftRecord.objects.filter(employee=employee).order_by('-date')
+        check_in_time = getattr(shiftstatus, f"clock_in_at_{timemode}", None)
+        check_out_time = getattr(shiftstatus, f"clock_out_at_{timemode}", None)
+
+        # Determine button states based on check-in and check-out times
+        can_check_in = check_in_time is None
+        can_check_out = check_in_time is not None and check_out_time is None
+
         first_day_of_month = today.replace(day=1)
         last_day_of_month = (first_day_of_month + timedelta(days=31)).replace(day=1) - timedelta(days=1)
 
@@ -854,6 +962,13 @@ def dashboard(request):
             'active_today': active_today,
             'active_today_percentage': active_today_percentage,
             'active_today_trend': active_today_trend,  # Pass the trend to the template
+            'shiftstatus': shiftstatus,
+            'shiftlogs': shiftlogs,
+            'timemode': timemode,
+            'check_in_time': check_in_time,
+            'check_out_time': check_out_time,
+            'can_check_in': can_check_in,
+            'can_check_out': can_check_out,
         })
     
     except Employee.DoesNotExist:
@@ -893,3 +1008,21 @@ def attendance_sheet(request):
     except Employee.DoesNotExist:
         # Redirect to employee registration to continue
         return redirect('employee-registration')
+    
+@login_required
+def profile_view(request):
+    user = request.user  # Get the logged-in user
+    
+    try:
+        employee = Employee.objects.get(user=request.user)
+
+        # Pass all the necessary data to the template
+        return render(request, 'user/profile.html', { 
+            'user': user, 
+            'employee': employee,
+        })
+    
+    except Employee.DoesNotExist:
+        # Redirect to employee registration to continue
+        return redirect('employee-registration')
+    

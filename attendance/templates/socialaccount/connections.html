@@ -1,0 +1,55 @@
+{% extends "user/base.html" %}
+{% load i18n %}
+{% load allauth %}
+
+{% block title %}{% trans "Account Connections" %}{% endblock %}
+
+{% block content %}
+<div class="container p-4">
+    <h1 class="mb-4 text-center">{% trans "Account Connections" %}</h1>
+    <!-- Connected Accounts Section -->
+    {% if form.accounts %}
+        <p>{% trans "You can sign in to your account using any of the following third-party accounts:" %}</p>
+        
+        <form action="{% url 'socialaccount_connections' %}" method="post">
+            {% csrf_token %}
+            
+            <!-- List of Connected Accounts -->
+            <div class="list-group mb-3">
+                {% for acc in form.fields.account.choices %}
+                    {% with account=acc.0.instance.get_provider_account %}
+                        <div class="list-group-item d-flex align-items-center">
+                            <input type="radio" id="account_{{ account.account.pk }}" name="account" 
+                                   value="{{ account.account.pk }}" 
+                                   class="form-check-input me-2">
+                            <label for="account_{{ account.account.pk }}" 
+                                   class="form-check-label flex-grow-1">
+                                <strong>{{ account }}</strong> 
+                                <span class="text-muted"> - {{ account.get_brand.name }}</span>
+                            </label>
+                        </div>
+                    {% endwith %}
+                {% endfor %}
+            </div>
+            
+            <!-- Remove Button -->
+            <button type="submit" class="btn btn-danger mt-2" name="disconnect" value="remove_selected">
+                {% trans "Remove Selected Account" %}
+            </button>
+        </form>
+    {% else %}
+        <p class="alert alert-info mt-3">{% trans "You currently have no third-party accounts connected to this account." %}</p>
+    {% endif %}
+    
+    <!-- Divider -->
+    <hr class="my-5">
+
+    <!-- Add New Third-Party Account Section -->
+    <h2 class="mb-3 text-center">{% trans "Add a Third-Party Account" %}</h2>
+    <p>{% trans "Connect a new account to simplify sign-in." %}</p>
+    <div class="mb-4">
+        {% include "socialaccount/snippets/provider_list.html" with process="connect" %}
+    </div>
+    {% include "socialaccount/snippets/login_extra.html" %}
+</div>
+{% endblock %}
