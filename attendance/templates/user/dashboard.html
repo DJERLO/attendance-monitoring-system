@@ -9,30 +9,15 @@
     <div class="row d-flex justify-content-center">
         <!-- Navbar -->
         {% include 'user/components/navbar.html' %}
-        
-        <div class="col-md-6">
+        <div class="col-md-6 d-flex justify-content-center align-items-center">
             <!-- Status of User's Attendance -->
             {% include 'user/components/user_attendance_status.html' %}
-            <!-- Cards Counter -->
-              
         </div>
-        {% include 'user/components/cards.html' %}
+        <div class="col-md-6 d-flex justify-content-center align-items-center">
+            <!-- Cards Counter -->
+            {% include 'user/components/cards.html' %}
+        </div>
         {% include 'user/components/attendance_logs.html' %}
     </div>
 </div>
-<script>
-    // Tour
-    const driver = window.driver.js.driver;
-    const driverObj = driver({
-    showProgress: true,
-    steps: [
-        { element: '.navbar', popover: { title: 'Title', description: 'Description' } },
-        { element: '#attendance-card', popover: { title: 'Title', description: 'Description' } },
-        { element: '.card-list', popover: { title: 'Title', description: 'Description' } },
-        { element: '#attendanceLog', popover: { title: 'Title', description: 'Description' } },
-        { element: '.sidebar', popover: { title: 'Title', description: 'Description' } },
-    ]
-    });
-    driverObj.drive();
-</script>
 {% endblock %}

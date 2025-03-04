@@ -90,31 +90,31 @@
     }
 
 </style>
-<div class="container">
-    <!-- Month Filter -->
-    
-    <div id="filter" class="filter d-flex flex-nowrap align-self-stretch justify-content-center align-content-center mb-3">
-        <div class="input-group w-100">
-            <span class="input-group-text" id="monthLabel">Select Month:</span>
-            <input type="month" class="form-control" id="monthInput" onchange="filterRecords()">
-            <button class="btn btn-primary print" onclick="downloadPDF()"><i class='bx bxs-download'></i> Download</button>
-        </div>
-    </div>
-</div>
+
 
 
 <!-- Print Table -->
-<main class="container p-4">
+<main class="container p-0">
     
     <div id="printableTable">
         <div>
             <table id="attendanceRecords">
                 <h1 id="header" class="text-center" style="text-align: center;">Attendance Records</h1>
+                <div class="container-fluid p-0">
+                    <!-- Month Filter -->
+                    <div id="filter" class="filter d-flex flex-nowrap align-self-stretch justify-content-center align-content-center">
+                        <div class="input-group w-100">
+                            <span class="input-group-text" id="monthLabel">Select Month:</span>
+                            <input type="month" class="form-control" id="monthInput" onchange="filterRecords()">
+                            <button class="btn btn-primary print" onclick="downloadPDF()"><i class='bx bxs-download'></i> Download</button>
+                        </div>
+                    </div>
+                </div>
                 <thead>
                     <tr>
                         <th class="bg-dark text-white" rowspan="2">Date</th>
-                        <th class="bg-dark text-white" colspan="2">Morning Shift</th>
-                        <th class="bg-dark text-white" colspan="2">Afternoon Shift</th>
+                        <th class="bg-dark text-white text-center" colspan="2">Morning Shift</th>
+                        <th class="bg-dark text-white text-center" colspan="2">Afternoon Shift</th>
                         <th class="bg-dark text-white" rowspan="2">Total Hours</th>
                     </tr>
                     <tr>
@@ -140,7 +140,7 @@
                                     <td>{{ record.clock_out_at_am|time:"g:i A"|default:"No Record" }}</td>
                                     <td>{{ record.clock_in_at_pm|time:"g:i A"|default:"No Record" }}</td>
                                     <td>{{ record.clock_out_at_pm|time:"g:i A"|default:"No Record" }}</td>
-                                    <td>{{ record.total_hours|floatformat:2|default:0 }}</td>
+                                    <td>{{ record.total_hours|floatformat:1|default:0.00 }}</td>
                                 {% endif %}
                             </tr>
                         {% endwith %}
@@ -176,6 +176,8 @@
         "order": [[0, "desc"]],
         "lengthMenu": [31],
         "ordering": false,
+        "searching": false,
+        "paging": false,
         "columnDefs": [
             {
                 "targets": '_all',  // Apply to all columns
@@ -197,17 +199,36 @@
     ];
 
     // Get the full month name
-    const fullMonthName = months[getFullMonth];
-    
-    // Add an event listener to detect when the value changes
-    monthInput.addEventListener('change', function() {
-        filterRecords(); // Call filterRecords to show records for the current month
+    const fullMonthName = months[getFullMonth-1];
+
+    // Keep selected value after reload
+    document.addEventListener("DOMContentLoaded", function() {
+        let monthInput = document.getElementById("monthInput");
+        let selectedMonth = "{{ selected_month }}"; // From Django context
+        const months = [
+            "January", "February", "March", "April", "May", "June",
+            "July", "August", "September", "October", "November", "December"
+        ];
+
+        if (selectedMonth) {
+            let [year, month] = selectedMonth.split("-");
+            monthInput.value = `${year}-${month.padStart(2, "0")}`; // Format YYYY-MM for <input type="month">
+        }
     });
     
     // Set the default month input to the current month
-    function setDefaultMonth() {     
-        header.innerHTML = `Attendance Records of ${fullMonthName}`;
-        filterRecords(); // Call filterRecords to show records for the current month
+    function setDefaultMonth() {
+        let selected_month = "{{ selected_month }}"; // From Django context
+        const [year, month] = selected_month.split('-');
+        // Array of month names
+        const months = [
+            "January", "February", "March", "April", "May", "June",
+            "July", "August", "September", "October", "November", "December"
+        ];
+        // Get the full month name
+        const fullMonthName = months[month-1];     
+        header.innerHTML = `Attendance Records of ${fullMonthName}-${year}`;
+        filterRecords()
     }
 
     function filterRecords() {
@@ -225,7 +246,7 @@
         }
 
         // Extract the selected month and year
-        const [year, month] = monthInput.split('-'); // month is zero-indexed (0-11)
+        let [year, month] = monthInput.split('-'); // month is zero-indexed (0-11)
         
         // Array of month names
         const months = [
@@ -235,25 +256,14 @@
 
         // Get the full month name
         const fullMonthName = months[month-1];
-        
         header.innerHTML = `Attendance Records of ${fullMonthName} ${year}`;
-        document.title = `Attendance Records of ${fullMonthName} ${year}`;;
-
+        document.title = `Attendance Records of ${fullMonthName} ${year}`;
+       
         // Helper function to filter rows based on the selected month
         records.forEach(row => {
             const dateCell = row.children[0].textContent; // Get the date cell, index 0 for Date
-            const rowDate = new Date(dateCell);
-
-            // Check if the row's date matches the selected month and year
-            const isSameMonth = (rowDate.getFullYear() == year && rowDate.getMonth() == month - 1);
-
-            // Show or hide the row based on the selected month
-            row.style.display = isSameMonth ? '' : 'none';
-
-            // Track if any records are visible
-            if (isSameMonth) {
-                anyRecordsVisible = true;
-            }
+            const rowDate = new Date(year, month); // Create a new date object
+            anyRecordsVisible = true; // Set to true if any records are visible in the table
         });
 
         // Show or hide the no records message
@@ -261,6 +271,20 @@
         noRecordsMessage.style.display = anyRecordsVisible ? 'none' : 'block';
         signatureContainer.style.display = anyRecordsVisible ? 'block' : 'none';
         printBtn.disabled = !anyRecordsVisible;
+
+        if (monthInput) {
+            let currentURL = window.location.pathname; // Get the current URL
+            let [year, month] = monthInput.split("-"); // Extract year & month
+            let formattedURL = `/attendance-sheet/${parseInt(month)}-${year}/`; // Format as "/1-2025/"
+            
+            if (currentURL !== formattedURL) {
+                window.location.href = formattedURL;  // Redirect only if different
+            }
+
+        } else {
+            window.location.href = "/attendance-sheet/"; // Default if no selection
+        }
+
     }
 
     // Call the setDefaultMonth function when the page loads
@@ -315,8 +339,7 @@
             // Add the logo to the PDF
             doc.addImage(logo, 'PNG', centerX, 0, logoWidth, logoHeight);  // Center the logo horizontally at y = 10
             
-        
-    
+
             // Add the header title next to the logo
             doc.setFontSize(16);  // Set font size for the title
             doc.setFont('helvetica', 'bold');  // Set font type and style
@@ -342,7 +365,7 @@
             });
     
             // Save the PDF with the selected month and year in the filename
-            doc.save(`Attendance Sheet of ${fullMonthName} ${selectedYear}.pdf`);
+            doc.save(`{{ user.employee.full_name|escapejs }} - ${fullMonthName} - ${selectedYear}.pdf`);
         };
     }
 </script>

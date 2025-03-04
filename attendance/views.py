@@ -33,6 +33,10 @@ CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 KNOWN_FACES_DIR = os.path.join(settings.MEDIA_ROOT, 'known_faces')  # Path to the known faces directory
 MODEL_PATH = os.path.join(CURRENT_DIR, 'training.pth')
 
+#index.html
+def index(request):
+    return redirect('account_login')
+
 from .recognize_faces import load_known_faces, recognize_faces_from_image  # Ensure these functions are implemented
 #Load Faces before check-in connection established
 @sync_to_async
@@ -1008,6 +1012,47 @@ def attendance_sheet(request):
     except Employee.DoesNotExist:
         # Redirect to employee registration to continue
         return redirect('employee-registration')
+    
+@login_required
+def attendance_sheet_date(request, month, year):
+    user = request.user  # Get the logged-in user
+    
+    try:
+        employee = Employee.objects.get(user=request.user)
+
+        total_employees = Employee.objects.all().count()
+        
+        # Convert month and year to an integer (in case they are strings from the URL)
+        month = int(month)
+        year = int(year)
+
+        # Dynamically get first and last day of the selected month and year
+        first_day_of_month = datetime.datetime(year, month, 1).date()
+        if month == 12:
+            last_day_of_month = datetime.datetime(year + 1, 1, 1).date() - timedelta(days=1)
+        else:
+            last_day_of_month = datetime.datetime(year, month + 1, 1).date() - timedelta(days=1)
+
+        # Generate a list of all dates in the selected month
+        all_dates = [first_day_of_month + timedelta(days=i) for i in range((last_day_of_month - first_day_of_month).days + 1)]
+
+        selected_month = f"{year}-{str(month).zfill(2)}"  # Format YYYY-MM for input
+        shift_records = ShiftRecord.objects.filter(employee=employee, date__month=month, date__year=year)
+
+        # Pass all the necessary data to the template
+        return render(request, 'user/attendance_sheet.html', { 
+            "selected_month": selected_month,
+            'user': user, 
+            'employee': employee,
+            'total_employees': total_employees,
+            'all_dates': all_dates,
+            'shift_records': shift_records,
+        })
+    
+    except Employee.DoesNotExist:
+        # Redirect to employee registration to continue
+        return redirect('employee-registration')
+
     
 @login_required
 def profile_view(request):

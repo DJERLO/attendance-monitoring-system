@@ -9,6 +9,7 @@ urlpatterns = [
     path("api/v1/", api_v1.urls), #Include API endpoints
 
     # Check In Urls
+    path('', views.index, name='index'),
     path('check-in/', views.check_in_attendance, name='check-in-attendance'),
     path('attendance/check-in/am/', views.checking_in_at_am, name='attendance-check-in-am'),
     path('attendance/check-in/pm/', views.checking_in_at_pm, name='attendance-check-in-pm'),
@@ -31,7 +32,8 @@ urlpatterns = [
 
     # Users URL's
     path('dashboard/', views.dashboard, name='dashboard'),  # Dashboard URL
-    path('attendance-sheet/', views.attendance_sheet, name='attendance-sheet'),  # Attendance URL
+    path('attendance-sheet/', views.attendance_sheet, name='attendance-sheet'),  # Default page
+    path('attendance-sheet/<int:month>-<int:year>/', views.attendance_sheet_date, name='attendance-sheet-filtered'), #Filter by month and year
     path('profile/', views.profile_view, name='profile'),  # Attendance URL            
 ]
 

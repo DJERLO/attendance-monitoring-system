@@ -25,12 +25,16 @@
 
                 <!-- Check-In and Check-Out Buttons -->
                 <div class="btn-group mt-4" role="group" aria-label="Attendance Actions" style="gap: 10px;">
-                    <a href="/check-in/" type="button" class="btn btn-primary {% if not can_check_in %}disabled{% endif %}">
-                        <i class="bi bi-clock-in"></i> Check-In
-                    </a>
+                    {% if can_check_in %}
+                        <a href="/check-in/" type="button" class="btn btn-primary {% if not can_check_in %}disabled{% endif %}">
+                            <i class="bi bi-clock-in"></i> Clock-In
+                        </a>
+                    {% endif %}
+                    {% if can_check_out %}
                     <a href="/check-out/" class="btn btn-secondary {% if not can_check_out %}disabled{% endif %}">
-                        <i class="bi bi-clock-out"></i> Check-Out
+                        <i class="bi bi-clock-out"></i> Clock-Out
                     </a>
+                    {% endif %}
                 </div>
 
                 <!-- Alert or info if needed (e.g., for error, disabled button, or reminder) -->

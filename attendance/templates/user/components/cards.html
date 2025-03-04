@@ -2,45 +2,49 @@
 <!-- Card List -->
 <div class="card-list">
     <div class="row">
-        <!-- Total Employees Card -->
-        <div class="col-12 col-md-6 col-lg-4 col-xl-3 mb-4">
-            <div class="card blue">
-                <div class="title">Total Employees</div>
-                <i class="zmdi zmdi-accounts"></i>
-                <div class="value">{{total_employees}}</div>
-                <div class="stat"><b>5</b>% increase</div>
+        <div class="col-md-6">
+            <!-- Total Employees Card -->
+            <div class="col-12 col-md-6 col-lg-4 col-xl-3 my-4 w-100">
+                <div class="card blue">
+                    <div class="title">Total Employees</div>
+                    <i class="zmdi zmdi-accounts"></i>
+                    <div class="value">{{ total_employees }}</div>
+                    <div class="stat"></div>
+                </div>
             </div>
-        </div>
 
-        <!-- Active Today Card -->
-        <div class="col-12 col-md-6 col-lg-4 col-xl-3 mb-4">
-            <div class="card green">
-                <div class="title">Active Today</div>
-                <i class="zmdi zmdi-check-circle"></i>
-                <div class="value">{{ active_today }}</div>
-                <div class="stat"><b>{{ active_today_percentage|floatformat:2 }}</b>% {{ active_today_trend }}</div>
+            <!-- Active Today Card -->
+            <div class="col-12 col-md-6 col-lg-4 col-xl-3 my-4 w-100">
+                <div class="card green">
+                    <div class="title">Active Today</div>
+                    <i class="zmdi zmdi-check-circle"></i>
+                    <div class="value">{{ active_today }}</div>
+                    <div class="stat"></div>
+                </div>
             </div>
         </div>
+        
+        <div class="col-md-6">
+            <!-- Average Work Hours Card -->
+            <div class="col-12 col-md-6 col-lg-4 col-xl-3 my-4 w-100">
+                <div class="card orange">
+                    <div class="title">Average Work Hours</div>
+                    <i class="zmdi zmdi-chart"></i>
+                    <div class="value">{{ employee.average_hours_worked|floatformat:0 }} Hrs</div>
+                    <div class="stat"></div>
+                </div>
+            </div>
 
-        <!-- Average Work Hours Card -->
-        <div class="col-12 col-md-6 col-lg-4 col-xl-3 mb-4">
-            <div class="card orange">
-                <div class="title">Average Work Hours</div>
-                <i class="zmdi zmdi-chart"></i>
-                <div class="value">{{ employee.average_hours_worked|floatformat:2 }} Hrs</div>
-                <div class="stat"><b>3</b>% increase</div>
+            <!-- Total Working Hours Card -->
+            <div class="col-12 col-md-6 col-lg-4 col-xl-3 my-4 w-100">
+                <div class="card red">
+                    <div class="title">Total Working Hours</div>
+                    <i class="zmdi zmdi-time"></i>
+                    <div class="value">{{employee.total_hours_worked|floatformat:0 }} Hrs</div>
+                    <div class="stat"></div>
+                </div>
             </div>
-        </div>
-
-        <!-- Total Working Hours Card -->
-        <div class="col-12 col-md-6 col-lg-4 col-xl-3 mb-4">
-            <div class="card red">
-                <div class="title">Total Working Hours</div>
-                <i class="zmdi zmdi-time"></i>
-                <div class="value">{{employee.total_hours_worked|floatformat:2 }} Hrs</div>
-                <div class="stat"><b>2</b>% decrease</div>
-            </div>
-        </div>
+        </div>  
     </div>
 </div>
 <!-- End of the Card List -->

@@ -25,53 +25,39 @@
       </li>
       <!-- Additional navigation items -->
       <li>
-        <a href="{% url 'profile' %}" class="{% if request.path == '/profile/' %}active{% endif %}" title="Account">
+        <a href="{% url 'profile' %}" class="{% if request.path == '/profile/' %}active{% endif %}" title="Profile">
           <i class='bx bx-user' ></i>
-          <span class="links_name">Account</span>
+          <span class="links_name">Profile</span>
         </a>
-        <span class="tooltip">Account</span>
+        <span class="tooltip">Profile</span>
       </li>
       <li>
-        <a href="{% url 'attendance-sheet' %}" class="{% if request.path == '/attendance-sheet/' %}active{% endif %}" title="Attendance">
-          <i class='bx bx-check-square'></i>
+        <a href="{% url 'attendance-sheet' %}" class="{% if request.path == '/attendance-sheet/' %}active{% endif %}" title="Attendance Sheet">
+          <i class='bx bxs-calendar'></i>
           <span class="links_name">Attendance</span>
         </a>
         <span class="tooltip">Attendance</span>
       </li>
       <li>
-        <a href="#" title="Attendance">
+        <a href="#" title="Analytics">
           <i class='bx bx-pie-chart-alt-2'></i>
           <span class="links_name">Analytics</span>
         </a>
         <span class="tooltip">Analytics</span>
       </li>
       <li>
-        <a href="#" title="Attendance">
-          <i class='bx bx-folder'></i>
-          <span class="links_name">File Manager</span>
+        <a href="#" title="Time">
+          <i class="bx bx-file"></i>
+          <span class="links_name">Time-Off</span>
         </a>
-        <span class="tooltip">Files</span>
-      </li>
-      <li>
-        <a href="#" title="Attendance">
-          <i class='bx bx-cart-alt'></i>
-          <span class="links_name">Order</span>
-        </a>
-        <span class="tooltip">Order</span>
-      </li>
-      <li>
-        <a href="#" title="Attendance">
-          <i class='bx bx-heart'></i>
-          <span class="links_name">Saved</span>
-        </a>
-        <span class="tooltip">Saved</span>
+        <span class="tooltip">File Leave</span>
       </li>
       <li>
         <a href="#" title="Attendance">
           <i class='bx bx-cog'></i>
-          <span class="links_name">Setting</span>
+          <span class="links_name">Settings</span>
         </a>
-        <span class="tooltip">Setting</span>
+        <span class="tooltip">Settings</span>
       </li>
       <!-- Profile section -->
       <li class="profile">
