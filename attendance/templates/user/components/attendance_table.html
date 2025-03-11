@@ -2,6 +2,7 @@
 {% load static %}
 <head>
     <link href="https://cdn.datatables.net/v/bs5/jszip-3.10.1/dt-2.1.8/b-3.2.0/b-colvis-3.2.0/b-html5-3.2.0/b-print-3.2.0/date-1.5.4/fc-5.0.4/fh-4.0.1/r-3.0.3/rg-1.5.1/rr-1.5.0/sc-2.4.3/sb-1.8.1/sp-2.3.3/sl-2.1.0/sr-1.4.1/datatables.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <style>
     /* Basic table styling */
@@ -106,7 +107,11 @@
                         <div class="input-group w-100">
                             <span class="input-group-text" id="monthLabel">Select Month:</span>
                             <input type="month" class="form-control" id="monthInput" onchange="filterRecords()">
-                            <button class="btn btn-primary print" onclick="downloadPDF()"><i class='bx bxs-download'></i> Download</button>
+                            {% if employee %}
+                                <button class="btn btn-primary print" onclick="downloadPDF()"><i class='bx bxs-download'></i>PDF</button>
+                                <button class="btn btn-success" onclick="exportToExcel()"><i class='bx bx-download'></i>Excel</button>
+                            {% endif %}
+                            
                         </div>
                     </div>
                 </div>
@@ -118,12 +123,13 @@
                         <th class="bg-dark text-white" rowspan="2">Total Hours</th>
                     </tr>
                     <tr>
-                        <th class="bg-success text-white">Clock In</th>
+                        <th class="bg-success text-white">Clock In AM</th>
                         <th class="bg-danger text-white">Clock Out AM</th>
                         <th class="bg-success text-white">Clock In PM</th>
                         <th class="bg-danger text-white">Clock Out PM</th>
                     </tr>
                 </thead>
+                {% if employee is not None %}
                 <tbody>
                     {% for date in all_dates %}
                         {% with record=shift_records|get_item:date %}
@@ -146,18 +152,8 @@
                         {% endwith %}
                     {% endfor %}
                 </tbody>
+                {% endif %}
             </table>
-            <div class="signature-container">
-                <!-- Signature line -->
-                <div class="signature-line"></div>
-                <!-- Printed name below the signature -->
-                <div class="printed-name">Signiture over Printed Name</div>
-            </div>
-        </div>
-
-        <!-- No Records Found Message -->
-        <div id="noRecordsMessage" class="text-center" style="display: none;">
-            <p>No records found for the selected month yet.</p>
         </div>
 
         
@@ -172,6 +168,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js"></script>
 <script src="https://cdn.datatables.net/v/bs5/jszip-3.10.1/dt-2.1.8/b-3.2.0/b-colvis-3.2.0/b-html5-3.2.0/b-print-3.2.0/date-1.5.4/fc-5.0.4/fh-4.0.1/r-3.0.3/rg-1.5.1/rr-1.5.0/sc-2.4.3/sb-1.8.1/sp-2.3.3/sl-2.1.0/sr-1.4.1/datatables.min.js"></script>
 <script>
+    let employeeName = "{{ employee.full_name|escapejs }}"; // Get the employee name
+    let employee_number = "{{ employee_number }}"; // Get the employee number
     let attendanceRecords = new DataTable('#attendanceRecords',{
         "order": [[0, "desc"]],
         "lengthMenu": [31],
@@ -228,15 +226,14 @@
         // Get the full month name
         const fullMonthName = months[month-1];     
         header.innerHTML = `Attendance Records of ${fullMonthName}-${year}`;
+        document.title = `Attendance Report - ${employeeName} (${fullMonthName} ${year})`; // Set the page title
         filterRecords()
     }
 
     function filterRecords() {
         const header = document.getElementById('header');
         const monthInput = document.getElementById('monthInput').value;
-        const signatureContainer = document.querySelector('.signature-container');
         const records = document.querySelectorAll('#attendanceRecords tbody tr');
-        const printBtn = document.querySelector('.print')
         let anyRecordsVisible = false; // Track visibility of records
 
         // Check if a month has been selected
@@ -257,7 +254,6 @@
         // Get the full month name
         const fullMonthName = months[month-1];
         header.innerHTML = `Attendance Records of ${fullMonthName} ${year}`;
-        document.title = `Attendance Records of ${fullMonthName} ${year}`;
        
         // Helper function to filter rows based on the selected month
         records.forEach(row => {
@@ -266,21 +262,17 @@
             anyRecordsVisible = true; // Set to true if any records are visible in the table
         });
 
-        // Show or hide the no records message
-        const noRecordsMessage = document.getElementById('noRecordsMessage');
-        noRecordsMessage.style.display = anyRecordsVisible ? 'none' : 'block';
-        signatureContainer.style.display = anyRecordsVisible ? 'block' : 'none';
-        printBtn.disabled = !anyRecordsVisible;
 
         if (monthInput) {
-            let currentURL = window.location.pathname; // Get the current URL
+            let currentURL = window.location.pathname; // Get current URL
             let [year, month] = monthInput.split("-"); // Extract year & month
-            let formattedURL = `/attendance-sheet/${parseInt(month)}-${year}/`; // Format as "/1-2025/"
-            
-            if (currentURL !== formattedURL) {
-                window.location.href = formattedURL;  // Redirect only if different
-            }
+            let formattedURL = `/attendance-sheet/${parseInt(month)}-${year}/`; // Format URL
+            let employeeURL = employee_number ? `/attendance-sheet/${employee_number}/${parseInt(month)}-${year}/` : formattedURL; // Add employee if exists
 
+            // Redirect only if the URL is different
+            if (currentURL !== employeeURL) {
+                window.location.href = employeeURL;
+            }
         } else {
             window.location.href = "/attendance-sheet/"; // Default if no selection
         }
@@ -290,6 +282,61 @@
     // Call the setDefaultMonth function when the page loads
     window.onload = setDefaultMonth;
 
+    //Export to Excel
+    function exportToExcel() {
+        const monthInput = document.getElementById('monthInput').value;
+        const [selectedYear, selectedMonth] = monthInput.split('-');  // Extract year and month
+        let table = document.getElementById("attendanceRecords"); // Get the table
+        let wb = XLSX.utils.book_new(); // Create a new workbook
+        let ws = XLSX.utils.table_to_sheet(table, {raw: true}); // Convert table to sheet
+
+        // Manually define merged cells (modify as needed)
+        ws["!merges"] = [
+            { s: { r: 0, c: 1 }, e: { r: 0, c: 2 } }, // Merge Morning Shift Header
+            { s: { r: 0, c: 3 }, e: { r: 0, c: 4 } }, // Merge Afternoon Shift Header
+        ];
+
+        // Auto-adjust column widths based on content
+        let wscols = [
+            { wch: 20 }, // Date Column
+            { wch: 15 }, { wch: 15 }, // Morning Shift (In/Out)
+            { wch: 15 }, { wch: 15 }  // Afternoon Shift (In/Out)
+        ];
+        ws["!cols"] = wscols;
+
+        // Apply header styling (bold, center alignment)
+        let headerRange = XLSX.utils.decode_range(ws["!ref"]); // Get range
+        for (let C = headerRange.s.c; C <= headerRange.e.c; C++) {
+            let cellAddress = XLSX.utils.encode_cell({ r: 0, c: C }); // Get cell address
+            if (ws[cellAddress]) {
+                ws[cellAddress].s = {
+                    font: { bold: true },
+                    alignment: { horizontal: "center", vertical: "center" },
+                    fill: { fgColor: { rgb: "FFFFCC" } } // Light yellow background
+                };
+            }
+        }
+
+        // Apply border to all cells
+        let borderStyle = { style: "thin", color: { rgb: "000000" } };
+        for (let R = headerRange.s.r; R <= headerRange.e.r; R++) {
+            for (let C = headerRange.s.c; C <= headerRange.e.c; C++) {
+                let cellAddress = XLSX.utils.encode_cell({ r: R, c: C });
+                if (!ws[cellAddress]) ws[cellAddress] = {}; // Ensure cell exists
+                ws[cellAddress].s = ws[cellAddress].s || {};
+                ws[cellAddress].s.border = {
+                    top: borderStyle, bottom: borderStyle,
+                    left: borderStyle, right: borderStyle
+                };
+            }
+        }
+
+        // Append sheet and trigger download
+        XLSX.utils.book_append_sheet(wb, ws, "Attendance Records");
+        XLSX.writeFile(wb, `${employeeName} - ${fullMonthName} - ${selectedYear}.xlsx`);    
+    }
+
+    //For PDF Download
     function downloadPDF() {
         const monthInput = document.getElementById('monthInput').value;
         const [selectedYear, selectedMonth] = monthInput.split('-');  // Extract year and month
@@ -365,7 +412,7 @@
             });
     
             // Save the PDF with the selected month and year in the filename
-            doc.save(`{{ user.employee.full_name|escapejs }} - ${fullMonthName} - ${selectedYear}.pdf`);
+            doc.save(`${employeeName} - ${fullMonthName} - ${selectedYear}.pdf`);
         };
     }
 </script>

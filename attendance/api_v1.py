@@ -1,140 +1,96 @@
 import base64
-from datetime import date, datetime
 import io
 import json
 import os
-from venv import logger
 import cv2
+import numpy as np
+from ninja import NinjaAPI, Query, Form, File
+from ninja_jwt.authentication import JWTAuth
+from ninja_jwt.tokens import RefreshToken
+from django.contrib.auth.models import User
+from django.http import JsonResponse
+from ninja_jwt.exceptions import TokenError
+from venv import logger
+from datetime import date, datetime
 from django.conf import settings
 from django.http import JsonResponse
-from ninja import Query, Schema, Form, File, FilterSchema, NinjaAPI 
 from ninja.files import UploadedFile
-from ninja.security import HttpBearer
-from typing import Optional
 from django.db.models import F
 from django.db.models.functions import Concat
 from django.db.models import Value
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
-import numpy as np
 from attendance.model_evaluation import detect_face_spoof
 from attendance.models import Employee, FaceImage, ShiftRecord
+from attendance.schema import AlreadyCheckedInResponse, AttendanceEmployeeFilterSchema, EmployeeCheckInResponse, EmployeeFacialRegistration, EmployeeNotFound, EmployeeRegistrationResponse, EmployeeRegistrationSchema, ErrorAtDecodingImage, ErrorAtFaceRegistration, ErrorResponse, ImageSchema, NotFoundResponse, ShiftRecordSchema, SpoofingDetectedResponse, SuccessFaceRegistration, Unauthorized, UserNotFound, UserRegisterResponse, UserRegisterSchema
 from attendance.views import async_detect_fake_face, async_recognize_faces, check_in_at_am, check_in_at_pm, check_out_at_am, check_out_at_pm, clock_in_at_am, clock_in_at_pm, clock_out_at_am, clock_out_at_pm, get_employee_by_id
 from pydantic import BaseModel
-from typing import List, Optional
-from django.views.decorators.csrf import csrf_exempt
+from typing import List
 from PIL import Image
-from ninja_jwt.routers.obtain import obtain_pair_router
-from ninja_extra import NinjaExtraAPI
-from ninja_extra import exceptions
-from ninja_jwt.schema import TokenObtainPairInputSchema
-from ninja_jwt.controller import TokenObtainPairController
-from ninja_extra import api_controller, route
 
-class GlobalAuth(HttpBearer):
-    def authenticate(self, request, token):
-        if token == "supersecret":
-            return token
-    
+
+# Initialize API with JWT authentication
 api = NinjaAPI(
     title="Attendance Monitoring System",
     version="1.0.0",
     description="The Facial Recognition Attendance Monitoring System includes a set of APIs that facilitate communication between the frontend user interface and the backend services. These APIs are designed to handle user interactions, data processing, and system responses efficiently. Below are the specifications for each API endpoint.",
 )
 
-api.add_router('/token', tags=['Auth'], router=obtain_pair_router)
+# Custom Token Generation API
+@api.post("/token", tags=['Auth'])
+def generate_token(request, username: str, password: str):
+    user = User.objects.filter(username=username).first()
+    if user and user.check_password(password):
+        refresh = RefreshToken.for_user(user)
+        return {
+            "access": str(refresh.access_token),
+            "refresh": str(refresh),
+            "user": {
+                "first_name": user.first_name,
+                "email": user.email
+            }
+        }
+    return JsonResponse({"error": "Invalid credentials"}, status=400)
 
-class UserSchema(Schema):
-    first_name: str
-    email: str
+# Custom Refresh Token API
+@api.post("/token/refresh/", tags=['Auth'])
+def refresh_access_token(request, refresh_token: str):
+    """
+    Takes a valid refresh token and returns a new access token.
+    """
+    try:
+        refresh = RefreshToken(refresh_token)  # Validate refresh token
+        new_access_token = str(refresh.access_token)  # Generate new access token
+        return {"access": new_access_token}
+    except TokenError:  # Catch invalid or expired token
+        return JsonResponse({"error": "Invalid or expired refresh token"}, status=401)
+    except Exception as e:  # Catch unexpected errors
+        return JsonResponse({"error": str(e)}, status=500)
 
-class ImageSchema(Schema):
-    base64_image: str
+# Override the verify token response
+@api.post("/token/verify/", tags=['Auth'])
+def verify_token(request, token: str):
+    from ninja_jwt.tokens import UntypedToken
 
-class Unauthorized(Schema):
-    detail:str
+    try:
+        UntypedToken(token)  # This checks if the token is valid
+        return {"message": "Token is valid"}
+    except TokenError:  # Catch JWT errors properly
+        return JsonResponse({"error": "Invalid or expired token"}, status=401)
+    
+@api.post("/token/blacklist/", tags=['Auth'])
+def blacklist_token(request, refresh_token: str):
+    try:
+        refresh = RefreshToken(refresh_token)  # Validate refresh token
+        refresh.blacklist()  # Blacklist the token
+        return JsonResponse({"message": "Token has been blacklisted"}, status=200)
+    except TokenError:  # Catch invalid or expired token
+        return JsonResponse({"error": "Invalid or expired token"}, status=401)
+    except Exception as e:  # Catch unexpected errors
+        return JsonResponse({"error": str(e)}, status=500)
 
-class MyTokenObtainPairOutSchema(Schema):
-    refresh: str
-    access: str
-    user: UserSchema
-
-class MyTokenObtainPairSchema(TokenObtainPairInputSchema):
-    def output_schema(self):
-        out_dict = self.get_response_schema_init_kwargs()
-        out_dict.update(user=UserSchema.from_orm(self._user))
-        return MyTokenObtainPairOutSchema(**out_dict)
-
-
-@api_controller('/token', tags=['Auth'])
-class MyTokenObtainPairController(TokenObtainPairController):
-    @route.post(
-        "/pair", response=MyTokenObtainPairOutSchema, url_name="token_obtain_pair"
-    )
-    def obtain_token(self, user_token: MyTokenObtainPairSchema):
-        return user_token.output_schema()
-
-def api_exception_handler(request, exc):
-    headers = {}
-
-    if isinstance(exc.detail, (list, dict)):
-        data = exc.detail
-    else:
-        data = {"detail": exc.detail}
-
-    response = api.create_response(request, data, status=exc.status_code)
-    for k, v in headers.items():
-        response.setdefault(k, v)
-
-    return response
-
-api.exception_handler(exceptions.APIException)(api_exception_handler)
-
-
-# Start (User Registration)
-class UserNotFound(BaseModel):
-    error: str
-
-class UserRegisterSchema(Schema):
-    first_name: str
-    last_name: str 
-    username: str
-    password: str
-    email: str
-
-class UserRegisterResponse(BaseModel):
-    message: str
-    user_id: int
-
-class EmployeeRegistrationSchema(Schema):
-    user_id: int
-    employee_number: int
-    first_name: str
-    middle_name: Optional[str] = None  # This makes the field optional
-    last_name: str
-    contact_number: int
-
-class EmployeeFacialRegistration(Schema):
-    employee_number: str
-    base64_image: str
-
-class SuccessFaceRegistration(BaseModel):
-    message: str
-
-class EmployeeNotFound(BaseModel):
-    message: str
-
-class ErrorAtDecodingImage(BaseModel):
-    message: str
-
-class ErrorAtFaceRegistration(BaseModel):
-    message: str
-
-class EmployeeRegistrationResponse(BaseModel):
-    message: str
-    employee_number: int
-
-@api.post("/user/register", summary="User Registration", tags=["User Registration"], auth=GlobalAuth(), response={
+# API Endpoints for User Registration
+@api.post("/user/register", summary="User Registration", tags=["User Registration"], auth=JWTAuth(), response={
     201: UserRegisterResponse,
     401: Unauthorized
 })
@@ -153,7 +109,7 @@ def register_user(request, payload: Form[UserRegisterSchema]):
     except Exception as e:
         return JsonResponse({"error": "An unexpected error occurred"}, status=500)
     
-@api.post("/user/employee/register", summary="Employee Registration", tags=["User Registration"], auth=GlobalAuth(),  response={
+@api.post("/user/employee/register", summary="Employee Registration", tags=["User Registration"], auth=JWTAuth(),  response={
     201: EmployeeRegistrationResponse,
     401: Unauthorized,
     404: UserNotFound,
@@ -189,7 +145,7 @@ def register_employee(request,  payload: Form[EmployeeRegistrationSchema], profi
     except Exception as e:
         return JsonResponse({"error": "An unexpected error occurred"}, status=500)
     
-@api.post('user/face-registration', summary="Facial Registration for Face Recognition", auth=GlobalAuth(), tags=["User Registration"], response={
+@api.post('user/face-registration', summary="Facial Registration for Face Recognition", auth=JWTAuth(), tags=["User Registration"], response={
     201: SuccessFaceRegistration, 
     400: ErrorAtDecodingImage,
     401: Unauthorized,  
@@ -270,77 +226,9 @@ def user_face_registration(request, payload: EmployeeFacialRegistration):
     return JsonResponse({"message": "Invalid request method."}, status=405)
 # End (User Registration)
 
-#Start Employee API Endpoints 
-class EmployeeFilterSchema(FilterSchema):
-    employee_number: Optional[int] = None
-
-class EmployeeSchema(Schema):
-    employee_number: str
-    first_name: str
-    middle_name: Optional[str]
-    last_name: str
-    email: str
-    contact_number: str
-
-@api.get("/employee", summary="Fetch employee details by employee number or retrieve a list of all registered employees if no filter is applied.", tags=["Employee"], auth=GlobalAuth(), response=list[EmployeeSchema])
-def employee_list(request, filters: EmployeeFilterSchema = Query(...)):
-    employee = Employee.objects.all()
-    employee = filters.filter(employee)
-    return list(employee.values(
-        'employee_number',
-        'first_name',
-        'middle_name',
-        'last_name',
-        'email',
-        'contact_number',
-        'profile_image'
-    ))
-#End Employee API Endpoints 
-
 #Start (Attendance Logging) Endpoints
 
-class AttendanceEmployeeFilterSchema(FilterSchema):
-    employee_number: Optional[int] = None
-    date: Optional[datetime] = None
-
-class ShiftRecordSchema(Schema):
-    employee_number: int  # ID of the employee (Foreign Key reference)
-    name: str
-    date: date
-    clock_in_at_am: Optional[datetime]
-    clock_out_at_am: Optional[datetime]
-    clock_in_at_pm: Optional[datetime]
-    clock_out_at_pm: Optional[datetime]
-    
-
-class SuccessResponse(BaseModel):
-    result: List[dict]
-
-class ErrorResponse(BaseModel):
-    error: List[str]
-
-class EmployeeCheckInDetail(BaseModel):
-    name: str
-    employee_number: str
-    profile_image_url: str
-    message: str
-
-class EmployeeCheckInResponse(BaseModel):
-    result: List[EmployeeCheckInDetail]
-    
-class AlreadyCheckedInResponse(BaseModel):
-    result: List[EmployeeCheckInDetail]
-
-class StatusMessage(BaseModel):
-    message: str
-
-class SpoofingDetectedResponse(BaseModel):
-    result: List[StatusMessage]
-
-class NotFoundResponse(BaseModel):
-    result: List[StatusMessage]
-
-@api.get('/attendance', summary="Retrieve all attendance shift records or filter by employee number to fetch specific shift records.", tags=["Attendance Logging"], response=List[ShiftRecordSchema] )
+@api.get('/attendance', summary="Retrieve all attendance shift records or filter by employee number to fetch specific shift records.", tags=["Attendance Logging"], response=List[ShiftRecordSchema], auth=JWTAuth())
 def get_attendance(request, filters: AttendanceEmployeeFilterSchema = Query(...)):
      # Fetch attendance records and include related employee details
     attendance = ShiftRecord.objects.select_related('employee').all()
@@ -371,7 +259,7 @@ def get_attendance(request, filters: AttendanceEmployeeFilterSchema = Query(...)
     ))
 
 # Define the async check_in_morning_shift function as an API endpoint
-@api.post('/attendance/am/check-in/', summary="Morning Attendance Check-In", auth=GlobalAuth(), tags=["Attendance Logging"], response={
+@api.post('/attendance/am/check-in/', summary="Morning Attendance Check-In", auth=JWTAuth(), tags=["Attendance Logging"], response={
     200: EmployeeCheckInResponse, 
     400: AlreadyCheckedInResponse,
     401: Unauthorized, 
@@ -468,7 +356,7 @@ async def check_in_morning_shift(request, payload: ImageSchema):
     return JsonResponse({"result":[{"status": "No Content"}]}, status=200)
 
 # Define the async check_in_afternoon_shift function as an API endpoint
-@api.post('/attendance/pm/check-in/', summary="Afternoon Attendance Check-In", auth=GlobalAuth(), tags=["Attendance Logging"], response={
+@api.post('/attendance/pm/check-in/', summary="Afternoon Attendance Check-In", auth=JWTAuth(), tags=["Attendance Logging"], response={
     200: EmployeeCheckInResponse, 
     400: AlreadyCheckedInResponse,
     401: Unauthorized, 
@@ -566,7 +454,7 @@ async def check_in_afternoon_shift (request, payload: ImageSchema):
     return JsonResponse({"result":[{"status": "No Content"}]}, status=200)
 
 # Define the async check_out_morning_shift function as an API endpoint
-@api.post('/attendance/am/check-out/',summary="Morning Attendance Check-Out", auth=GlobalAuth(), tags=["Attendance Logging"], response={
+@api.post('/attendance/am/check-out/',summary="Morning Attendance Check-Out", auth=JWTAuth(), tags=["Attendance Logging"], response={
     200: EmployeeCheckInResponse, 
     400: AlreadyCheckedInResponse,
     401: Unauthorized, 
@@ -678,7 +566,7 @@ async def check_out_morning_shift (request, payload: ImageSchema):
     return JsonResponse({"result":[{"status": "No Content"}]}, status=200)
 
 # Define the async check_out_afternoon_shift function as an API endpoint
-@api.post('/attendance/pm/check-out/', summary="Afternoon Attendance Check-Out", auth=GlobalAuth(), tags=["Attendance Logging"], response={
+@api.post('/attendance/pm/check-out/', summary="Afternoon Attendance Check-Out", auth=JWTAuth(), tags=["Attendance Logging"], response={
     200: EmployeeCheckInResponse, 
     400: AlreadyCheckedInResponse,
     401: Unauthorized, 
@@ -894,6 +782,3 @@ def anti_spoof(request, payload: ImageSchema):
 
         except Exception as e:
             return JsonResponse({'error': e}, status=404)
-
-
-    

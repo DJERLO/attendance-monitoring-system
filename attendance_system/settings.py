@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 """
 import os
 from pathlib import Path
+from django.conf import settings
 from dotenv import load_dotenv
 from datetime import timedelta
 # Load environment variables from .env file
@@ -49,6 +50,9 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'attendance',
     'widget_tweaks',
+    "ninja_extra",
+    "ninja_jwt",
+    "ninja_jwt.token_blacklist",
 ]
 
 JAZZMIN_SETTINGS = {
@@ -228,6 +232,25 @@ NINJA_JWT = {
 
     'TOKEN_BLACKLIST_INPUT_SCHEMA': "ninja_jwt.schema.TokenBlacklistInputSchema",
     'TOKEN_VERIFY_INPUT_SCHEMA': "ninja_jwt.schema.TokenVerifyInputSchema",
+
+    "BLACKLIST_AFTER_ROTATION": True,  # Ensures old refresh tokens get blacklisted
+    "UPDATE_LAST_LOGIN": True,  # Updates the last login timestamp of the user
+
+}
+
+# Django Ninja Authentication
+NINJA_EXTRA = {
+    "AUTHENTICATION_BACKENDS": ["ninja_jwt.authentication.JWTAuth"],
+}
+
+# JWT Authentication Settings
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=30),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
+    "ROTATE_REFRESH_TOKENS": True,
+    "BLACKLIST_AFTER_ROTATION": True,
+    "SIGNING_KEY": settings.SECRET_KEY,  # Use Django's secret key
+    "ALGORITHM": "HS256",
 }
 
 SITE_ID = 1

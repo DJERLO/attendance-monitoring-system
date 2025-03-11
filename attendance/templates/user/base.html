@@ -30,9 +30,14 @@
 
   <!-- Main content area -->
   <section class="home-section">
-    {% block content %}
-        <!-- Contents appear here dynamically -->
-    {% endblock %}
+    <nav class="w-100 h-100 me-2 sticky-top">
+      {% include 'user/components/navbar.html' %}
+    </nav>
+    <div class="row d-flex align-content-center w-100 h-100">
+      {% block content %}
+          <!-- Contents appear here dynamically -->
+      {% endblock %}
+    </div>
   </section>
 
 </body>

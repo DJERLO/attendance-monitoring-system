@@ -2,11 +2,11 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.urls import path
 from . import views
-from .api_v1 import api as api_v1
+from .api_v1 import api
 
 urlpatterns = [
     # API Endpoints
-    path("api/v1/", api_v1.urls), #Include API endpoints
+    path("api/v1/", api.urls), #Include API endpoints
 
     # Check In Urls
     path('', views.index, name='index'),
@@ -33,7 +33,8 @@ urlpatterns = [
     # Users URL's
     path('dashboard/', views.dashboard, name='dashboard'),  # Dashboard URL
     path('attendance-sheet/', views.attendance_sheet, name='attendance-sheet'),  # Default page
-    path('attendance-sheet/<int:month>-<int:year>/', views.attendance_sheet_date, name='attendance-sheet-filtered'), #Filter by month and year
+    path('attendance-sheet/<int:month>-<int:year>/', views.attendance_sheet_date, name='attendance-sheet-by-date'), #Filter by month and year
+    path('attendance-sheet/<str:employee_number>/<int:month>-<int:year>/', views.employee_attendance_sheet, name='attendance-sheet-by-employee'),
     path('profile/', views.profile_view, name='profile'),  # Attendance URL            
 ]
 

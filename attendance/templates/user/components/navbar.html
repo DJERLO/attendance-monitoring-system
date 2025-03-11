@@ -1,17 +1,17 @@
 {% load i18n %}
 {% load static %}
 <!-- Navbar with Real-Time Clock -->
-<nav class="navbar sticky-top navbar-expand-lg navbar-dark bg-dark mb-4 top-nav d-block">
+<nav class="navbar position-sticky sticky-top navbar-expand-lg navbar-dark bg-dark mb-4 top-nav d-block">
     <div class="container-fluid"> <!-- Use container-fluid for proper spacing -->
         <div class="w-100 h-100"> <!-- Flexbox for alignment -->
-            <div class="row d-inline-flex text-wrap align-self-stretch">
-                {% if employee.profile_image %}
-                    <img id="profile" src="{{ employee.profile_image.url }}" alt="{{ user.username }}'s profile picture" class="img-fluid img-thumbnail" style="object-fit: cover;"> 
+            <div class="row d-inline-flex text-wrap align-self-stretch mx-3">
+                {% if user.employee.profile_image %}
+                    <img id="profile" src="{{  user.employee.profile_image.url }}" alt="{{ user.username }}'s profile picture" class="img-fluid img-thumbnail" style="object-fit: cover;"> 
                 {% else %}
                     <img id="profile" src="{% static 'img/blank_profile.webp' %}" alt="Default Profile Picture" class="img-fluid img-thumbnail">
                 {% endif %}
                 <div class="col-6">
-                    <div class="me-2 align-self-center"> <!-- Margin end for spacing -->
+                    <div class="me-4 align-self-center"> <!-- Margin end for spacing -->
                         <a class="nav_title navbar-brand me-auto text-truncate" href="#">{% trans "Welcome" %} {{ user.username }}!</a> <!-- Me-auto pushes the welcome message to the left -->
                     </div>
                     <div class="col-6 align-self-center">

@@ -7,8 +7,6 @@
 {% block content %}
 <div class="container-fluid align-items-stretch">      
     <div class="row d-flex justify-content-center">
-        <!-- Navbar -->
-        {% include 'user/components/navbar.html' %}
         <div class="col-md-6 d-flex justify-content-center align-items-center">
             <!-- Status of User's Attendance -->
             {% include 'user/components/user_attendance_status.html' %}
@@ -17,7 +15,7 @@
             <!-- Cards Counter -->
             {% include 'user/components/cards.html' %}
         </div>
-        {% include 'user/components/attendance_logs.html' %}
+        
     </div>
 </div>
 {% endblock %}
