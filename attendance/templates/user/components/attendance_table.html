@@ -18,7 +18,6 @@
 
     /* Styling for the table header */
     th, td {
-        
         border: 1px solid #ddd;
         padding: 12px 15px; /* Increases padding for better spacing */
         text-align: center;
@@ -96,9 +95,8 @@
 
 <!-- Print Table -->
 <main class="container p-0">
-    
     <div id="printableTable">
-        <div>
+        <div class="w-100 h-100">
             <table id="attendanceRecords">
                 <h1 id="header" class="text-center" style="text-align: center;">Attendance Records</h1>
                 <div class="container-fluid p-0">
@@ -117,16 +115,11 @@
                 </div>
                 <thead>
                     <tr>
-                        <th class="bg-dark text-white" rowspan="2">Date</th>
-                        <th class="bg-dark text-white text-center" colspan="2">Morning Shift</th>
-                        <th class="bg-dark text-white text-center" colspan="2">Afternoon Shift</th>
-                        <th class="bg-dark text-white" rowspan="2">Total Hours</th>
-                    </tr>
-                    <tr>
-                        <th class="bg-success text-white">Clock In AM</th>
-                        <th class="bg-danger text-white">Clock Out AM</th>
-                        <th class="bg-success text-white">Clock In PM</th>
-                        <th class="bg-danger text-white">Clock Out PM</th>
+                        <th class="bg-dark text-white">Date</th>
+                        <th class="bg-dark text-white text-center">Clock-In</th>
+                        <th class="bg-dark text-white text-center">Clock-Out</th>
+                        <th class="bg-dark text-white">Total Hours</th>
+                        <th class="bg-dark text-white">Status</th>
                     </tr>
                 </thead>
                 {% if employee is not None %}
@@ -134,30 +127,31 @@
                     {% for date in all_dates %}
                         {% with record=shift_records|get_item:date %}
                             <tr>
-                                <td>{{ date|date:"M j, Y" }}</td>
+                                <td data-order="{{ date|date:'Y-m-d' }}" >{{ date|date:"M j, Y" }}</td>
                                 {% if record %}
-                                    <td>{{ record.clock_in_at_am|time:"g:i A"|default:"No Record" }}</td>
-                                    <td>{{ record.clock_out_at_am|time:"g:i A"|default:"No Record" }}</td>
-                                    <td>{{ record.clock_in_at_pm|time:"g:i A"|default:"No Record" }}</td>
-                                    <td>{{ record.clock_out_at_pm|time:"g:i A"|default:"No Record" }}</td>
+                                    <td>{{ record.clock_in|time:"g:i A"|default:"" }}</td>
+                                    <td>{{ record.clock_out|time:"g:i A"|default:"" }}</td>
                                     <td>{{ record.total_hours|floatformat:2|default:0 }}</td>
+                                    <td>{{ record.status|default:"ABSENT"}}</td>
                                 {% else %}
-                                    <td>{{ record.clock_in_at_am|time:"g:i A"|default:"No Record" }}</td>
-                                    <td>{{ record.clock_out_at_am|time:"g:i A"|default:"No Record" }}</td>
-                                    <td>{{ record.clock_in_at_pm|time:"g:i A"|default:"No Record" }}</td>
-                                    <td>{{ record.clock_out_at_pm|time:"g:i A"|default:"No Record" }}</td>
-                                    <td>{{ record.total_hours|floatformat:1|default:0.00 }}</td>
+                                    <td>{{ record.clock_in|time:"g:i A"|default:"" }}</td>
+                                    <td>{{ record.clock_out|time:"g:i A"|default:"" }}</td>
+                                    <td>{{ record.total_hours|floatformat:2|default:0 }}</td>
+                                    <td>{{ record.status|default:"ABSENT"}}</td>
                                 {% endif %}
                             </tr>
                         {% endwith %}
                     {% endfor %}
                 </tbody>
                 {% endif %}
+                <tfoot>
+                    <tr class="bg-dark text-white">
+                        <th class="bg-dark text-white text-end" colspan="3">Total Hours:</th>
+                        <th class="bg-dark text-white text-start" colspan="2" id="totalHoursSum"></th>
+                    </tr>
+                </tfoot>
             </table>
         </div>
-
-        
-
     </div>
 </main>
 <script src="{% static 'js/print.min.js' %}"></script>
@@ -170,19 +164,42 @@
 <script>
     let employeeName = "{{ employee.full_name|escapejs }}"; // Get the employee name
     let employee_number = "{{ employee_number }}"; // Get the employee number
-    let attendanceRecords = new DataTable('#attendanceRecords',{
-        "order": [[0, "desc"]],
+    
+    let attendanceRecords = new DataTable('#attendanceRecords', {
+        "order": [[0, "asc"]],  // Sort by Date column (Ascending)
         "lengthMenu": [31],
-        "ordering": false,
-        "searching": false,
-        "paging": false,
+        "fixedHeader": true,  // Enable fixed header
+        "fixedColumns": true, // Enable fixed columns
+        "scrollCollapse": false,
+        "scroller": true,
+        "scrollY": 400,
+        "stateSave": true,  // Enable state saving
+        "searching": true,  // Enable global search
+        "paging": true,  // Disable pagination (since it's a daily log)
+        "dom": 'Plfrtip',  // Enables SearchPanes, length menu, filter, etc.
         "columnDefs": [
-            {
-                "targets": '_all',  // Apply to all columns
-                "className": 'text-center'  // Center text in all columns
-            }
+            { "targets": 0, "type": "date", "searchPanes": { "show": false } },
+            { "targets": 1, "searchPanes": { "show": false } },
+            { "targets": 2, "searchPanes": { "show": false } },
+            { "targets": 3, "searchPanes": { "show": false } },  // Total Hours column
+            { "targets": 4, "searchPanes": { "show": true } },  // Status column
+            { "targets": '_all', "className": 'text-center' }
         ],
-    })
+        "searchPanes": {
+            "cascadePanes": true,
+            "viewTotal": true
+        },
+        "footerCallback": function (row, data, start, end, display) {
+            let api = this.api();
+            let total = api.column(3, { filter: "applied" }).data().reduce((a, b) => {
+                return (parseFloat(a) || 0) + (parseFloat(b) || 0);
+            }, 0);
+
+            // Update footer with sum of total hours
+            document.getElementById("totalHoursSum").innerText = total.toFixed(2);
+        }
+    });
+
     const monthInput = document.getElementById('monthInput');
     const header = document.getElementById('header');
     const now = new Date();
@@ -285,26 +302,25 @@
     //Export to Excel
     function exportToExcel() {
         const monthInput = document.getElementById('monthInput').value;
-        const [selectedYear, selectedMonth] = monthInput.split('-');  // Extract year and month
+        const [selectedYear, selectedMonth] = monthInput.split('-'); // Extract year and month
         let table = document.getElementById("attendanceRecords"); // Get the table
         let wb = XLSX.utils.book_new(); // Create a new workbook
-        let ws = XLSX.utils.table_to_sheet(table, {raw: true}); // Convert table to sheet
+        let ws = XLSX.utils.table_to_sheet(table, { raw: false }); // Convert table to sheet
 
-        // Manually define merged cells (modify as needed)
-        ws["!merges"] = [
-            { s: { r: 0, c: 1 }, e: { r: 0, c: 2 } }, // Merge Morning Shift Header
-            { s: { r: 0, c: 3 }, e: { r: 0, c: 4 } }, // Merge Afternoon Shift Header
-        ];
+        // **No merged cells since it's single shift format**
+        ws["!merges"] = []; 
 
-        // Auto-adjust column widths based on content
+        // Adjust column widths to match your table (Date | Clock-In | Clock-Out | Total Hours)
         let wscols = [
-            { wch: 20 }, // Date Column
-            { wch: 15 }, { wch: 15 }, // Morning Shift (In/Out)
-            { wch: 15 }, { wch: 15 }  // Afternoon Shift (In/Out)
+            { wch: 15 }, // Date Column
+            { wch: 12 }, // Clock-In
+            { wch: 12 }, // Clock-Out
+            { wch: 12 },  // Total Hours
+            { wch: 15 }  // Status
         ];
         ws["!cols"] = wscols;
 
-        // Apply header styling (bold, center alignment)
+        // Apply header styling (bold, center alignment, light yellow background)
         let headerRange = XLSX.utils.decode_range(ws["!ref"]); // Get range
         for (let C = headerRange.s.c; C <= headerRange.e.c; C++) {
             let cellAddress = XLSX.utils.encode_cell({ r: 0, c: C }); // Get cell address
@@ -333,7 +349,7 @@
 
         // Append sheet and trigger download
         XLSX.utils.book_append_sheet(wb, ws, "Attendance Records");
-        XLSX.writeFile(wb, `${employeeName} - ${fullMonthName} - ${selectedYear}.xlsx`);    
+        XLSX.writeFile(wb, `Attendance Records - ${selectedMonth}-${selectedYear}.xlsx`);
     }
 
     //For PDF Download
@@ -352,7 +368,7 @@
         const fullMonthName = months[selectedMonth - 1];
 
         // Prepare data arrays for the columns and rows
-        const columns = ["Date", "Clock In AM", "Clock Out AM", "Clock In PM", "Clock Out PM", "Total Hours"];
+        const columns = ["Date", "Clock In", "Clock Out", "Total Hours"];
         const rows = [];
 
         // Loop through the filtered rows in the table

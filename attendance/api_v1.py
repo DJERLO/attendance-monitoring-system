@@ -22,8 +22,8 @@ from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from attendance.model_evaluation import detect_face_spoof
 from attendance.models import Employee, FaceImage, ShiftRecord
-from attendance.schema import AlreadyCheckedInResponse, AttendanceEmployeeFilterSchema, EmployeeCheckInResponse, EmployeeFacialRegistration, EmployeeNotFound, EmployeeRegistrationResponse, EmployeeRegistrationSchema, ErrorAtDecodingImage, ErrorAtFaceRegistration, ErrorResponse, ImageSchema, NotFoundResponse, ShiftRecordSchema, SpoofingDetectedResponse, SuccessFaceRegistration, Unauthorized, UserNotFound, UserRegisterResponse, UserRegisterSchema
-from attendance.views import async_detect_fake_face, async_recognize_faces, check_in_at_am, check_in_at_pm, check_out_at_am, check_out_at_pm, clock_in_at_am, clock_in_at_pm, clock_out_at_am, clock_out_at_pm, get_employee_by_id
+from attendance.schema import AlreadyCheckedInResponse, AttendanceEmployeeFilterSchema, EmployeeCheckInResponse, EmployeeFacialRegistration, EmployeeNotFound, EmployeeRegistrationResponse, EmployeeRegistrationSchema, ErrorAtDecodingImage, ErrorAtFaceRegistration, ErrorResponse, ImageSchema, InvalidImageFormat, NotFoundResponse, ShiftRecordSchema, SpoofingDetectedResponse, SuccessAntiFaceSpoofing, SuccessFaceRegistration, Unauthorized, UserNotFound, UserRegisterResponse, UserRegisterSchema
+from attendance.views import async_detect_fake_face, async_recognize_faces, check_in, check_out, clock_in, clock_out,  get_employee_by_id
 from pydantic import BaseModel
 from typing import List
 from PIL import Image
@@ -252,23 +252,22 @@ def get_attendance(request, filters: AttendanceEmployeeFilterSchema = Query(...)
         'employee_number',
         'name',
         'date',
-        'clock_in_at_am',
-        'clock_out_at_am',
-        'clock_in_at_pm',
-        'clock_out_at_pm',
+        'clock_in',
+        'clock_out',
+        'status',
     ))
 
 # Define the async check_in_morning_shift function as an API endpoint
-@api.post('/attendance/am/check-in/', summary="Morning Attendance Check-In", auth=JWTAuth(), tags=["Attendance Logging"], response={
+@api.post('/attendance/check-in/', summary="Attendance Check-In", auth=JWTAuth(), tags=["Attendance Logging"], response={
     200: EmployeeCheckInResponse, 
     400: AlreadyCheckedInResponse,
     401: Unauthorized, 
     403: SpoofingDetectedResponse, 
     404: NotFoundResponse, 
     500: ErrorResponse})
-async def check_in_morning_shift(request, payload: ImageSchema):
+async def checking_in(request, payload: ImageSchema):
     """
-    Handles the attendance check-in for the morning shift. This endpoint accepts image data for facial recognition to verify employee identity. Upon successful verification, it records the attendance of the employee. If the employee has already checked in for the day or if face spoofing is detected, appropriate responses are returned to inform the user of the status of their check-in attempt.
+    Handles the attendance check-in. This endpoint accepts image data for facial recognition to verify employee identity. Upon successful verification, it records the attendance of the employee. If the employee has already checked in for the day or if face spoofing is detected, appropriate responses are returned to inform the user of the status of their check-in attempt.
     """
     
     logger.info("Received request: %s", request.body)
@@ -305,14 +304,14 @@ async def check_in_morning_shift(request, payload: ImageSchema):
                 
                 if employee:  # Check if employee is found
                     # Check if the employee has already checked in today
-                    checkin_exists = await check_in_at_am(employee_number)
+                    checkin_exists = await check_in(employee_number)
                     profile_image_url = request.build_absolute_uri(employee.avatar_url)
                     
                     # If employee hasn't checked in yet
                     if not checkin_exists:
                         try:
                             # Clock-in that employee
-                            submit = await clock_in_at_am(employee_number)
+                            submit = await clock_in(employee_number)
                             return JsonResponse({
                                 "result": [{
                                     "name": employee_data.get('name'),
@@ -355,115 +354,17 @@ async def check_in_morning_shift(request, payload: ImageSchema):
 
     return JsonResponse({"result":[{"status": "No Content"}]}, status=200)
 
-# Define the async check_in_afternoon_shift function as an API endpoint
-@api.post('/attendance/pm/check-in/', summary="Afternoon Attendance Check-In", auth=JWTAuth(), tags=["Attendance Logging"], response={
-    200: EmployeeCheckInResponse, 
-    400: AlreadyCheckedInResponse,
-    401: Unauthorized, 
-    403: SpoofingDetectedResponse, 
-    404: NotFoundResponse, 
-    500: ErrorResponse})
-async def check_in_afternoon_shift (request, payload: ImageSchema):
-    """
-    Handles the attendance check-in for the afternoon shift. This endpoint accepts image data for facial recognition to verify employee identity. Upon successful verification, it records the attendance of the employee. If the employee has already checked in for the day or if face spoofing is detected, appropriate responses are returned to inform the user of the status of their check-in attempt.
-    
-    """
-    logger.info("Received request: %s", request.body)
-    if request.method == 'POST':
-        try:
-            data = json.loads(request.body)
-            img_data = data.get("base64_image")
-
-            # Extract base64 string from data URL
-            if img_data.startswith('data:image/jpeg;base64,'):
-                img_data = img_data.replace('data:image/jpeg;base64,', '')
-                img_data = base64.b64decode(img_data)
-            else:
-                return JsonResponse({"error": "Invalid image format"}, status=400)
-
-            #This function checking for Face-Spoofing attacks
-            class_idx, confidence, message = await async_detect_fake_face(img_data)
-
-            #Check if the img_data is Real or Fake
-            if message == 'Real':
-                #Start the Facial Recognition Process
-                verify = await async_recognize_faces(img_data)  
-                logger.info("Verification result: %s", verify)
-
-                #Verify may contains employee's name and employee_id
-                if verify and isinstance(verify, list) and len(verify) > 0:
-                    employee = None
-                    employee_data = verify[0]
-                    employee_number = employee_data.get('employee_number')
-                    
-                    if employee_number:  # Check if employee_id is not None
-                        # Fetch employee profile using employee_id asynchronously
-                        employee =  await get_employee_by_id(employee_number)
-                    
-                    if employee:  # Check if employee is found
-                        # Check if the employee has already checked in today
-                        checkin_exists =  await check_in_at_pm(employee_number)
-                        profile_image_url = request.build_absolute_uri(employee.avatar_url)
-                        
-                        #If employee hasn't check_in yet
-                        if not checkin_exists:
-                            try:
-                                #Clock-in that employee
-                                submit =  await clock_in_at_pm(employee_number)
-                                return JsonResponse({
-                                    "result": [{
-                                        "name": employee_data.get('name'),
-                                        "employee_number": employee_number,
-                                        "profile_image_url": profile_image_url,
-                                        "message": f"{employee_data.get('name')} has checked in today.",
-                                    }]
-                                }, status=200)
-                            except Exception as e:
-                                logger.error("Error recording attendance: %s", e)
-                                return JsonResponse({
-                                    "result": [{
-                                        "message": "Error recording attendance. Please try again later."
-                                    }]
-                                }, status=500)
-
-                        else:
-                            return JsonResponse({
-                                "result": [{
-                                    "name": employee_data.get('name'),
-                                    "employee_number": employee_number,
-                                    "profile_image_url": profile_image_url,
-                                    "message": f"{employee_data.get('name')} has already checked in today.",
-                                }]
-                            }, status=400)
-
-                    else:
-                        logger.warning("Employee with ID %s not found.", employee_number)
-                        return JsonResponse({"result": [{"message": "Employee not found."}]}, status=404)
-            
-            if message == 'Fake':
-                return JsonResponse({"result":[{"message": "Possible Spoofing Detected"}]}, status=200)
-            
-
-        except json.JSONDecodeError as e:
-            logger.error("JSON Decode Error: %s", e)
-            return JsonResponse({"error": ["Invalid JSON"]}, status=400)
-        except Exception as e:
-            logger.error("Error: %s", e)
-            return JsonResponse({"error": [str(e)]}, status=500)
-
-    return JsonResponse({"result":[{"status": "No Content"}]}, status=200)
-
 # Define the async check_out_morning_shift function as an API endpoint
-@api.post('/attendance/am/check-out/',summary="Morning Attendance Check-Out", auth=JWTAuth(), tags=["Attendance Logging"], response={
+@api.post('/attendance/check-out/',summary="Attendance Check-Out", auth=JWTAuth(), tags=["Attendance Logging"], response={
     200: EmployeeCheckInResponse, 
     400: AlreadyCheckedInResponse,
     401: Unauthorized, 
     403: SpoofingDetectedResponse, 
     404: NotFoundResponse, 
     500: ErrorResponse})
-async def check_out_morning_shift (request, payload: ImageSchema):
+async def checking_out(request, payload: ImageSchema):
     """
-    Handles the attendance check-out for the morning shift. This endpoint accepts image data for facial recognition to verify employee identity. Upon successful verification, it records the attendance of the employee. If the employee has already checked in for the day or if face spoofing is detected, appropriate responses are returned to inform the user of the status of their check-in attempt.
+    Handles the attendance check-out. This endpoint accepts image data for facial recognition to verify employee identity. Upon successful verification, it records the attendance of the employee. If the employee has already checked in for the day or if face spoofing is detected, appropriate responses are returned to inform the user of the status of their check-in attempt.
     
     """
     logger.info("Received request: %s", request.body)
@@ -501,15 +402,15 @@ async def check_out_morning_shift (request, payload: ImageSchema):
                     
                     if employee:  # Check if employee is found
                         # Check if the employee has already checked in today
-                        checkin_exists =  await check_in_at_am(employee_number)
-                        checkout_exists =  await check_out_at_am(employee_number)
+                        checkin_exists =  await check_in(employee_number)
+                        checkout_exists =  await check_out(employee_number)
                         profile_image_url = request.build_absolute_uri(employee.avatar_url)
                         
                         # If employee has checked in and not checked out, allow clocking out
                         if checkin_exists and not checkout_exists:
                             try:
                                 # Clock-Out that employee
-                                submit = await clock_out_at_am(employee_number)
+                                submit = await clock_out(employee_number)
                                 return JsonResponse({
                                     "result": [{
                                         "name": employee_data.get('name'),
@@ -565,131 +466,8 @@ async def check_out_morning_shift (request, payload: ImageSchema):
 
     return JsonResponse({"result":[{"status": "No Content"}]}, status=200)
 
-# Define the async check_out_afternoon_shift function as an API endpoint
-@api.post('/attendance/pm/check-out/', summary="Afternoon Attendance Check-Out", auth=JWTAuth(), tags=["Attendance Logging"], response={
-    200: EmployeeCheckInResponse, 
-    400: AlreadyCheckedInResponse,
-    401: Unauthorized, 
-    403: SpoofingDetectedResponse, 
-    404: NotFoundResponse, 
-    500: ErrorResponse})
-async def check_out_afternoon_shift (request, payload: ImageSchema):
-    """
-    Handles the attendance check-in for the morning shift. This endpoint accepts image data for facial recognition to verify employee identity. Upon successful verification, it records the attendance of the employee. If the employee has already checked in for the day or if face spoofing is detected, appropriate responses are returned to inform the user of the status of their check-in attempt.
-    
-    """
-    logger.info("Received request: %s", request.body)
-    if request.method == 'POST':
-        try:
-            data = json.loads(request.body)
-            img_data = data.get("base64_image")
 
-            # Extract base64 string from data URL
-            if img_data.startswith('data:image/jpeg;base64,'):
-                img_data = img_data.replace('data:image/jpeg;base64,', '')
-                img_data = base64.b64decode(img_data)
-            else:
-                return JsonResponse({"error": "Invalid image format"}, status=400)
 
-            #This function checking for Face-Spoofing attacks
-            class_idx, confidence, message = await async_detect_fake_face(img_data)
-
-            #Check if the img_data is Real or Fake
-            if message == 'Real':
-                #Start the Facial Recognition Process
-                verify = await async_recognize_faces(img_data)  
-                logger.info("Verification result: %s", verify)
-
-                #Verify may contains employee's name and employee_id
-                if verify and isinstance(verify, list) and len(verify) > 0:
-                    employee = None
-                    employee_data = verify[0]
-                    employee_number = employee_data.get('employee_number')
-                    
-                    if employee_number:  # Check if employee_id is not None
-                        # Fetch employee profile using employee_id asynchronously
-                        employee =  await get_employee_by_id(employee_number)
-                    
-                    if employee:  # Check if employee is found
-                        # Check if the employee has already checked in today
-                        checkin_exists =  await check_in_at_pm(employee_number)
-                        checkout_exists =  await check_out_at_pm(employee_number)
-                        profile_image_url = request.build_absolute_uri(employee.avatar_url)
-                        
-                        # If employee has checked in and not checked out, allow clocking out
-                        if checkin_exists and not checkout_exists:
-                            try:
-                                # Clock-Out that employee
-                                submit = await clock_out_at_pm(employee_number)
-                                return JsonResponse({
-                                    "result": [{
-                                        "name": employee_data.get('name'),
-                                        "employee_number": employee_number,
-                                        "profile_image_url": profile_image_url,
-                                        "message": f"{employee_data.get('name')} has checked out today.",
-                                    }]
-                                }, status=200)
-                            except Exception as e:
-                                logger.error("Error recording attendance: %s", e)
-                                return JsonResponse({
-                                    "result": [{
-                                        "message": "Error recording attendance. Please try again later."
-                                    }]
-                                }, status=500)
-
-                        # If Employee already Check-In and Check-Out in the afternoon shift    
-                        elif checkin_exists and checkout_exists:
-                            return JsonResponse({
-                                "result": [{
-                                    "name": employee_data.get('name'),
-                                    "employee_number": employee_number,
-                                    "profile_image_url": profile_image_url,
-                                    "message": f"{employee_data.get('name')} has already checked out for today afternoon shift.",
-                                }]
-                            }, status=409)    #Conflict Status
-                        
-                        # If Employee hasn't Check-In Yet for afternoon shift.
-                        else:
-                            return JsonResponse({
-                                "result": [{
-                                    "name": employee_data.get('name'),
-                                    "employee_number": employee_number,
-                                    "profile_image_url": profile_image_url,
-                                    "message": f"{employee_data.get('name')} hasn't checked in yet!",
-                                }]
-                            }, status=400) #Bad Request
-
-                    else:
-                        logger.warning("Employee with ID %s not found.", employee_number)
-                        return JsonResponse({"result": [{"message": "Employee not found."}]}, status=404)
-            
-            if message == 'Fake':
-                return JsonResponse({"result":[{"message": "Possible Spoofing Detected"}]}, status=200)
-            
-
-        except json.JSONDecodeError as e:
-            logger.error("JSON Decode Error: %s", e)
-            return JsonResponse({"error": ["Invalid JSON"]}, status=400)
-        except Exception as e:
-            logger.error("Error: %s", e)
-            return JsonResponse({"error": [str(e)]}, status=500)
-
-    return JsonResponse({"result":[{"status": "No Content"}]}, status=200)
-
-class SuccessCheckFaceSpoofing(BaseModel):
-    class_idx: int
-    confidence: float
-    message: str
-    coordinates: dict  # Using dict to represent the coordinates (x, y, w, h)
-
-class SuccessAntiFaceSpoofing(BaseModel):
-    result: List[SuccessCheckFaceSpoofing]
-
-class InvalidImageFormat(BaseModel):
-    result: str
-
-class ErrorAtFaceSpoofing(BaseModel):
-    error: str
 
 @api.post('face/anti-spoof', summary="Face Anti-Spoofing Detection", tags=["Face Anti-Spoofing"], response={
     200: SuccessAntiFaceSpoofing, 

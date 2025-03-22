@@ -12,12 +12,15 @@ from rangefilter.filters import (
     NumericRangeFilterBuilder,
     DateRangeQuickSelectListFilterBuilder,
 )
-from .models import Employee, ShiftRecord
+from .models import Employee, ShiftRecord, WorkHours
 
 # Set custom admin site titles
 admin.site.site_header = "Attendance Management System Admin Portal"  # For example, "Attendance System Admin"
 admin.site.site_title = "St. Clare College Attendance Management System"    # Appears on the browser tab
 admin.site.index_title = "Attendance Management System Admin Portal"  # Appears on the main admin page
+
+class WorkHoursAdmin(admin.ModelAdmin):
+    list_display = ["open_time", "close_time"]
 
 class EmployeeAdmin(admin.ModelAdmin):
     list_display = [
@@ -54,7 +57,7 @@ class EmployeeAdmin(admin.ModelAdmin):
 admin.site.register(Employee, EmployeeAdmin)
 
 class ShiftRecordsAdmin(admin.ModelAdmin):
-    list_display = ["employee_profile_picture", "employee_full_name", "date", "clock_in_at_am", "clock_out_at_am", "clock_in_at_pm", "clock_out_at_pm", "total_hours"]
+    list_display = ["employee_profile_picture", "employee_full_name", "date", "clock_in", "clock_out", "total_hours"]
     list_select_related = ("employee",)  # Optimizes database queries by fetching related Employee data with ShiftRecord
     list_filter = [("date", DateRangeFilterBuilder())]
     
@@ -136,3 +139,4 @@ class ShiftRecordsAdmin(admin.ModelAdmin):
     actions = [export_to_csv]
 
 admin.site.register(ShiftRecord, ShiftRecordsAdmin)
+admin.site.register(WorkHours, WorkHoursAdmin)

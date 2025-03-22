@@ -9,7 +9,13 @@
 
                 <h3 class="mb-4">Today's Attendance Status</h3>
                 <p><strong>Status:</strong> 
-                    <span class="badge bg-success">{{ shiftstatus.date|default:"Absent" }}</span>
+                    <span class="badge 
+                        {% if shiftstatus.status == 'ABSENT' %}bg-danger 
+                        {% elif shiftstatus.status == 'LATE' %}bg-warning 
+                        {% elif shiftstatus.status == 'PRESENT' %}bg-success 
+                        {% else %}bg-secondary{% endif %}">
+                        {{ shiftstatus.status }}
+                    </span>
                 </p>
                 
                 <p><strong>Check-In Time:</strong> 

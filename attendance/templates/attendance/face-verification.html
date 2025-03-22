@@ -34,7 +34,7 @@
     <script type="module">
         import tensorflowtfjs from 'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.21.0/+esm'
     </script>   
-    
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script>
         document.addEventListener('DOMContentLoaded', async () => {
 
@@ -83,7 +83,7 @@
 
             let employeeName = document.getElementById('employeeName');
             let employeeID = document.getElementById('employeeID');
-
+            let faceDetected = false // Flag to check if a face is detected
 
             function adjustCanvasSize(video, canvas) {
                 canvas.width = video.videoWidth;
@@ -136,41 +136,46 @@
                 context.clearRect(0, 0, canvas.width, canvas.height);
                 let faceNames = [];
 
-                detections.forEach((detection, index) => {
-                    const box = detection.detection.box;
-                    // Determine if the face is recognized or not
-                    const name = matches[index] || "Unknown";  
-                    faceNames.push(name);
+                if (faceDetected === false) {
+                    
+                    detections.forEach((detection, index) => {
+                        const box = detection.detection.box;
+                        // Determine if the face is recognized or not
+                        const name = matches[index] || "Unknown";  
+                        faceNames.push(name);
 
-                    // Draw the main bounding box
-                    context.beginPath();
-                    context.rect(box.x, box.y, box.width, box.height);
-                    context.lineWidth = 5;
-                    context.strokeStyle = (name === "Unknown") ? 'red' : 'green';
-                    context.stroke();
+                        // Draw the main bounding box
+                        context.beginPath();
+                        context.rect(box.x, box.y, box.width, box.height);
+                        context.lineWidth = 5;
+                        context.strokeStyle = (name === "Unknown") ? 'red' : 'green';
+                        context.stroke();
 
-                    // Draw a solid rectangle as a background for the name
-                    const textBackgroundWidth = context.measureText(name).width + 10; // Calculate width with padding
-                    const textBackgroundHeight = 24; // Set a fixed height for the background box
-                    const textBackgroundX = box.x;
-                    const textBackgroundY = box.y > 20 ? box.y - 25 : box.y + 5; // Position it slightly above the box or below if necessary
+                        // Draw a solid rectangle as a background for the name
+                        const textBackgroundWidth = context.measureText(name).width + 10; // Calculate width with padding
+                        const textBackgroundHeight = 24; // Set a fixed height for the background box
+                        const textBackgroundX = box.x;
+                        const textBackgroundY = box.y > 20 ? box.y - 25 : box.y + 5; // Position it slightly above the box or below if necessary
 
-                    context.beginPath();
-                    context.rect(textBackgroundX, textBackgroundY, textBackgroundWidth, textBackgroundHeight);
-                    context.fillStyle = (name === "Unknown") ? 'red' : 'green'; // Match the stroke color logic
-                    context.fill();
+                        context.beginPath();
+                        context.rect(textBackgroundX, textBackgroundY, textBackgroundWidth, textBackgroundHeight);
+                        context.fillStyle = (name === "Unknown") ? 'red' : 'green'; // Match the stroke color logic
+                        context.fill();
 
-                    // Draw the name text on top of the solid rectangle
-                    context.font = '20px Arial';
-                    context.fillStyle = 'white'; // Set name text color to white for better contrast
-                    context.fillText(name, textBackgroundX + 5, textBackgroundY + 20);
-                });
+                        // Draw the name text on top of the solid rectangle
+                        context.font = '20px Arial';
+                        context.fillStyle = 'white'; // Set name text color to white for better contrast
+                        context.fillText(name, textBackgroundX + 5, textBackgroundY + 20);
+                    });
 
-                if (detections.length > 0 && (Date.now() - lastDetectionTime > detectionInterval)) {
-                    lastDetectionTime = Date.now(); 
-                    await captureAndSendImage(faceNames); 
-                } else if (detections.length === 0 && (Date.now() - lastDetectionTime > detectionInterval)) {
-                    console.log('No faces detected.');
+                    if (detections.length > 0 && (Date.now() - lastDetectionTime > detectionInterval)) {
+                        lastDetectionTime = Date.now(); 
+                        await captureAndSendImage(faceNames); 
+                        faceDetected = true;  // Set the flag to prevent multiple captures
+                    } else if (detections.length === 0 && (Date.now() - lastDetectionTime > detectionInterval)) {
+                        console.log('No faces detected.');
+                        faceDetected = false;  // Reset the flag to allow for another face detection
+                    }
                     
                 }
 
@@ -205,12 +210,60 @@
                     const validMatches = matches.filter(name => name !== "No match found");
                     const validEmployeeNumber = employee_numbers.filter(employee_number => employee_number !== "Unknown");
                     const message = messages.filter(messages => messages !== `${matches} has already checked in today.`);
-                
+                    
+                    if (!matches[0].includes("Unknown") || !matches[0].includes("Spoofing")) {
+                        Swal.fire({
+                            title: `Face Detected: ${matches[0]}`,
+                            text: "Is this your face? If not, please retry face recognition.\n\nMake sure you are in a well-lit area, facing the camera directly, with no obstructions such as masks, glasses, or shadows covering your face.",
+                            icon: "question",
+                            showCancelButton: true,
+                            confirmButtonText: "Yes, it's me",
+                            cancelButtonText: "No, it's not me",
+                            allowOutsideClick: false,
+                            allowEscapeKey: false
+                        }).then((result) => {
+                            if (result.isConfirmed) {
+                                Swal.fire({
+                                    title: "Verification Successful!",
+                                    text: "Face recognized successfully. Redirecting...",
+                                    icon: "success",
+                                    showConfirmButton: false,
+                                    timer: 2000
+                                }).then(() => {
+                                    window.location.href = "/dashboard/"; // Redirect to the dashboard or next step
+                                });
+                            } else {
+                                Swal.fire({
+                                    title: "Face Recognition Failed",
+                                    text: "Your face was not properly recognized. Please retry face registration to ensure accurate detection.\n\nMake sure you are in a well-lit area, facing the camera directly, and without any obstructions (e.g., glasses, masks, or strong shadows).",
+                                    icon: "warning",
+                                    showCancelButton: true,
+                                    confirmButtonText: "Go to Face Registration",
+                                    cancelButtonText: "Try Again",
+                                    allowOutsideClick: false,
+                                    allowEscapeKey: false
+                                }).then((retryResult) => {
+                                    if (retryResult.isConfirmed) {
+                                        faceDetected = false;  // Reset flag to allow another face detection attempt
+                                    } else {
+                                        Swal.fire({
+                                            title: "Process Canceled",
+                                            text: "You have chosen to cancel face verification. Please try again when ready.",
+                                            icon: "info",
+                                            timer: 2500,
+                                            showConfirmButton: true
+                                        }).then(() => {
+                                            faceDetected = false;  // Reset flag to allow another face detection attempt
+                                        });
+                                    }
+                                });
+                            }
+                        });
+                    }
                     
                 })
                 .catch((error) => {
                     console.error('Error:', error);
-                    
                 });
             }
 

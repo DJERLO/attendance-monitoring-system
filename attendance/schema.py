@@ -147,3 +147,18 @@ class SpoofingDetectedResponse(BaseModel):
 
 class NotFoundResponse(BaseModel):
     result: List[StatusMessage]
+
+class SuccessCheckFaceSpoofing(BaseModel):
+    class_idx: int
+    confidence: float
+    message: str
+    coordinates: dict  # Using dict to represent the coordinates (x, y, w, h)
+
+class SuccessAntiFaceSpoofing(BaseModel):
+    result: List[SuccessCheckFaceSpoofing]
+
+class InvalidImageFormat(BaseModel):
+    result: str
+
+class ErrorAtFaceSpoofing(BaseModel):
+    error: str

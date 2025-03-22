@@ -8,6 +8,7 @@ import cv2
 import numpy as np
 from django.shortcuts import get_object_or_404, render, redirect
 from django.contrib import messages
+from django.contrib.auth import logout
 from django.http import FileResponse, HttpResponse, JsonResponse
 from django.template.loader import get_template
 from django.urls import reverse
@@ -37,6 +38,10 @@ MODEL_PATH = os.path.join(CURRENT_DIR, 'training.pth')
 def index(request):
     return redirect('account_login')
 
+def logout_view(request):
+    logout(request)  # This properly logs the user out
+    return redirect('account_logout')  # Redirect to allauth's logout page
+
 from .recognize_faces import load_known_faces, recognize_faces_from_image  # Ensure these functions are implemented
 #Load Faces before check-in connection established
 @sync_to_async
@@ -44,118 +49,71 @@ def async_load_known_faces(KNOWN_FACES_DIR):
     """Asynchronous wrapper for face recognition."""
     return load_known_faces(KNOWN_FACES_DIR)
 
+# Face Recognition
 @sync_to_async
 def async_recognize_faces(img_data):
     """Asynchronous wrapper for face recognition."""
     return recognize_faces_from_image(img_data)
 
+# Anti-Spoofing Detection
 @sync_to_async
 def async_detect_fake_face(img_data):
     """Asynchronous wrapper for fake face detection."""
     return detect_face_spoof(img_data)
 
+# Get Current Employee Instance by his employee_number 
 @sync_to_async
 def get_employee_by_id(employee_number):
     """Fetch employee from the database by employee_id."""
     return get_object_or_404(Employee, employee_number=employee_number)
 
+# Checking In
 @sync_to_async
-def check_in_at_am(employee_number):
-    """Checking-In at AM (sync function for async call)"""
-    today = timezone.now().date()  # Get today's date
+def check_in(employee_number):
+    """Checking-In The Employee"""
+    today = timezone.now()  # Get today's date
     employee = get_object_or_404(Employee, employee_number=employee_number)  # Get employee
-    return ShiftRecord.objects.filter(employee=employee, clock_in_at_am__date=today).exists()  # Check if already checked in for AM
+    return ShiftRecord.objects.filter(employee=employee, clock_in__date=today).exists()  # Check if already checked in
 
-async def clock_in_at_am(employee_number):
-    """Clocking-In at AM"""
+# Clocking-In Employee's Time
+async def clock_in(employee_number):
+    """Clocking-In Employee's Time-In"""
     employee = await get_employee_by_id(employee_number)  # Await async call to fetch employee
 
     # Await the result of check-in function
-    already_checked_in = await check_in_at_am(employee_number)  # Await the async call
+    already_checked_in = await check_in(employee_number)  # Await the async call
     if not already_checked_in:
         # Create a new shift record in a sync-to-async context
         shift_record = await sync_to_async(ShiftRecord.objects.create)(
-            employee=employee, clock_in_at_am=timezone.now()
+            employee=employee, clock_in = timezone.now()
         )
         return shift_record
     return None  # Or raise an exception if desired
 
+# Checking-Out
 @sync_to_async
-def check_out_at_am(employee_number):
-    """Checking-In at AM (sync function for async call)"""
-    today = timezone.now().date()  # Get today's date
+def check_out(employee_number):
+    """Checking-Out The Employee"""
+    today = timezone.now() # Get today's date
     employee = get_object_or_404(Employee, employee_number=employee_number)  # Get employee
-    return ShiftRecord.objects.filter(employee=employee, clock_out_at_am__date=today).exists()  # Check if already checked out for AM
+    return ShiftRecord.objects.filter(employee=employee, clock_out__date=today).exists()  # Check if already checked out
 
-async def clock_out_at_am(employee_number):
-    """Clocking-Out at AM"""
+async def clock_out(employee_number):
+    """Clocking-Out Employee's Time-Out"""
     employee = await get_employee_by_id(employee_number)  # Await async call to fetch employee
-    today = timezone.now().date()  # Get today's date
+    today = timezone.now()  # Get today's date
 
     # Find the shift record for AM and await
-    shift_record = await sync_to_async(lambda: ShiftRecord.objects.filter(employee=employee, clock_in_at_am__date=today).first())()
+    shift_record = await sync_to_async(lambda: ShiftRecord.objects.filter(employee=employee, clock_in__date=today).first())()
     
     if shift_record:
         # Update clock-out time in a sync-to-async context
-        shift_record.clock_out_at_am = timezone.now()
+        shift_record.clock_out= timezone.now()
         await sync_to_async(shift_record.save)()
         return shift_record
     return None  # Or raise an exception if no record is found
 
-@sync_to_async
-def check_in_at_pm(employee_number):
-    """Checking-In at PM (sync function for async call)"""
-    today = timezone.now().date()  # Get today's date
-    employee = get_object_or_404(Employee, employee_number=employee_number)  # Get employee
-    return ShiftRecord.objects.filter(employee=employee, clock_in_at_pm__date=today).exists()  # Check if already checked in for PM
-
-async def clock_in_at_pm(employee_number):
-    """Clocking in for the afternoon shift."""
-    today = timezone.now().date()  # Get today's date
-    employee = await get_employee_by_id(employee_number)  # Await async call to fetch employee
-
-    # Check if the employee has already checked in for the afternoon shift
-    already_checked_in = await check_in_at_pm(employee_number)  # Await the async call
-    
-    if not already_checked_in:
-        # Use get_or_create to retrieve or create the shift record for today
-        shift_record, created = await sync_to_async(ShiftRecord.objects.get_or_create)(
-            date=today,
-            employee=employee,
-            defaults={"clock_in_at_pm": timezone.now()}  # Sets clock_in_at_pm only if a new record is created
-        )
-        
-        # If the record already exists but clock_in_at_pm is not set, update it
-        if not created and shift_record.clock_in_at_pm is None:
-            shift_record.clock_in_at_pm = timezone.now()
-            await sync_to_async(shift_record.save)()  # Save the updated shift record
-
-        return shift_record  # Return the updated or newly created shift record
-
-    return None  # Optional: return None if already checked in, or raise an exception if desired
-
-@sync_to_async
-def check_out_at_pm(employee_number):
-    """Checking-In at PM (sync function for async call)"""
-    today = timezone.now().date()  # Get today's date
-    employee = get_object_or_404(Employee, employee_number=employee_number)  # Get employee
-    return ShiftRecord.objects.filter(employee=employee, clock_out_at_pm__date=today).exists()  # Check if already checked out for PM
-
-async def clock_out_at_pm(employee_number):
-    """Clocking-Out at PM"""
-    employee = await get_employee_by_id(employee_number)  # Await async call to fetch employee
-    today = timezone.now().date()  # Get today's date
-
-    # Find the shift record for PM and await
-    shift_record = await sync_to_async(lambda: ShiftRecord.objects.filter(employee=employee, clock_in_at_pm__date=today).first())()
-    
-    if shift_record:
-        # Update clock-out time in a sync-to-async context
-        shift_record.clock_out_at_pm = timezone.now()
-        await sync_to_async(shift_record.save)()
-        return shift_record
-    return None  # Or raise an exception if no record is found
-
+# Check-In View Attendance
 def check_in_attendance(request):
     """Renders the attendance page."""
     load_known_faces(KNOWN_FACES_DIR) # Loads all the employee's faces in our dataset
@@ -179,8 +137,8 @@ def check_in_attendance(request):
 
     return render(request, 'attendance/check_in.html', context)
 
-async def checking_in_at_am(request):
-    """Handles the attendance check-in at AM face recognition."""
+async def checking_in(request):
+    """Handles the attendance check-in face recognition."""
     logger.info("Received request: %s", request.body)
     if request.method == 'POST':
         try:
@@ -215,14 +173,14 @@ async def checking_in_at_am(request):
                     
                     if employee:  # Check if employee is found
                         # Check if the employee has already checked in today
-                        checkin_exists =  await check_in_at_am(employee_number)
+                        checkin_exists =  await check_in(employee_number)
                         profile_image_url = request.build_absolute_uri(employee.avatar_url)
                         
                         #If employee hasn't check_in yet
                         if not checkin_exists:
                             try:
                                 #Clock-in that employee
-                                submit =  await clock_in_at_am(employee_number)
+                                submit =  await clock_in(employee_number)
                                 return JsonResponse({
                                     "result": [{
                                         "name": employee_data.get('name'),
@@ -266,93 +224,7 @@ async def checking_in_at_am(request):
 
     return JsonResponse({"result":[{"status": "No Content"}]}, status=200)
 
-async def checking_in_at_pm(request):
-    """Handles the attendance check-in at PM face recognition."""
-    logger.info("Received request: %s", request.body)
-    if request.method == 'POST':
-        try:
-            data = json.loads(request.body)
-            img_data = data.get('image')
-
-            # Extract base64 string from data URL
-            if img_data.startswith('data:image/jpeg;base64,'):
-                img_data = img_data.replace('data:image/jpeg;base64,', '')
-                img_data = base64.b64decode(img_data)
-            else:
-                return JsonResponse({"error": "Invalid image format"}, status=400)
-
-            #This function checking for Face-Spoofing attacks
-            class_idx, confidence, message = await async_detect_fake_face(img_data)
-
-            #Check if the img_data is Real or Fake
-            if message == 'Real':
-                #Start the Facial Recognition Process
-                verify = await async_recognize_faces(img_data)  
-                logger.info("Verification result: %s", verify)
-
-                #Verify may contains employee's name and employee_id
-                if verify and isinstance(verify, list) and len(verify) > 0:
-                    employee = None
-                    employee_data = verify[0]
-                    employee_number = employee_data.get('employee_number')
-                    
-                    if employee_number:  # Check if employee_id is not None
-                        # Fetch employee profile using employee_id asynchronously
-                        employee =  await get_employee_by_id(employee_number)
-                    
-                    if employee:  # Check if employee is found
-                        # Check if the employee has already checked in today
-                        checkin_exists =  await check_in_at_pm(employee_number)
-                        profile_image_url = request.build_absolute_uri(employee.avatar_url)
-                        
-                        #If employee hasn't check_in yet
-                        if not checkin_exists:
-                            try:
-                                #Clock-in that employee
-                                submit =  await clock_in_at_pm(employee_number)
-                                return JsonResponse({
-                                    "result": [{
-                                        "name": employee_data.get('name'),
-                                        "employee_number": employee_number,
-                                        "profile_image_url": profile_image_url,
-                                        "message": f"{employee_data.get('name')} has checked in today's afternoon shift.",
-                                    }]
-                                }, status=200)
-                            except Exception as e:
-                                logger.error("Error recording attendance: %s", e)
-                                return JsonResponse({
-                                    "result": [{
-                                        "message": "Error recording attendance. Please try again later."
-                                    }]
-                                }, status=500)
-
-                        else:
-                            return JsonResponse({
-                                "result": [{
-                                    "name": employee_data.get('name'),
-                                    "employee_number": employee_number,
-                                    "profile_image_url": profile_image_url,
-                                    "message": f"{employee_data.get('name')} has already checked in for today's afternoon shift.",
-                                }]
-                            }, status=400)
-
-                    else:
-                        logger.warning("Employee with ID %s not found.", employee_number)
-                        return JsonResponse({"result": [{"message": "Employee not found."}]}, status=404)
-            
-            if message == 'Fake':
-                return JsonResponse({"result":[{"message": "Possible Spoofing Detected"}]}, status=200)
-            
-
-        except json.JSONDecodeError as e:
-            logger.error("JSON Decode Error: %s", e)
-            return JsonResponse({"error": ["Invalid JSON"]}, status=400)
-        except Exception as e:
-            logger.error("Error: %s", e)
-            return JsonResponse({"error": [str(e)]}, status=500)
-
-    return JsonResponse({"result":[{"status": "No Content"}]}, status=200)
-
+# Check-Out View Attendance
 def check_out_attendance(request):
     """Renders the attendance page."""
     load_known_faces(KNOWN_FACES_DIR) # Loads all the employee's faces in our dataset
@@ -376,8 +248,8 @@ def check_out_attendance(request):
 
     return render(request, 'attendance/check_out.html', context)
 
-async def checking_out_at_am(request):
-    """Handles the attendance check-in at AM face recognition."""
+async def checking_out(request):
+    """Handles the attendance check-out face recognition."""
     logger.info("Received request: %s", request.body)
     if request.method == 'POST':
         try:
@@ -412,21 +284,21 @@ async def checking_out_at_am(request):
                     
                     if employee:  # Check if employee is found
                         # Check if the employee has already checked in today
-                        checkin_exists =  await check_in_at_am(employee_number)
-                        checkout_exists =  await check_out_at_am(employee_number)
+                        checkin_exists =  await check_in(employee_number)
+                        checkout_exists =  await check_out(employee_number)
                         profile_image_url = request.build_absolute_uri(employee.avatar_url)
                         
                         # If employee has checked in and not checked out, allow clocking out
                         if checkin_exists and not checkout_exists:
                             try:
                                 # Clock-Out that employee
-                                submit = await clock_out_at_am(employee_number)
+                                submit = await clock_out(employee_number)
                                 return JsonResponse({
                                     "result": [{
                                         "name": employee_data.get('name'),
                                         "employee_number": employee_number,
                                         "profile_image_url": profile_image_url,
-                                        "message": f"{employee_data.get('name')} has checked out today's morning shift.",
+                                        "message": f"{employee_data.get('name')} has checked out today!",
                                     }]
                                 }, status=200)
                             except Exception as e:
@@ -444,7 +316,7 @@ async def checking_out_at_am(request):
                                         "name": employee_data.get('name'),
                                         "employee_number": employee_number,
                                         "profile_image_url": profile_image_url,
-                                        "message": f"{employee_data.get('name')} has already checked out for today's morning shift.",
+                                        "message": f"{employee_data.get('name')} has already checked out for today!",
                                     }]
                                 }, status=409)
                         
@@ -455,109 +327,9 @@ async def checking_out_at_am(request):
                                     "name": employee_data.get('name'),
                                     "employee_number": employee_number,
                                     "profile_image_url": profile_image_url,
-                                    "message": f"{employee_data.get('name')} hasn't checked in for the morning shift.",
+                                    "message": f"{employee_data.get('name')} hasn't checked in yet for today!",
                                 }]
                             }, status=400)
-
-                    else:
-                        logger.warning("Employee with ID %s not found.", employee_number)
-                        return JsonResponse({"result": [{"message": "Employee not found."}]}, status=404)
-            
-            if message == 'Fake':
-                return JsonResponse({"result":[{"message": "Possible Spoofing Detected"}]}, status=200)
-            
-
-        except json.JSONDecodeError as e:
-            logger.error("JSON Decode Error: %s", e)
-            return JsonResponse({"error": ["Invalid JSON"]}, status=400)
-        except Exception as e:
-            logger.error("Error: %s", e)
-            return JsonResponse({"error": [str(e)]}, status=500)
-
-    return JsonResponse({"result":[{"status": "No Content"}]}, status=200)
-
-async def checking_out_at_pm(request):
-    """Handles the attendance check-out at PM face recognition."""
-    logger.info("Received request: %s", request.body)
-    if request.method == 'POST':
-        try:
-            data = json.loads(request.body)
-            img_data = data.get('image')
-
-            # Extract base64 string from data URL
-            if img_data.startswith('data:image/jpeg;base64,'):
-                img_data = img_data.replace('data:image/jpeg;base64,', '')
-                img_data = base64.b64decode(img_data)
-            else:
-                return JsonResponse({"error": "Invalid image format"}, status=400)
-
-            #This function checking for Face-Spoofing attacks
-            class_idx, confidence, message = await async_detect_fake_face(img_data)
-
-            #Check if the img_data is Real or Fake
-            if message == 'Real':
-                #Start the Facial Recognition Process
-                verify = await async_recognize_faces(img_data)  
-                logger.info("Verification result: %s", verify)
-
-                #Verify may contains employee's name and employee_id
-                if verify and isinstance(verify, list) and len(verify) > 0:
-                    employee = None
-                    employee_data = verify[0]
-                    employee_number = employee_data.get('employee_number')
-                    
-                    if employee_number:  # Check if employee_id is not None
-                        # Fetch employee profile using employee_id asynchronously
-                        employee =  await get_employee_by_id(employee_number)
-                    
-                    if employee:  # Check if employee is found
-                        # Check if the employee has already checked in today
-                        checkin_exists =  await check_in_at_pm(employee_number)
-                        checkout_exists =  await check_out_at_pm(employee_number)
-                        profile_image_url = request.build_absolute_uri(employee.avatar_url)
-                        
-                        # If employee has checked in and not checked out, allow clocking out
-                        if checkin_exists and not checkout_exists:
-                            try:
-                                # Clock-Out that employee
-                                submit = await clock_out_at_pm(employee_number)
-                                return JsonResponse({
-                                    "result": [{
-                                        "name": employee_data.get('name'),
-                                        "employee_number": employee_number,
-                                        "profile_image_url": profile_image_url,
-                                        "message": f"{employee_data.get('name')} has checked out today's afternoon shift.",
-                                    }]
-                                }, status=200)
-                            except Exception as e:
-                                logger.error("Error recording attendance: %s", e)
-                                return JsonResponse({
-                                    "result": [{
-                                        "message": "Error recording attendance. Please try again later."
-                                    }]
-                                }, status=500)
-
-                        # If Employee already Check-In and Check-Out in the afternoon shift    
-                        elif checkin_exists and checkout_exists:
-                            return JsonResponse({
-                                "result": [{
-                                    "name": employee_data.get('name'),
-                                    "employee_number": employee_number,
-                                    "profile_image_url": profile_image_url,
-                                    "message": f"{employee_data.get('name')} has already checked out for today's afternoon shift.",
-                                }]
-                            }, status=409)    #Conflict Status
-                        
-                        # If Employee hasn't Check-In Yet for afternoon shift.
-                        else:
-                            return JsonResponse({
-                                "result": [{
-                                    "name": employee_data.get('name'),
-                                    "employee_number": employee_number,
-                                    "profile_image_url": profile_image_url,
-                                    "message": f"{employee_data.get('name')} hasn't checked in for the afternoon shift.",
-                                }]
-                            }, status=400) #Bad Request
 
                     else:
                         logger.warning("Employee with ID %s not found.", employee_number)
@@ -670,6 +442,7 @@ def user_face_registration(request, employee_number):
         
         try:
             person = Employee.objects.get(employee_number=employee_number)
+            user = person.user
         except Employee.DoesNotExist:
             return JsonResponse({"message": "Employee not found."}, status=404)
 
@@ -747,10 +520,11 @@ def user_face_registration(request, employee_number):
 
         return JsonResponse({"message": "No image data provided."}, status=400)
 
-    return render(request, 'attendance/face-registration.html', {'employee_number': employee_number})
+    return render(request, 'attendance/face-registration.html', {'employee_number': employee_number, "user": Employee.objects.get(employee_number=employee_number)})
 
 # Face Verification Process
 def face_verification(request):
+    load_known_faces(KNOWN_FACES_DIR) # Loads all the employee's faces in our dataset
     return render(request, 'attendance/face-verification.html')
 
 async def face_recognition_test(request):
@@ -902,7 +676,7 @@ def dashboard(request):
         total_employees = Employee.objects.all().count()
         
         # Get today's date and time
-        today = timezone.now().date()
+        today = timezone.now()
         manila_tz = pytz_timezone('Asia/Manila')
         current_time = timezone.now().astimezone(manila_tz)  # Convert to Manila timezone
         current_hour = current_time.hour
@@ -919,8 +693,8 @@ def dashboard(request):
 
         shiftstatus = ShiftRecord.objects.filter(employee=employee, date=today).first()
         shiftlogs = ShiftRecord.objects.filter(employee=employee).order_by('-date')
-        check_in_time = getattr(shiftstatus, f"clock_in_at_{timemode}", None)
-        check_out_time = getattr(shiftstatus, f"clock_out_at_{timemode}", None)
+        check_in_time = getattr(shiftstatus, f"clock_in", None)
+        check_out_time = getattr(shiftstatus, f"clock_out", None)
 
         # Determine button states based on check-in and check-out times
         can_check_in = check_in_time is None
@@ -936,7 +710,7 @@ def dashboard(request):
         shift_records = ShiftRecord.objects.filter(employee=employee, date__month=today.month, date__year=today.year)
 
         # Count of employees who are active today
-        active_today = ShiftRecord.objects.filter(date=today).count()
+        active_today = ShiftRecord.objects.filter(date=today, status__in=['PRESENT', 'LATE']).count()
 
         # Fetch the number of active employees from the previous day
         yesterday = today - timedelta(days=1)

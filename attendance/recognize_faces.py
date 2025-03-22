@@ -97,6 +97,7 @@ def recognize_faces_from_image(image_data):
 
     except Exception as e:
         print(f"Error during recognition: {e}")
+        load_known_faces(KNOWN_FACES_DIR)  # Reload known faces
         return []
 
 # Load known faces when the module is loaded

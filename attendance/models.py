@@ -5,7 +5,17 @@ from django.db import models
 from django.utils import timezone
 from django.contrib.auth.models import User
 
-# Create your models here.
+# Model to store the work hours of the company
+# This model is used to set the default work hours for the company
+class WorkHours(models.Model):
+    open_time = models.TimeField(default="08:00:00")  # Default opening time
+    close_time = models.TimeField(default="17:00:00")  # Default closing time
+
+    def __str__(self):
+        return f"Work Hours: {self.open_time} - {self.close_time}"
+
+# Model to store the employee details
+# This model is used to store the employee details such as name, contact number, and profile image
 class Employee(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
     employee_number = models.CharField(max_length=50, unique=True)
@@ -56,7 +66,7 @@ class Employee(models.Model):
             return 0
         total_hours = self.total_hours_worked()
         return total_hours / shift_records.count()
-    
+
 # Model to store multiple face images for facial recognition
 class FaceImage(models.Model):
     employee = models.ForeignKey(Employee, related_name='face_images', on_delete=models.CASCADE)
@@ -66,43 +76,33 @@ class FaceImage(models.Model):
     
 # Model to track attendance with clock in and out
 class ShiftRecord(models.Model):
+    ATTENDANCE_STATUSES = [
+        ('PRESENT', 'Present'),
+        ('LATE', 'Late'),
+        ('ABSENT', 'Absent'),
+    ]
+
     employee = models.ForeignKey(Employee, on_delete=models.CASCADE)
     date = models.DateField(default=timezone.now)
     
     # Clock-in and clock-out timestamps
-    clock_in_at_am = models.DateTimeField(blank=True, null=True)
-    clock_out_at_am = models.DateTimeField(blank=True, null=True)
-    clock_in_at_pm = models.DateTimeField(blank=True, null=True)
-    clock_out_at_pm = models.DateTimeField(blank=True, null=True)
+    clock_in = models.DateTimeField(blank=True, null=True)
+    clock_out = models.DateTimeField(blank=True, null=True)
+
+    # Attendance status
+    status = models.CharField(max_length=10, choices=ATTENDANCE_STATUSES, default='ABSENT')
 
     def __str__(self):
         return f"{self.employee.full_name()} Attendance on {self.date}"
 
     @property
-    def total_hours_at_morning(self):
-        # Calculate total hours worked if all clock-ins and clock-outs are present
-        total = 0
-        if self.clock_in_at_am and self.clock_out_at_am:
-            total += (self.clock_out_at_am - self.clock_in_at_am).seconds / 3600  # convert to hours
-        return total
-    
-    @property
-    def total_hours_at_afternoon(self):
-        # Calculate total hours worked if all clock-ins and clock-outs are present
-        total = 0
-        if self.clock_in_at_pm and self.clock_out_at_pm:
-            total += (self.clock_out_at_pm - self.clock_in_at_pm).seconds / 3600  # convert to hours
-        return total
-    
-    @property
     def total_hours(self):
-        # Calculate total hours worked if all clock-ins and clock-outs are present
-        total = 0
-        if self.clock_in_at_am and self.clock_out_at_am:
-            total += (self.clock_out_at_am - self.clock_in_at_am).seconds / 3600  # convert to hours
-        if self.clock_in_at_pm and self.clock_out_at_pm:
-            total += (self.clock_out_at_pm - self.clock_in_at_pm).seconds / 3600  # convert to hours
-        return total
+        """Calculate total hours worked for the shift."""
+        if self.clock_in and self.clock_out:
+            total = (self.clock_out - self.clock_in).total_seconds() / 3600
+            return round(total, 2)  # Round to 2 decimal places for accuracy
+        return 0
+    
     
     def employee_full_name(self):
         return self.employee.full_name()  # Calls the Employee model's full_name method

@@ -9,26 +9,27 @@
     <link href="{% static 'css/attendance.css' %}" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     
-    <title>Face Uploader</title>
+    <title>Face Registration | {{user.full_name}}</title>
 </head>
 
 <body>
-    <main>
+    <main class="container text-center mt-4">
         <div class="container text-center mt-4">
             <h2>Capture Your Face for Registration</h2>
-            <div class="row justify-content-center g-4 w-100 h-100">
-                <div class="col-md-6 d-block" id="video-container">
+            <div class="row justify-content-center align-items-center g-4">
+                <div class="col-md-12 d-block" id="video-container">
                     <video id="video" autoplay muted></video>
                     <button class="btn btn-primary mt-3" id="capture-btn">Capture Image</button>
                     <button class="btn btn-primary mt-3" id="check-btn">Check your Face</button>
                     <canvas id="canvas" class="d-none"></canvas>
                 </div>
-                <div class="col-md-6 d-none" id="preview-container">
+                <div class="col-md-12 d-none" id="preview-container">
                     <h3>Preview</h3>
-                    <img class="w-100" id="captured-image" src="" class="img-fluid" alt="Your captured image will appear here.">
+                    <img class="d-flex" id="captured-image" src="" alt="Your captured image will appear here.">
                     <button class="btn btn-success mt-3" id="proceed-btn">Upload</button>
                     <button class="btn btn-danger mt-3" id="cancel-btn">Try Again</button>
                 </div>
+                <p>Captured Faces: <span id="captureCountDisplay">0</span> / 5</p>
             </div>
         </div>
 
@@ -42,6 +43,7 @@
 
     <script defer src="{% static 'js/bootstrap.bundle.min.js' %}"></script>
     <script defer src="{% static 'js/face-api.min.js' %}"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script type="module">
         import tensorflowtfjs from 'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.21.0/+esm'
     </script>
@@ -60,26 +62,70 @@
 
             const videoContainer = document.getElementById('video-container');
             const previewContainer = document.getElementById('preview-container');
+            let stream = null; // Store the camera stream globally
+            let photoTaken = false; // Flag to prevent multiple captures
             
+            let CAPTURE_COUNT = 4; // Track the number of captured faces
+            const MAX_CAPTURE_COUNT = 5; // Limit before verification
+            const capturecountdisplay = document.getElementById("captureCountDisplay");
+
+            //Load Models
+            async function loadModels() {
+                try {
+                    const modelPath = '{% static "js/" %}';
+                    await faceapi.nets.ssdMobilenetv1.loadFromUri(modelPath);
+                    await faceapi.nets.tinyFaceDetector.loadFromUri(modelPath);
+                    await faceapi.nets.faceLandmark68Net.loadFromUri(modelPath);
+                    await faceapi.nets.faceRecognitionNet.loadFromUri(modelPath);
+                } catch (error) {
+                    console.error("Error loading models:", error);
+                }
+            }
+            
+            //Adjust the canvas size to match the video size
             function adjustCanvasSize(video, canvas) {
                 canvas.width = video.videoWidth;
                 canvas.height = video.videoHeight;
             }
 
+            //Start Face Detection
+            async function startFaceDetection() {
+                await loadModels(); // Load the face-api models
+
+                setInterval(async () => {
+                    if (photoTaken) return; // Prevent multiple captures
+
+                    const detections = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions());
+
+                    if (detections &&  photoTaken === false) {
+                        console.log("Face detected! Waiting 5 seconds before capture...");
+
+                        photoTaken = true; // Set flag to prevent further detections
+                        await new Promise(resolve => setTimeout(resolve, 5000)); // Wait for 5 seconds
+
+                        captureFrame();
+                        photoTaken = false; // Reset flag after capture so detection can happen again
+                    }
+                }, 2000); // Check for a face every 2 seconds
+            }
+
+            //Get the Camera Stream
             function getCameraStream() {
                 const constraints = {
                     video: {
-                        width: { ideal:  window.innerWidth },
-                        height: { ideal:  window.innerHeight },
+                        width: { ideal: window.innerWidth },
+                        height: { ideal: window.innerHeight },
                         facingMode: "user"
                     }
                 };
 
                 navigator.mediaDevices.getUserMedia(constraints)
-                    .then(stream => {
+                    .then(camStream => { // Store the stream in a global variable
+                        stream = camStream;
                         video.srcObject = stream;
                         video.addEventListener('loadedmetadata', () => {
                             adjustCanvasSize(video, canvas);
+                            startFaceDetection(); // Start face detection after the video is loaded
                         });
                     })
                     .catch(err => {
@@ -88,6 +134,15 @@
                     });
             }
 
+            // Stop the camera
+            function stopCamera() {
+                if (stream) {
+                    stream.getTracks().forEach(track => track.stop()); // Stop all video tracks
+                    stream = null;
+                }
+            }
+
+            //Event Listeners (Start)
             checkBtn.addEventListener('click', () => {
                 window.location.href = "/face-verification/";
             });
@@ -102,6 +157,8 @@
                 // Set the captured image to the preview
                 capturedImage.src = imageData;
 
+                stopCamera(); // Stop the camera after capture
+
                 //Hide the Video Container and show the Preview of your Image that you capture
                 videoContainer.classList.remove('d-block');
                 videoContainer.classList.add('d-none');
@@ -111,6 +168,18 @@
                 previewContainer.classList.add('d-block');
     
             });
+
+            function captureFrame() {
+                context.drawImage(video, 0, 0, canvas.width, canvas.height);
+                const imageData = canvas.toDataURL('image/jpeg');
+
+                capturedImage.src = imageData;
+
+                // Hide the video and show the preview
+                videoContainer.classList.add('d-none');
+                stopCamera(); // Stop the camera after capture
+                previewContainer.classList.remove('d-none');
+            }
 
             proceedBtn.addEventListener('click', async() => {
                 // Proceed with registration (for now, just display a success message)
@@ -142,10 +211,49 @@
                     if (response.ok) {
                         const responseData = await response.json();  // Parse the JSON response if needed
                         showToast('Success!', responseData.message, 'success');
-                        // Redirect or perform further actions here
+                        //Show the Video Container Again
+                        videoContainer.classList.remove('d-none');
+                        videoContainer.classList.add('d-block');
+
+                        //Hides the Preview Container
+                        previewContainer.classList.remove('d-block');
+                        previewContainer.classList.add('d-none');
+                        
+                        CAPTURE_COUNT++; // Increase capture count if the face in backend is detected successfully
+                        
+                        // Redirect to the verification page after capturing the maximum number of faces of (5)
+                        if (CAPTURE_COUNT >= MAX_CAPTURE_COUNT) {
+                            
+                            Swal.fire({
+                                title: "Face Registration Complete!",
+                                text: "You have successfully registered your face. You will now be logged out and redirected to face verification.",
+                                icon: "success",
+                                confirmButtonText: "Logout & Verify",
+                                allowOutsideClick: false,
+                                allowEscapeKey: false
+                            }).then((result) => {
+                                if (result.isConfirmed) {
+                                    window.location.href = "/face-verification/";
+                                }
+                            });
+
+                        } else {
+                            capturecountdisplay.innerText = CAPTURE_COUNT; // Update the capture count display
+                            getCameraStream(); // Restart the camera
+                        }
+
                     } else {
                         const errorData = await response.json();
                         showToast('Error!', errorData.message || 'Failed to upload the image.', 'danger');
+
+                        //Show the Video Container Again
+                        videoContainer.classList.remove('d-none');
+                        videoContainer.classList.add('d-block');
+
+                        //Hides the Preview Container
+                        previewContainer.classList.remove('d-block');
+                        previewContainer.classList.add('d-none');
+                        getCameraStream(); // Restart the camera
                     }
                 } catch (error) {
                     showToast('Error!', 'An unexpected error occurred.', 'danger');
@@ -160,7 +268,9 @@
                 //Hides the Preview Container
                 previewContainer.classList.remove('d-block');
                 previewContainer.classList.add('d-none');
+                getCameraStream(); // Restart the camera
             });
+            // Event Listeners (End)
 
             function showToast(title, message, type) {
                 const toastContainer = document.querySelector('.toast-container');
@@ -193,7 +303,34 @@
                 });
             }
 
-            getCameraStream();
+            Swal.fire({
+                title: "Face Registration Notice",
+                imageUrl: "https://static.vecteezy.com/system/resources/previews/054/228/144/non_2x/face-recognition-technology-icon-vector.jpg",
+                imageWidth:'100%',
+                imageHeight: '100%',
+                imageAlt: "Face Registration Notice",
+                html: `
+                    <p>Hello {{user.first_name}}! Before proceeding, please follow these guidelines:</p>
+                    <ul style="text-align: left;">
+                        <li>Ensure your face is well-lit and clearly visible.</li>
+                        <li>Remove any face coverings (hats, masks, sunglasses).</li>
+                        <li>Position your face within the camera frame.</li>
+                        <li>Face detection will capture a maximum of 5 images before verification.</li>
+                    </ul>
+                    <p>Click "Proceed" to start the face recognition process.</p>
+                `,
+                confirmButtonText: "Proceed",
+                allowOutsideClick: false,
+                allowEscapeKey: false,
+                padding: '0 0 1.25em',
+                heightAuto: false,
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    getCameraStream(); // Start the camera and detection after the user click start
+                }
+            });
+
+            
         });
     </script>
 </body>

@@ -18,7 +18,7 @@
         <div class="container text-center">
             <h1 class="text-white">Attendance Check-Out</h1>
             <h2 class="text-white">Current Time: <span id="current-time">{{ timestamp }}</span></h2>
-            <h2 class="text-white">Current Mode: {{ time }}</h2>
+            <!-- <h2 class="text-white">Current Mode: {{ time }}</h2> -->
             <div class="row g-0"> 
                 <div class="col-md-12" id="video-container">
                     <canvas class="align-self-stretch" id="canvas"></canvas>
@@ -171,9 +171,8 @@
                 console.log("Matching...");
                 context.drawImage(video, 0, 0, canvas.width, canvas.height);
                 const imgData = canvas.toDataURL('image/jpeg');
-                const timemode = '{{ time }}'.toLowerCase();  // Convert the time to lowercase
                 
-                fetch(`/attendance/check-out/${timemode}/`, {
+                fetch(`/attendance/check-out/`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -198,7 +197,7 @@
                     
                     if (validMatches.length > 0 && Array.isArray(matches) && matches.every(match => match !== '' && match !== null && match !== undefined)) {
                         //Successful attendance
-                        if (messages.some(msg => msg.includes(`has checked out today's morning shift.`)) || messages.some(msg => msg.includes(`has checked out today's afternoon shift.`))){
+                        if (messages.some(msg => msg.includes(`has checked out today!`))){
                            
                             Swal.fire({
                                 imageUrl: profile_image, // URL of the image
@@ -217,7 +216,7 @@
 
                         }
 
-                        if (messages.some(msg => msg.includes(`has already checked out for today's morning shift.`)) || messages.some(msg => msg.includes(`has already checked out for today's afternoon shift.`))){
+                        if (messages.some(msg => msg.includes(`has already checked out for today!`))){
                             //Prompt users Check-In Again Tommorow
                             Swal.fire({
                                 imageUrl: profile_image,
@@ -235,14 +234,14 @@
                             });
                         }
 
-                        if (messages.some(msg => msg.includes(`hasn't checked in for the morning shift.`)) || messages.some(msg => msg.includes(`hasn't checked in for the afternoon shift.`))){
+                        if (messages.some(msg => msg.includes(`hasn't checked in for today!`))){
                             //Prompt users Check-In Again Tommorow
                             Swal.fire({
                                 imageUrl: profile_image,
                                 icon: 'info', 
                                 heightAuto: false,
-                                title: 'Afternoon Shift Check-In Reminder',
-                                html: `Hello, ${validMatches[0]}! Our records show that you haven't checked in for the afternoon shift yet. Please remember to check in to mark your attendance for today.`,
+                                title: 'Check-In Reminder',
+                                html: `Hello, ${validMatches[0]}! Our records show that you haven't checked in for today!. Please remember to check in to mark your attendance for today.`,
                                 timer: 2000, // Auto close after 2 seconds
                                 timerProgressBar: true,
                                 showConfirmButton: false, // Hide the OK button

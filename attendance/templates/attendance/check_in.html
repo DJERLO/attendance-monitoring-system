@@ -38,6 +38,7 @@
     
     <script>
         document.addEventListener('DOMContentLoaded', async () => {
+            let faceDetected = false // Flag to check if a face is detected
 
             // Function to format the date and time
             function updateCurrentTime() {
@@ -137,23 +138,24 @@
                 context.clearRect(0, 0, canvas.width, canvas.height);
                 let faceNames = [];
 
-                detections.forEach((detection, index) => {
-                    const box = detection.detection.box;
-                    // Determine if the face is recognized or not
-                    const name = matches[index] || "Unknown";  
-                    const employeeID = employee_numbers[index] || "N/A";
-                    faceNames.push(name);
+                if (faceDetected === false){
+                    detections.forEach((detection, index) => {
+                        const box = detection.detection.box;
+                        // Determine if the face is recognized or not
+                        const name = matches[index] || "Unknown";  
+                        const employeeID = employee_numbers[index] || "N/A";
+                        faceNames.push(name);
 
-                    // Draw bounding box and label
-                    context.beginPath();
-                    context.rect(box.x, box.y, box.width, box.height);
-                    context.lineWidth = 5;
-                    context.strokeStyle = (name === "Unknown") ? 'red' : 'green';
-                    context.stroke();
+                        // Draw bounding box and label
+                        context.beginPath();
+                        context.rect(box.x, box.y, box.width, box.height);
+                        context.lineWidth = 5;
+                        context.strokeStyle = (name === "Unknown") ? 'red' : 'green';
+                        context.stroke();
 
-                    context.font = '20px Arial';
-                    context.fillStyle = (name === "Unknown") ? 'red' : 'green';
-                    context.fillText(name, box.x, box.y > 10 ? box.y - 5 : 10);  
+                        context.font = '20px Arial';
+                        context.fillStyle = (name === "Unknown") ? 'red' : 'green';
+                        context.fillText(name, box.x, box.y > 10 ? box.y - 5 : 10);  
                 });
 
                 if (detections.length > 0 && (Date.now() - lastDetectionTime > detectionInterval)) {
@@ -161,8 +163,12 @@
                     await captureAndSendImage(faceNames); 
                 } else if (detections.length === 0 && (Date.now() - lastDetectionTime > detectionInterval)) {
                     console.log('No faces detected.');
-                    
+                    faceDetected = false;  // Reset the flag to allow for another face detection
                 }
+
+                } 
+                
+                
 
                 requestAnimationFrame(detectAndCaptureFaces);
             }
@@ -171,9 +177,8 @@
                 console.log("Matching...");
                 context.drawImage(video, 0, 0, canvas.width, canvas.height);
                 const imgData = canvas.toDataURL('image/jpeg');
-                const timemode = '{{ time }}'.toLowerCase();  // Convert the time to lowercase
                 
-                fetch(`/attendance/check-in/${timemode}/`, {
+                fetch(`/attendance/check-in/`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -249,7 +254,7 @@
                                 timerProgressBar: true,
                                 showConfirmButton: false, // Hide the OK button
                                 willClose: () => {
-                                    // Additional cleanup if needed
+                                    faceDetected = false;  // Reset the flag to allow for another face detection
                                 }
                             });
                         }
