@@ -1,0 +1,129 @@
+{% extends "user/base.html" %}
+{% load allauth i18n %}
+{% load static %}
+{% block head_title %}
+    {% trans "Email Addresses" %}
+{% endblock head_title %}
+
+{% block page_content %}
+    <div class="container-fluid w-75">
+        <h1 class="mb-4 text-center">
+            {% trans "Email Addresses" %}
+        </h1>
+
+        {% if emailaddresses %}
+            <p class="lead text-center mb-4">
+                {% trans 'The following email addresses are associated with your account:' %}
+            </p>
+            
+            {% url 'account_email' as email_url %}
+            <form id="email-list" action="{{ email_url }}" method="post" class="form-check">
+                {% csrf_token %}
+                
+                <div class="list-group">
+                    {% for radio in emailaddress_radios %}
+                        {% with emailaddress=radio.emailaddress %}
+                            <div class="list-group-item d-flex justify-content-between align-items-center">
+                                <label class="form-check-label d-flex align-items-center">
+                                    <input class="form-check-input me-2" type="radio" name="email" value="{{ emailaddress.email }}" id="{{ radio.id }}" {% if radio.checked %} checked {% endif %}>
+                                    {{ emailaddress.email }}
+                                    {% if emailaddress.verified %}
+                                        <span class="badge bg-success ms-2">
+                                            {% translate "Verified" %}
+                                        </span>
+                                    {% else %}
+                                        <span class="badge bg-warning ms-2">
+                                            {% translate "Unverified" %}
+                                        </span>
+                                    {% endif %}
+                                    {% if emailaddress.primary %}
+                                        <span class="badge bg-primary ms-2">
+                                            {% translate "Primary" %}
+                                        </span>
+                                    {% endif %}
+                                </label>
+                            </div>
+                        {% endwith %}
+                    {% endfor %}
+                </div>
+
+                <div class="d-flex justify-content-between mt-4">
+                    <button type="submit" class="btn btn-primary" name="action_primary">
+                        {% trans 'Make Primary' %}
+                    </button>
+                    <button type="submit" class="btn btn-secondary" name="action_send">
+                        {% trans 'Re-send Verification' %}
+                    </button>
+                    <button type="submit" class="btn btn-danger" name="action_remove">
+                        {% trans 'Remove' %}
+                    </button>
+                </div>
+            </form>
+        {% else %}
+            {% include "account/snippets/warn_no_email.html" %}
+        {% endif %}
+
+        {% if can_add_email %}
+            <hr class="my-5">
+            <h2 class="text-center mb-4">
+                {% trans "Add Email Address" %}
+            </h2>
+            
+            {% url 'account_email' as action_url %}
+            <form id="add-email" action="{{ action_url }}" method="post" class="form-inline">
+                {% csrf_token %}
+                
+                <div class="mb-3">
+                    <label for="id_email" class="form-label">Email:</label>
+                    <input type="email" name="email" class="form-control" id="id_email"  aria-describedby="emailHelp">
+                    <div id="emailHelp" class="form-text">We'll never share your email with anyone else.</div>
+                </div>
+
+                <div class="text-center">
+                    <button type="submit" class="btn btn-success" name="action_add">
+                        {% trans "Add Email" %}
+                    </button>
+                </div>
+            </form>
+        {% endif %}
+    </div>
+{% endblock page_content %}
+
+{% block extra_body %}
+<script>
+    (function() {
+        let message = "{% trans 'Do you really want to remove the selected email address?' %}";
+        let actions = document.getElementsByName('action_remove');
+        
+        // Make sure you're targeting the form correctly by using its id
+        let emailListForm = document.getElementById('email-list');
+        
+        if (actions.length && emailListForm) {
+            // Add event listener to the remove button
+            actions[0].addEventListener("click", function(e) {
+                e.preventDefault();  // Prevent immediate form submission
+                
+                Swal.fire({
+                    title: message,
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonColor: "#3085d6",
+                    cancelButtonColor: "#d33",
+                    confirmButtonText: "Yes, delete it!"
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        // If the user confirms the deletion
+                        // Set the hidden input field's value to the correct action and submit the form
+                        let actionInput = document.createElement('input');
+                        actionInput.type = 'hidden';
+                        actionInput.name = 'action_remove';
+                        actionInput.value = 'action_remove';
+                        emailListForm.appendChild(actionInput);
+                        emailListForm.submit();  // Submit the form now
+                    }
+                });
+            });
+        }
+    })();
+</script>
+{% endblock extra_body %}

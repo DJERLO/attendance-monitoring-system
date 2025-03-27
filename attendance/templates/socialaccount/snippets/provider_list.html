@@ -1,19 +1,26 @@
 {% load allauth socialaccount %}
 {% get_providers as socialaccount_providers %}
+
 {% if socialaccount_providers %}
-    <ul class="list-inline">
+    <div class="d-flex flex-column justify-content-center align-content-center">
         {% for provider in socialaccount_providers %}
             {% if provider.id == "openid" %}
                 {% for brand in provider.get_brands %}
                     {% provider_login_url provider openid=brand.openid_url process=process as href %}
-                    {% element provider name=brand.name provider_id=provider.id href=href %}
-                    {% endelement %}
+                    <div class="w-100 mb-3">
+                        <a href="{{ href }}" class="btn btn-outline-primary btn-lg w-100" title="{{ provider.name }}">
+                            <i class="fab fa-{{ brand.name | lower }}"></i> {{ brand.name }}
+                        </a>
+                    </div>
                 {% endfor %}
+            {% else %}
+                {% provider_login_url provider process=process scope=scope auth_params=auth_params as href %}
+                <div class="w-100 mb-3">
+                    <a href="{{ href }}" class="btn btn-outline-primary btn-lg w-100" title="{{ provider.name }}">
+                        <i class="fab fa-{{ provider.id | lower }}"></i> {{ provider.name }}
+                    </a>
+                </div>
             {% endif %}
-            {% provider_login_url provider process=process scope=scope auth_params=auth_params as href %}
-            <li class="list-inline-item me-2">
-                <a class="btn btn-danger px-3" title="{{provider.name}}" href="{{href}}">{{provider.name}}</a>
-            </li>
         {% endfor %}
-    </ul>
+    </div>
 {% endif %}

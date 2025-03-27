@@ -44,14 +44,18 @@ Login
             <div class="d-grid mb-3">
                 <button type="submit" class="btn btn-primary btn-block" tags="prominent,login">{% trans "Log in" %}</button>
             </div>
-            <div class="d-grid mb-3"> 
-                <a class="btn btn-danger btn-block g-0" href="{% provider_login_url 'google' %}"><i class='bx bxl-google' ></i> Sign in with Google</a>
+            <div class="mt-3 text-center">
+                <a href="{% url 'account_reset_password' %}" class="text-muted">{% trans "Forgot your password?" %}</a>
             </div>
+            <hr class="border-bottom border-3 border-dark">
         </form>
-
-        <div class="mt-3 text-center">
-            <a href="{% url 'account_reset_password' %}" class="text-muted">{% trans "Forgot your password?" %}</a>
+        
+        <div class="mt-2">
+            <p class="text-center fw-bold mt-4">Use other Third-Party Providers</p>
+            {% include "socialaccount/snippets/provider_list.html" with process="connect" %}
         </div>
+            
+                
 
         <hr>
     

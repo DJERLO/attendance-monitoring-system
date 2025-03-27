@@ -3,8 +3,8 @@
 {% load i18n %}
 {% load socialaccount %}
 {% load static %}
-{% block title %}Profile{% endblock %}
-{% block content %}
+{% block head_title %}Profile{% endblock head_title %}
+{% block page_content %}
 <div class="container-fluid">
     <div class="row justify-content-center">
         <div class="col-md-8">
@@ -43,11 +43,12 @@
                     </div>
                 </div>
                 <div class="card-footer text-center">
-                    <a href="#" class="btn btn-warning">Edit Profile</a>
-                    <a href="{% url 'socialaccount_connections' %}" class="btn btn-danger">Connected Accounts</a>
+                    <a href="{% url 'account_email' %}" class="btn btn-primary">Update Email Address</a>
+                    <a href="#" class="btn btn-warning">Edit Profile Information</a>
+                    <a href="{% url 'socialaccount_connections' %}" class="btn btn-danger">Manage Linked Accounts</a>
                 </div>
             </div>
         </div>
     </div>
 </div>
-{% endblock %}
+{% endblock page_content %}

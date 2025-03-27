@@ -3,55 +3,89 @@ from django.contrib import admin
 from django.db.models import Q
 from django.http import HttpResponse
 from django.utils.html import mark_safe
-from datetime import datetime
 from django.db.models import Value, CharField
 from django.db.models.functions import Concat
+from django.urls import reverse
+from django.utils.html import format_html
 from rangefilter.filters import (
-    DateRangeFilterBuilder,
-    DateTimeRangeFilterBuilder,
-    NumericRangeFilterBuilder,
-    DateRangeQuickSelectListFilterBuilder,
+    DateRangeFilterBuilder
 )
 from .models import Employee, ShiftRecord, WorkHours
 
 # Set custom admin site titles
 admin.site.site_header = "Attendance Management System Admin Portal"  # For example, "Attendance System Admin"
 admin.site.site_title = "St. Clare College Attendance Management System"    # Appears on the browser tab
-admin.site.index_title = "Attendance Management System Admin Portal"  # Appears on the main admin page
+admin.site.index_title = "Attendance Monitoring System Admin Portal"  # Appears on the main admin page
 
 class WorkHoursAdmin(admin.ModelAdmin):
-    list_display = ["open_time", "close_time"]
+    list_display = ["open_time", "close_time", "id"]  # Add a non-editable field first
+    list_display_links = ["id"]  # Make "id" the clickable link
+    readonly_fields = ['id']  # Makes 'id' field read-only
+    list_editable = ["open_time", "close_time"]  # Now these are editable in the list view
+    list_per_page = 1  # Ensures only one record is shown per page
+
+    def has_add_permission(self, request):
+        """Prevents adding a new WorkHours instance if one already exists."""
+        return not WorkHours.objects.exists()  # Disable "Add" if record exists
 
 class EmployeeAdmin(admin.ModelAdmin):
+    # List of fields displayed in the admin list view
     list_display = [
         "profile_image_display", 
         "first_name", 
         "middle_name", 
-        "last_name", 
+        "last_name",
+        "group", 
         "email", 
         "contact_number", 
-        "total_hours_display",  # Add total hours display
-        "average_hours_display"  # Add average hours display
+        "total_hours_display",  
+        "average_hours_display"  
     ]
     
-    search_fields = ["last_name__startswith", "first_name__startswith", "email"]  # Add search fields here
+    list_display_links = ["profile_image_display"]  # Make "profile_image_display" clickable
 
+    # Fields that can be searched in the admin panel
+    search_fields = ["first_name__icontains", "last_name__icontains", "email__icontains"]  # Case-insensitive search
+    # Fields to filter on in the admin panel
+    list_filter = ["user__is_active", "employee_number", "group"]  # Filter by active users or employee number
+    
+    # Pagination settings for list view
+    list_per_page = 20  # Limit number of records per page
+
+    # Making the profile image clickable for easier access
     def profile_image_display(self, obj):
         if obj.profile_image:
-            return mark_safe(f'<img src="{obj.profile_image.url}" width="50" height="50" />')
+            # Creating a clickable link that redirects to the change form for the employee
+            change_url = reverse('admin:%s_%s_change' % (obj._meta.app_label, obj._meta.model_name), args=[obj.pk])
+            return format_html('<a href="{0}"><img src="{1}" width="100" height="100" /></a>', change_url, obj.profile_image.url)
         return "No Image"
     
     profile_image_display.short_description = "Profile Image"
 
+    # Displaying the total hours worked by an employee
     def total_hours_display(self, obj):
-        return f"{obj.total_hours_worked():.2f}"  # Format to 2 decimal places
+        return f"{obj.total_hours_worked():.2f}"  # Formatting to two decimal places
 
     total_hours_display.short_description = "Total Hours Worked"
 
+    # Displaying the average hours worked by an employee
     def average_hours_display(self, obj):
-        return f"{obj.average_hours_worked():.2f}"  # Format to 2 decimal places
+        return f"{obj.average_hours_worked():.2f}"  # Formatting to two decimal places
 
     average_hours_display.short_description = "Average Hours Worked"
+
+    # Action to set the selected employees as active
+    def set_active(self, request, queryset):
+        queryset.update(user__is_active=True)
+    set_active.short_description = "Set selected employees as Active"
+
+    # Action to set the selected employees as inactive
+    def set_inactive(self, request, queryset):
+        queryset.update(user__is_active=False)
+    set_inactive.short_description = "Set selected employees as Inactive"
+
+    # Add the actions to the admin panel
+    actions = [set_active, set_inactive]
 
 # Register the Employee model with the EmployeeAdmin
 admin.site.register(Employee, EmployeeAdmin)
@@ -111,12 +145,10 @@ class ShiftRecordsAdmin(admin.ModelAdmin):
         # Write to CSV
         writer = csv.writer(response)
         writer.writerow([
-            "Employee Full Name",
+            "Full Name",
             "Date",
-            "Clock-In (AM)",
-            "Clock-Out (AM)",
-            "Clock-In (PM)",
-            "Clock-Out (PM)",
+            "Clock-In",
+            "Clock-Out",
             "Total Hours",
         ])
 
@@ -125,10 +157,8 @@ class ShiftRecordsAdmin(admin.ModelAdmin):
             writer.writerow([
                 record.employee.full_name(),
                 record.date,
-                record.clock_in_at_am,
-                record.clock_out_at_am,
-                record.clock_in_at_pm,
-                record.clock_out_at_pm,
+                record.clock_in,
+                record.clock_out,
                 record.total_hours,
             ])
 

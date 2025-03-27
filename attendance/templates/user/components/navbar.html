@@ -21,24 +21,25 @@
 <!-- Navbar with Real-Time Clock -->
 <nav class="navbar position-sticky sticky-top navbar-expand-lg navbar-dark bg-dark mb-4 top-nav d-block">
     <div class="container-fluid"> <!-- Use container-fluid for proper spacing -->
-        <div class="w-100 h-100"> <!-- Flexbox for alignment -->
-            <div class="row d-inline-flex text-wrap flex-row align-self-stretch mx-3">
-                <div class="col-4 p-0">
+        <div class="row w-100 h-100"> <!-- Flexbox for alignment -->
+            <div class="row dropdown d-inline-flex text-wrap flex-row flex-nowrap align-self-stretch mx-3">
+                <div class="col-4 p-0 me-2" style="flex: 0 0 4%;">
                     {% if user.employee.profile_image %}
                         <img id="profile" src="{{  user.employee.profile_image.url }}" alt="{{ user.username }}'s profile picture" class="w-100 h-100 img-thumbnail" style="object-fit: scale-down;"> 
                     {% else %}
                         <img id="profile" src="{% static 'img/blank_profile.webp' %}" alt="Default Profile Picture" class="img-fluid img-thumbnail">
                     {% endif %}
                 </div>
-                <div class="col-4 p-0">
+                <div class="col-6 flex-grow-1" style="flex: 0 0 75%;">
                     <div class="me-4 align-self-center"> <!-- Margin end for spacing -->
                         <a class="nav_title navbar-brand me-auto text-truncate" href="#">{% trans "Welcome" %} {{ user.username }}!</a> <!-- Me-auto pushes the welcome message to the left -->
                     </div>
-                    <div class="col-6 align-self-center">
+                    <div class="col-6 flex-grow-1 align-self-center">
                         <span id="currentTime" class="text-nowrap text-white text-end"> <!-- Real-Time Clock -->
                             <span class="text-light"></span> <!-- To ensure the text is visible against the dark background -->
                         </span>
                     </div>
+                    
                 </div>
             </div>
         </div>

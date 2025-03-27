@@ -1,37 +1,54 @@
-{% extends "base.html" %}
+{% extends "socialaccount/base_entrance.html" %}
 {% load i18n %}
-{% load static %}
+{% load allauth %}
+{% load allauth socialaccount %}
 {% load socialaccount %}
+{% providers_media_js %}
+{% get_providers as socialaccount_providers %}
 
-{% block content %}
-<div class="container d-flex justify-content-center align-items-center" style="height: 100vh;">
-    <div class="col-md-4">
-        <h3 class="text-center mb-4">{% trans "Continue with Google" %}</h3>
-        <form class="form-control justify-content-center py-5" action="" method="post" action>
+{% block head_title %}
+    {% trans "Sign In" %}
+{% endblock head_title %}
+
+{% block body %}
+    <div class="container form-control shadow-lg p-4 mb-5 bg-body rounded">
+        {% if process == "connect" %}
+            <h1 class="display-5 my-4 text-center"><i class="fa-brands fa-{{ provider.id }} fa-2xl"></i></h1>
+            <h1 class="text-center">
+                {% blocktrans with provider.name as provider %}Connect Your {{ provider }} Account{% endblocktrans %}
+            </h1>
+            <p class="text-center text-muted">
+                {% blocktrans with provider.name as provider %}
+                    You are about to securely connect your {{ provider }} account. 
+                    This will allow you to log in and access our services more conveniently.
+                {% endblocktrans %}
+            </p>
+        {% else %}
+            <h1 class="text-center">
+                {% blocktrans with provider.name as provider %}Sign In with {{ provider }}{% endblocktrans %}
+            </h1>
+            <p class="text-center text-muted">
+                {% blocktrans with provider.name as provider %}
+                    Sign in effortlessly using your **{{ provider }}** account. 
+                    We ensure a secure and seamless authentication process.
+                {% endblocktrans %}
+            </p>
+        {% endif %}
+            
+        <form method="post" no_visible_fields=True>
             {% csrf_token %}
-            <!-- Social Login Options -->
             <div class="text-center">
-                <!-- Google Login Button -->
-                <button type="submit" class="btn btn-outline-danger w-100 mb-3 p-4 d-flex align-items-center justify-content-start" href="{% provider_login_url 'google' %}">
-                    <div class="me-5 fs-1">  <!-- Add margin to the right -->
-                        <i class="bi bi-google"></i>
-                    </div>
-                    <div class="justify-content-center">
-                        {% trans "Continue with Google" %}
-                    </div>
+                <button type="submit" class="btn btn-primary btn-lg w-100 mt-3">
+                    {% trans "Continue" %}
                 </button>
-                
-                <!-- Add other providers like Twitter, GitHub, etc., if configured -->
             </div>
         </form>
 
         <hr>
 
-        <div class="text-center">
-            <p>{% trans "Already have an account?" %} 
-                <a href="{% url 'account_login' %}">{% trans "Sign in" %}</a>
-            </p>
+        <h3 class="text-center fw-bold mt-4">Use other Third-Party Providers</h3>
+        <div class="row justify-content-center">
+            {% include "socialaccount/snippets/provider_list.html" with process="connect" %}
         </div>
     </div>
-</div>
-{% endblock %}
+{% endblock body %}

@@ -1,6 +1,8 @@
+{% extends "account/base_entrance.html" %}
 {% load static %}
 <!DOCTYPE html>
 <html lang="en">
+{% block extra_head %}     
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -10,8 +12,7 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/material-design-iconic-font@2.2.0/dist/css/material-design-iconic-font.min.css">
     <link href="https://cdn.datatables.net/v/bs5/jszip-3.10.1/dt-2.1.8/b-3.2.0/b-colvis-3.2.0/b-html5-3.2.0/b-print-3.2.0/date-1.5.4/fc-5.0.4/fh-4.0.1/r-3.0.3/rg-1.5.1/rr-1.5.0/sc-2.4.3/sb-1.8.1/sp-2.3.3/sl-2.1.0/sr-1.4.1/datatables.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.datatables.net/datetime/1.5.5/css/dataTables.dateTime.min.css">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/driver.js@1.0.1/dist/driver.css"/>
-    <title>{% block title %}Base{% endblock %}</title>
+    <title>{% block head_title %}Base{% endblock head_title %}</title>
 </head>
 <style>
   .dt-buttons .btn {
@@ -23,25 +24,35 @@
   .dt-search{
     display: none !important; /* Hide the search bar */;
   }
+  #toast-container {
+    position: fixed;
+    bottom: 10px;
+    right: 10px;
+    z-index: 1050;
+    max-width: 350px;
+}
 </style>
-<body>
-  <!-- Sidebar -->
-  {% include 'user/components/sidebar.html' %}
-
-  <!-- Main content area -->
-  <section class="home-section overflow-hidden">
-    <nav class="w-100 h-100 me-2 sticky-top">
-      {% include 'user/components/navbar.html' %}
-    </nav>
-    <div class="row d-flex align-content-center w-100 h-100">
-      {% block content %}
-          <!-- Contents appear here dynamically -->
-      {% endblock %}
-    </div>
-  </section>
-
-</body>
-
+{% endblock extra_head %}
+{% block content %}
+    <body>
+        <div id="toast-container" class="toast-container position-fixed bottom-0 end-0 p-3"></div>
+        <!-- Sidebar -->
+        {% include 'user/components/sidebar.html' %}
+        <!-- Main content area -->
+        <section class="home-section overflow-hidden">
+            <!-- Toast Container -->
+            <nav class="w-100 h-100 me-2 sticky-top">
+            {% include 'user/components/navbar.html' %}
+            </nav>
+            <div class="row d-flex align-content-center w-100 h-100">
+            {% block page_content %}
+                <!-- Contents appear here dynamically -->
+            {% endblock page_content %}
+            </div>
+        </section>
+    </body>
+    {% endblock content %}
+{% block scripts %}
 <script src="{% static 'js/base.js' %}"></script>
 <script src="{% static 'js/time.js' %}"></script>
 <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
@@ -54,6 +65,131 @@
 <script src="https://unpkg.com/jspdf@latest/dist/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.2/moment.min.js"></script>
 <script src="https://cdn.datatables.net/datetime/1.5.5/js/dataTables.dateTime.min.js"></script>
+<script>
+    // Set up WebSocket connection
+    // Use the same protocol as the current page (ws or wss)
+    const wsScheme = window.location.protocol === "https:" ? "wss" : "ws";
+    const socketUrl = `${wsScheme}://${window.location.host}/ws/attendance/`;
+    let socket;
+
+    // Connect to WebSocket server
+    function connectWebSocket() {
+        // Create a new WebSocket instance
+        socket = new WebSocket(socketUrl);
+
+        // Set up event handlers for the WebSocket connection
+        socket.onopen = function () {
+            console.log("✅ WebSocket Connected!");
+        };
+
+        // Listen for messages from the server
+        socket.onmessage = function (event) {
+            try {
+                const data = JSON.parse(event.data);
+                console.table(data);
+
+                // Check if the data contains a message or dashboard update
+                if (data.message) {
+                    // Handle notification messages
+                    showToast(data.message);
+                } else if (data.total_employees !== undefined && data.active_today !== undefined) {
+                    // Handle dashboard updates
+                    clockInButtonVisibility(data);
+                    updateDashboard(data);
+                } else {
+                    console.warn("Received unknown WebSocket data:", data);
+                }
+                
+            } catch (error) {
+                console.error("Error processing WebSocket message:", error);
+            }
+        };
+
+
+        // Function to update the dashboard UI dynamically
+        function updateDashboard(data) {
+            document.querySelector(".card.blue .value").textContent = data.total_employees;
+            document.querySelector(".card.green .value").textContent = data.active_today;
+            if (data.employee_number) {
+                // Refresh attendance status for the specific employee
+                window.location.reload();
+            }
+        }
+
+        socket.onclose = function () {
+            console.log("❌ WebSocket Disconnected. Reconnecting in 5s...");
+            setTimeout(connectWebSocket, 5000);
+        };
+
+        socket.onerror = function (error) {
+            console.error("⚠️ WebSocket Error:", error);
+        };
+  }
+    // Function to show/hide the clock-in button based on time
+    function showToast(message) {
+        const timestamp = new Date().toLocaleTimeString();
+        const toastId = 'toast-' + Date.now();
+
+        const toastHTML = `
+            <div id="${toastId}" class="toast show align-items-center text-white bg-dark border-0" role="alert" aria-live="assertive" aria-atomic="true">
+                <div class="d-flex">
+                    <div class="toast-body">
+                        <strong>${timestamp}</strong><br>${message}
+                    </div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                </div>
+            </div>
+        `;
+
+        document.getElementById("toast-container").insertAdjacentHTML("beforeend", toastHTML);
+        const toastElement = document.getElementById(toastId);
+        new bootstrap.Toast(toastElement).show();
+
+        toastElement.addEventListener('hidden.bs.toast', () => toastElement.remove());
+
+        if (document.getElementById("toast-container").children.length > 5) {
+            document.getElementById("toast-container").removeChild(document.getElementById("toast-container").firstChild);
+        }
+
+        // 🔔 Send a browser notification
+        sendBrowserNotification(message);
+
+    }
+
+  // 🔔 Function to send browser notification
+  function sendBrowserNotification(message) {
+      if ("Notification" in window) {
+          if (Notification.permission === "granted") {
+              new Notification("Attendance Alert", {
+                  body: message,
+                  icon: "{% static 'img/logo.png' %}", // Change this to your logo
+                  silent: false
+              });
+          } else if (Notification.permission !== "denied") {
+              Notification.requestPermission().then(permission => {
+                  if (permission === "granted") {
+                      new Notification("Attendance Alert", {
+                          body: message,
+                          icon: "{% static 'img/logo.png' %}", // Change this to your logo
+                      });
+                  }
+              });
+          }
+      } else {
+          console.warn("This browser does not support notifications.");
+      }
+  }
+
+  // 📢 Ask for notification permission on page load
+  document.addEventListener("DOMContentLoaded", () => {
+      if ("Notification" in window && Notification.permission !== "granted") {
+          Notification.requestPermission();
+      }
+  });
+
+  // Start WebSocket connection
+  connectWebSocket();
+</script>
 <script>
  document.addEventListener("DOMContentLoaded", function () {
       let minDate = new Date();
@@ -104,4 +240,5 @@
 
   });
 </script>
+{% endblock scripts %}
 </html>

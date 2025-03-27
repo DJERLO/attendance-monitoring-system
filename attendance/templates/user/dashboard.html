@@ -3,17 +3,15 @@
 {% load socialaccount %}
 {% load static %}
 {% load timecard %}
-{% block title %}Dashboard{% endblock %}
-{% block content %}
-    
+{% block head_title %}Dashboard{% endblock head_title %}
+{% block page_content %}
 <div class="row ms-3">
-    <div class="col-md-6 justify-content-center align-content-center">
-        <!-- Status of User's Attendance -->
-        {% include 'user/components/user_attendance_status.html' %}
-    </div>
-    <div class="col-md-6 justify-content-center align-content-center">
-        <!-- Cards Counter -->
+    <div class="col-md-6 justify-content-center align-content-stretch">
         {% include 'user/components/cards.html' %}
     </div>
+    <div class="col-md-6">
+        <div class="col-md-12">{% include 'user/components/user_attendance_status.html' %}</div>
+        <div class="col-md-12">{% include 'user/components/attendance_logs.html' %}</div>
+    </div>
 </div>
-{% endblock %}
+{% endblock page_content %}

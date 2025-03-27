@@ -1,3 +1,4 @@
+import dlib
 import mediapipe as mp
 import cv2
 import face_recognition
@@ -39,11 +40,23 @@ except Exception as e:
 
 model.eval()  # Set the model to evaluation mode
 
-# Verify CUDA usage
+# Verify CUDA usage in PyTorch
 if torch.cuda.is_available():
-    print(f"CUDA is available. Using GPU: {torch.cuda.get_device_name(0)}")
+    num_gpus = torch.cuda.device_count()
+    device_name = torch.cuda.get_device_name(0)
+    print(f"✅ CUDA is available! Running on GPU: {device_name} ({num_gpus} GPU(s) detected)")
 else:
-    print("CUDA is not available. Using CPU.")
+    print("⚠️ CUDA is NOT available. Running on CPU.")
+
+
+# Verify DLIB CUDA usage
+if dlib.cuda.get_num_devices() > 0 and dlib.DLIB_USE_CUDA:
+    print(f"✅ DLIB is using CUDA for acceleration. ({dlib.cuda.get_num_devices()} GPU(s) detected)")
+else:
+    print("⚠️ DLIB is NOT using CUDA. Running on CPU.")
+
+
+
 
 # Move model to the appropriate device
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -199,6 +212,8 @@ def main():
     # Access webcam
     video_source = 0
     video_capture = cv2.VideoCapture(video_source)
+    video_capture.set(cv2.CAP_PROP_FPS, 120)  # Request 30 FPS
+    video_capture.set(cv2.CAP_PROP_BUFFERSIZE, 1)
 
     if not video_capture.isOpened():
         print("Error: Unable to access the camera.")

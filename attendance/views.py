@@ -5,6 +5,7 @@ import logging
 import json
 import io
 import cv2
+import face_recognition
 import numpy as np
 from django.shortcuts import get_object_or_404, render, redirect
 from django.contrib import messages
@@ -21,18 +22,28 @@ from asgiref.sync import sync_to_async
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.decorators import login_required
 from attendance.forms import EmployeeRegistrationForm, UserRegistrationForm
-from attendance.models import ShiftRecord, Employee, FaceImage
+from attendance.models import ShiftRecord, Employee, FaceImage, WorkHours
 from xhtml2pdf import pisa
 from .model_evaluation import detect_face_spoof
 from PIL import Image
 import torch
 from torchvision import models
+from channels.layers import get_channel_layer
+from asgiref.sync import async_to_sync
+from django.http import HttpResponse
+from upstash_redis import Redis
+
+redis = Redis.from_env()
 
 logger = logging.getLogger(__name__)
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 KNOWN_FACES_DIR = os.path.join(settings.MEDIA_ROOT, 'known_faces')  # Path to the known faces directory
 MODEL_PATH = os.path.join(CURRENT_DIR, 'training.pth')
+
+def counter(request):
+    count = redis.incr('counter')
+    return HttpResponse(f'Page visited {count} times.')
 
 #index.html
 def index(request):
@@ -181,6 +192,18 @@ async def checking_in(request):
                             try:
                                 #Clock-in that employee
                                 submit =  await clock_in(employee_number)
+                                
+                                # Send WebSocket notification
+                                # **SEND TO WEBSOCKET**
+                                channel_layer = get_channel_layer()
+                                await (channel_layer.group_send)(
+                                    "attendance_group",
+                                    {
+                                        "type": "send_message",
+                                        "message": f"✅ {employee_data.get('name')} has checked in for today's morning shift."
+                                    }
+                                )
+
                                 return JsonResponse({
                                     "result": [{
                                         "name": employee_data.get('name'),
@@ -293,6 +316,17 @@ async def checking_out(request):
                             try:
                                 # Clock-Out that employee
                                 submit = await clock_out(employee_number)
+                                
+                                # WebScoket
+                                channel_layer = get_channel_layer()
+                                await (channel_layer.group_send)(
+                                    "attendance_group",
+                                    {
+                                        "type": "send_message",
+                                        "message": f"✅ {employee_data.get('name')} has checked-out!"
+                                    }
+                                )
+
                                 return JsonResponse({
                                     "result": [{
                                         "name": employee_data.get('name'),
@@ -461,29 +495,38 @@ def user_face_registration(request, employee_number):
             # Decode the base64 string
             try:
                 image_bytes = base64.b64decode(encoded)
+                image_array = np.frombuffer(image_bytes, np.uint8)
+                image = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
             except Exception as e:
                 return JsonResponse({"message": "Error decoding image: " + str(e)}, status=400)
 
-             # Convert image bytes to a NumPy array and read as OpenCV image
-            image_array = np.frombuffer(image_bytes, np.uint8)
-            image = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
+            # Convert image to RGB (face_recognition requires RGB format)
+            rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+            
+            # Detect faces using face_recognition
+            face_locations = face_recognition.face_locations(rgb_image)
 
-            # Load OpenCV's pre-trained face detector
-            face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
-            gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)  # Convert to grayscale
-            faces = face_cascade.detectMultiScale(gray_image, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
 
-            if len(faces) == 0:
+            if len(face_locations) == 0:
                 return JsonResponse({"message": "No face detected in the image."}, status=400)
             
-            # Crop the first detected face and make it square
-            (x, y, w, h) = faces[0]
-            if w > h:
-                pad = (w - h) // 2
-                cropped_face = image[y - pad:y + h + pad, x:x + w]
-            else:
-                pad = (h - w) // 2
-                cropped_face = image[y:y + h, x - pad:x + w + pad]
+           # Get first detected face location
+            top, right, bottom, left = face_locations[0]
+
+            # Crop the face region
+            cropped_face = rgb_image[top:bottom, left:right]
+
+            if cropped_face.size == 0:
+                return JsonResponse({"message": "Face cropping failed due to incorrect bounding box."}, status=400)
+
+            # Resize the face to standard size (224x224)
+            square_face = cv2.resize(cropped_face, (224, 224), interpolation=cv2.INTER_AREA)
+
+            # Generate face encodings
+            face_encodings = face_recognition.face_encodings(rgb_image, [face_locations[0]])
+
+            if len(face_encodings) == 0:
+                return JsonResponse({"message": "Face encoding failed. Try another image with better lighting."}, status=400)
 
             # Resize to a fixed square size, like 224x224
             square_face = cv2.resize(cropped_face, (224, 224), interpolation=cv2.INTER_AREA)
@@ -682,7 +725,10 @@ def dashboard(request):
         current_hour = current_time.hour
         is_am = 6 <= current_hour < 12  # From 6:00 AM to 11:59 AM
 
-        
+        work_hours = WorkHours.objects.first()  # Assuming you have one WorkHours entry
+
+        if not work_hours:
+            return JsonResponse({"message": "Work hours not set."}, status=400)
 
         # Fetch attendance based on the time of day
         if is_am:
@@ -710,7 +756,7 @@ def dashboard(request):
         shift_records = ShiftRecord.objects.filter(employee=employee, date__month=today.month, date__year=today.year)
 
         # Count of employees who are active today
-        active_today = ShiftRecord.objects.filter(date=today, status__in=['PRESENT', 'LATE']).count()
+        active_today = ShiftRecord.objects.filter(date=today, status__in=['EARLY', 'PRESENT', 'LATE']).count()
 
         # Fetch the number of active employees from the previous day
         yesterday = today - timedelta(days=1)
@@ -747,6 +793,9 @@ def dashboard(request):
             'check_out_time': check_out_time,
             'can_check_in': can_check_in,
             'can_check_out': can_check_out,
+            'can_clock_in': work_hours.can_clock_in(),
+            'opening_time': work_hours.open_time,
+            'closing_time': work_hours.close_time,
         })
     
     except Employee.DoesNotExist:

@@ -55,3 +55,6 @@ yarn-error.log
 # Include the known_faces folder but ignore its subfolders
 attendance/known_faces/*
 !attendance/known_faces/.gitkeep  # Keep a placeholder if needed
+
+# Ignore all files dlib
+dlib/

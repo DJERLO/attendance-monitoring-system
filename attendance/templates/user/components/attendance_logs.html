@@ -1,58 +1,48 @@
 {% block content %}
-<div class="container-fluid my-4">
-    <div class="col-md-12">
-        <div class="row d-flex">
-            <div class="col-md-12 mb-4 align-self-center p-4">
-                <div class="attendance-status mb-3 text-center align-self-stretch">
-                    <!-- Attendance Log Table -->
-                    <div class="card-header bg-dark text-white text-center">
-                        <h4 class="mb-0">Attendance Log</h4>
-                        <label>From: <input type="text" id="minDate" class="form-control"></label>
-                        <label>To: <input type="text" id="maxDate" class="form-control"></label>
-                    </div>
-                    <div class="table-responsive card-body form-control shadow p-3 mb-5 bg-body rounded">
-                        <table id="attendanceLog" class="table table-bordered table-hover mt-3">
-                            <thead class="table-dark">
-                                <tr>
-                                    <th>Date</th>
-                                    <th>Morning In</th>
-                                    <th>Morning Out</th>
-                                    <th>Afternoon In</th>
-                                    <th>Afternoon Out</th>
-                                    <th>Total Hours</th>
-                                    <th>Status</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% if shiftlogs %}
-                                    {% for log in shiftlogs %}
-                                        <tr>
-                                            <td>{{ log.date|date:"Y-m-d" }}</td>
-                                            <td>{{ log.clock_in_at_am|time:"g:i A" }}</td>
-                                            <td>{{ log.clock_out_at_am|time:"g:i A" }}</td>
-                                            <td>{{ log.clock_in_at_pm|time:"g:i A" }}</td>
-                                            <td>{{ log.clock_out_at_pm|time:"g:i A" }}</td>
-                                            <td>{{ log.total_hours|floatformat:2|default:0 }}</td>
-                                            <td>
-                                                {% if log.clock_in_at_am and log.clock_out_at_am %}
-                                                    <span class="badge bg-success">Complete</span>
-                                                {% else %}
-                                                    <span class="badge bg-warning">Incomplete</span>
-                                                {% endif %}
-                                            </td>
-                                        </tr>
-                                    {% endfor %}
-                                {% else %}
-                                    <tr>
-                                        <td colspan="5" class="text-center">No attendance records found</td>
-                                    </tr>
-                                {% endif %}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </div>
+<div class="attendance-status mb-3 text-center align-self-stretch">
+    <!-- Attendance Log Table -->
+    <div class="card-header bg-dark text-white text-center">
+        <h4 class="mb-0">Attendance Log</h4>
+        <label>From: <input type="text" id="minDate" class="form-control"></label>
+        <label>To: <input type="text" id="maxDate" class="form-control"></label>
+    </div>
+    <div class="table-responsive card-body form-control shadow p-3 bg-body rounded">
+        <table id="attendanceLog" class="table table-bordered table-hover mt-3">
+            <thead class="table-dark">
+                <tr>
+                    <th>Date</th>
+                    <th>Clock In</th>
+                    <th>Clock-Out</th>
+                    <th>Total Hours</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if shiftlogs %}
+                    {% for log in shiftlogs %}
+                        <tr>
+                            <td>{{ log.date|date:"Y-m-d" }}</td>
+                            <td>{{ log.clock_in|time:"g:i A"|default:"0:00" }}</td>
+                            <td>{{ log.clock_out|time:"g:i A"|default:"0:00" }}</td>
+                            <td>{{ log.total_hours|floatformat:2|default:0 }}</td>
+                            <td>
+                                <span class="badge w-100
+                                    {% if log.status == 'ABSENT' %}bg-danger 
+                                    {% elif log.status == 'LATE' %}bg-warning 
+                                    {% elif log.status == 'PRESENT' %}bg-success 
+                                    {% else %}bg-secondary{% endif %}">
+                                    {{ log.status }}
+                                </span>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="5" class="text-center">No attendance records found</td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
     </div>
 </div>
 {% endblock %}
