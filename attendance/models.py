@@ -6,9 +6,18 @@ from django.utils import timezone
 from datetime import time, timedelta
 from django.contrib.auth.models import User, Group
 from django.utils.timezone import localtime, now
+from django.db.models.signals import post_migrate
+from django.dispatch import receiver
 
 # Model to store the work hours of the company
 # This model is used to set the default work hours for the company
+# Ensure a default instance is created after migrations
+@receiver(post_migrate)
+def create_default_work_hours(sender, **kwargs):
+    if sender.name == "your_app_name":  # Replace with your Django app name
+        if not WorkHours.objects.exists():
+            WorkHours.objects.create()
+
 class WorkHours(models.Model):
     open_time = models.TimeField(default="08:00:00", verbose_name="Opening Time")  # Default opening time
     close_time = models.TimeField(default="17:00:00", verbose_name="Closing Time")  # Default closing time
@@ -40,13 +49,36 @@ class Employee(models.Model):
         verbose_name_plural = "Employees"
 
     def save(self, *args, **kwargs):
+        """ Automatically update is_staff and sync permissions if the user belongs to the Admin group """
+    
+        if self.group:
+            # If assigned to Admin, set is_staff and assign permissions
+            if self.group.name.lower() == "admin":
+                self.user.is_staff = True
+            else:
+                self.user.is_staff = False
+
+            # Sync User's Groups and Permissions
+            self.user.groups.set([self.group])  # Ensure user is assigned to the correct group
+            self.user.user_permissions.set(self.group.permissions.all())  # Apply group permissions
+
+        else:
+            # If no group is assigned, remove all permissions
+            self.user.is_staff = False
+            self.user.groups.clear()
+            self.user.user_permissions.clear()
+
+        # Save the user model first (after setting is_staff and permissions)
+        self.user.save()
+
         # Ensure the default avatar is not duplicated
         if self.profile_image and self.profile_image.name != 'profiles/default_avatar.webp':
-            # Check if the image already exists
-            if Employee.objects.filter(profile_image=self.profile_image).exists():
-                pass
-        
-        super(Employee, self).save(*args, **kwargs)
+            # If an employee already has this image, prevent duplicate storage
+            if Employee.objects.exclude(pk=self.pk).filter(profile_image=self.profile_image).exists():
+                return  # Prevents duplicate image saving
+
+        # Now save the employee model
+        super().save(*args, **kwargs)
 
     @property
     def avatar_url(self):
@@ -79,6 +111,15 @@ class Employee(models.Model):
             return 0
         total_hours = self.total_hours_worked()
         return total_hours / shift_records.count()
+    
+    def get_employee_avatar(self):
+        """Fetch Employee profile image or return default avatar"""
+        if hasattr(self, "employee") and self.employee.profile_image:
+            return self.employee.profile_image.url
+        return "/media/profiles/default_avatar.webp"  # Default image
+
+    # Monkey-patch the User model
+    User.add_to_class("get_avatar", get_employee_avatar)
 
 # Model to store multiple face images for facial recognition
 class FaceImage(models.Model):

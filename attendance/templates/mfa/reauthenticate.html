@@ -1,0 +1,35 @@
+{% extends "account/base_reauthenticate.html" %}
+{% load i18n %}
+{% load allauth %}
+
+{% block reauthenticate_content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-12">
+            <div class="card shadow-lg">
+                <div class="card-header bg-warning text-white text-center">
+                    <h4><i class="fas fa-key"></i> {% trans "Reauthenticate" %}</h4>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted">{% blocktranslate %}Enter an authenticator code:{% endblocktranslate %}</p>
+
+                    {% url 'mfa_reauthenticate' as action_url %}
+                    <form method="post" action="{{ action_url }}">
+                        {% csrf_token %}
+                        <div class="mb-3">
+                            <label for="id_code">Code:</label>
+                            <input class="form-control" type="text" name="code" placeholder="Code" autocomplete="one-time-code" required="" id="id_code">
+                        </div>
+                        {{ redirect_field }}
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-warning">
+                                <i class="fas fa-check-circle"></i> {% trans "Confirm" %}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

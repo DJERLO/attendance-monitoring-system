@@ -229,7 +229,10 @@
           { "targets": 0, "type": "date" } // Ensure proper date sorting
         ],
         dom: 'Brtip', // Enables buttons at the top
-        buttons: ['copy', 'csv', 'excel']  
+        buttons: ['copy', 'csv', 'excel'],
+        "language": {
+            "emptyTable": "No attendance records available."
+        },  
       });
 
       table.buttons().container().appendTo('#dt-buttons');

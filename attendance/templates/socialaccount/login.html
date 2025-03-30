@@ -1,4 +1,4 @@
-{% extends "socialaccount/base_entrance.html" %}
+{% extends "account/base_entrance.html" %}
 {% load i18n %}
 {% load allauth %}
 {% load allauth socialaccount %}
@@ -7,48 +7,70 @@
 {% get_providers as socialaccount_providers %}
 
 {% block head_title %}
-    {% trans "Sign In" %}
+    {% if process == "signup" %}
+        {% trans "Sign Up" %}
+    {% elif process == "connect" %}
+        {% trans "Connect Account" %}
+    {% else %}
+        {% trans "Sign In" %}
+    {% endif %}
 {% endblock head_title %}
 
 {% block body %}
-    <div class="container form-control shadow-lg p-4 mb-5 bg-body rounded">
-        {% if process == "connect" %}
-            <h1 class="display-5 my-4 text-center"><i class="fa-brands fa-{{ provider.id }} fa-2xl"></i></h1>
-            <h1 class="text-center">
-                {% blocktrans with provider.name as provider %}Connect Your {{ provider }} Account{% endblocktrans %}
-            </h1>
-            <p class="text-center text-muted">
-                {% blocktrans with provider.name as provider %}
-                    You are about to securely connect your {{ provider }} account. 
-                    This will allow you to log in and access our services more conveniently.
-                {% endblocktrans %}
-            </p>
-        {% else %}
-            <h1 class="text-center">
-                {% blocktrans with provider.name as provider %}Sign In with {{ provider }}{% endblocktrans %}
-            </h1>
-            <p class="text-center text-muted">
-                {% blocktrans with provider.name as provider %}
-                    Sign in effortlessly using your **{{ provider }}** account. 
-                    We ensure a secure and seamless authentication process.
-                {% endblocktrans %}
-            </p>
-        {% endif %}
-            
-        <form method="post" no_visible_fields=True>
-            {% csrf_token %}
-            <div class="text-center">
-                <button type="submit" class="btn btn-primary btn-lg w-100 mt-3">
-                    {% trans "Continue" %}
-                </button>
-            </div>
-        </form>
+<div class="container form-control shadow-lg mt-5 p-5 mb-5 w-50 bg-body rounded">
+    <h1 class="display-5 my-4 text-center">
+        <i class="fa-brands fa-{{ provider.id }} fa-2xl"></i>
+    </h1>
 
-        <hr>
+    {% if process == "signup" %}
+        <h1 class="text-center">
+            {% blocktrans with provider.name as provider %}Sign Up with {{ provider }}{% endblocktrans %}
+        </h1>
+        <p class="text-center text-muted">
+            {% blocktrans with provider.name as provider %}
+                Create your account securely using **{{ provider }}**. 
+                Join us for a seamless experience.
+            {% endblocktrans %}
+        </p>
 
-        <h3 class="text-center fw-bold mt-4">Use other Third-Party Providers</h3>
-        <div class="row justify-content-center">
-            {% include "socialaccount/snippets/provider_list.html" with process="connect" %}
+    {% elif process == "connect" %}
+        <h1 class="text-center">
+            {% blocktrans with provider.name as provider %}Connect Your {{ provider }} Account{% endblocktrans %}
+        </h1>
+        <p class="text-center text-muted">
+            {% blocktrans with provider.name as provider %}
+                You are about to securely connect your **{{ provider }}** account. 
+                This will allow easier logins and access.
+            {% endblocktrans %}
+        </p>
+
+    {% else %}
+        <h1 class="text-center">
+            {% blocktrans with provider.name as provider %}Sign In with {{ provider }}{% endblocktrans %}
+        </h1>
+        <p class="text-center text-muted">
+            {% blocktrans with provider.name as provider %}
+                Sign in effortlessly using your **{{ provider }}** account. 
+                We ensure a secure and seamless authentication process.
+            {% endblocktrans %}
+        </p>
+    {% endif %}
+        
+    <form method="post" no_visible_fields=True>
+        {% csrf_token %}
+        <div class="text-center">
+            <button type="submit" class="btn btn-primary btn-lg w-100 mt-3">
+                {% trans "Continue" %}
+            </button>
         </div>
+    </form>
+
+    <hr>
+
+    <h3 class="text-center fw-bold mt-4">Use other Third-Party Providers</h3>
+    <div class="row justify-content-center">
+        {% include "socialaccount/snippets/provider_list.html" with process=process %}
     </div>
+</div>
+
 {% endblock body %}

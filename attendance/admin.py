@@ -10,7 +10,7 @@ from django.utils.html import format_html
 from rangefilter.filters import (
     DateRangeFilterBuilder
 )
-from .models import Employee, ShiftRecord, WorkHours
+from .models import Employee, FaceImage, ShiftRecord, WorkHours
 
 # Set custom admin site titles
 admin.site.site_header = "Attendance Management System Admin Portal"  # For example, "Attendance System Admin"
@@ -170,3 +170,17 @@ class ShiftRecordsAdmin(admin.ModelAdmin):
 
 admin.site.register(ShiftRecord, ShiftRecordsAdmin)
 admin.site.register(WorkHours, WorkHoursAdmin)
+
+@admin.register(FaceImage)
+class FaceImageAdmin(admin.ModelAdmin):
+    list_display = ('employee', 'image_preview', 'uploaded_at')
+    search_fields = ('employee__name', 'employee__employee_id')
+    list_filter = ('uploaded_at',)
+
+    def image_preview(self, obj):
+        """Displays an image preview in Django Admin."""
+        if obj.image:
+            return format_html('<img src="{}" width="100" style="border-radius: 5px;">', obj.image.url)
+        return "(No Image)"
+
+    image_preview.short_description = "Face Preview"

@@ -1,0 +1,42 @@
+{% extends "mfa/recovery_codes/base.html" %}
+{% load i18n %}
+{% load allauth %}
+
+{% block page_content %}
+<div class="container-fluid">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card shadow-lg">
+                <div class="card-header bg-primary text-white text-center">
+                    <h5><i class="bi bi-key"></i> {% trans "Recovery Codes" %}</h5>
+                </div>
+                <div class="card-body text-center">
+                    <p class="text-muted">
+                        {% blocktranslate %}You are about to generate a new set of recovery codes for your account.{% endblocktranslate %}
+                    </p>
+
+                    {% if unused_code_count %}
+                        <div class="alert alert-warning text-start">
+                            <i class="bi bi-exclamation-triangle"></i>
+                            {% blocktranslate %}This action will invalidate your existing codes.{% endblocktranslate %}
+                        </div>
+                    {% endif %}
+
+                    <p class="fw-bold">{% blocktranslate %}Are you sure?{% endblocktranslate %}</p>
+
+                    <!-- Generate Recovery Codes Form -->
+                    {% url 'mfa_generate_recovery_codes' as action_url %}
+                    <form method="post" action="{{ action_url }}">
+                        {% csrf_token %}
+                        {{ form.as_p }}
+
+                        <button type="submit" class="btn {% if unused_code_count %}btn-danger{% else %}btn-primary{% endif %} w-100">
+                            <i class="bi bi-arrow-clockwise"></i> {% trans "Generate" %}
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock page_content %}

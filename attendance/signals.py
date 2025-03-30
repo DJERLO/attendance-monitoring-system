@@ -21,7 +21,13 @@ def update_dashboard(sender, instance, **kwargs):
     total_employees = Employee.objects.all().count()
 
     # If an Employee instance is saved, get the employee number
-    employee_number = instance.employee.employee_number  # Adjust based on your model
+    # Determine employee number based on sender
+    if sender == Employee:
+        employee_number = instance.employee_number  # Directly from Employee model
+    elif sender == ShiftRecord:
+        employee_number = instance.employee.employee_number  # From related Employee model
+    else:
+        employee_number = None  # Fallback in case of unexpected sender
 
     #Employees who have clocked in today
     active_today = ShiftRecord.objects.filter(date=today, status__in=['EARLY', 'PRESENT', 'LATE']).count()

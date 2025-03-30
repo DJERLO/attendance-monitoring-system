@@ -28,7 +28,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.getenv('SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False
+DEBUG = True
 
 ALLOWED_HOSTS = ['localhost', '127.0.0.1', '[::1]']
 
@@ -46,6 +46,7 @@ INSTALLED_APPS = [
     'rangefilter',
     'allauth',
     'allauth.account',
+    'allauth.mfa',
     'allauth.socialaccount',
     'allauth.socialaccount.providers.google',
     'django.contrib.messages',
@@ -93,7 +94,7 @@ JAZZMIN_SETTINGS = {
     "search_model": "",
 
     # Field name on user model that contains avatar ImageField/URLField/Charfield or a callable that receives the user
-    # "user_avatar": "",
+    "user_avatar": "get_avatar",
 
     ############
     # Top Menu #
@@ -156,8 +157,10 @@ JAZZMIN_SETTINGS = {
         "sites.site": "fas fa-globe",
         "account.emailaddress": "fas fa-at",
         "attendance.employee": "fas fa-user-tie",
+        "attendance.faceimage": "fas fa-user-circle",
         "attendance.shiftrecord": "fas fa-clipboard-user",
         "attendance.workhours": "fas fa-clock",
+        "mfa.authenticator": "fas fa-shield-alt",
         "socialaccount.socialaccount": "fas fa-share-alt",
         "socialaccount.socialtoken": "fas fa-key",
         "socialaccount.socialapp": "fas fa-mobile-alt",
@@ -272,6 +275,19 @@ ACCOUNT_LOGIN_METHODS = {'email'} # The ACCOUNT_AUTHENTICATION_METHOD is depreca
 
 ACCOUNT_AUTHENTICATED_LOGIN_REDIRECTS = True  # Default is True
 ACCOUNT_LOGIN_ON_EMAIL_CONFIRMATION = True
+
+# Enable MFA
+MFA_SUPPORTED_TYPES = ["totp", "webauthn", "recovery_codes"]
+# Optional: enable support for logging in using a (WebAuthn) passkey.
+MFA_PASSKEY_LOGIN_ENABLED = True
+# local development and testing.
+MFA_WEBAUTHN_ALLOW_INSECURE_ORIGIN = True
+ACCOUNT_MFA_ENABLED = True
+ACCOUNT_MFA_REQUIRED = False  # Set to True if you want MFA to be mandatory
+ACCOUNT_MFA_MAX_DEVICES = 5  # Number of devices a user can register
+ACCOUNT_MFA_TOTP_ENABLED = True  # Enable Time-based One-Time Password (TOTP)
+ACCOUNT_MFA_RECOVERY_CODES_ENABLED = True  # Enable backup recovery codes
+ACCOUNT_MFA_MIXED_AUTHENTICATION = True  # Allow login with or without MFA
 
 ACCOUNT_FORMS = {
     'reset_password_from_key': 'attendance.forms.MyCustomResetPasswordKeyForm',
@@ -411,69 +427,32 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')  # Absolute path to the media direc
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Email Server
-# Get email credentials from environment variables
-EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '').strip()  # Ensure it's a string
-EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '').strip()
-
-#  Determine the email provider and set the SMTP host & port
-def get_email_settings(email):
-    if email.endswith('@gmail.com'):
-        return 'smtp.gmail.com', 587  # TLS
-    elif email.endswith(('@outlook.com', '@hotmail.com')):
-        return 'smtp.office365.com', 587  # TLS
-    elif email.endswith('@yahoo.com'):
-        return 'smtp.mail.yahoo.com', 587  # TLS
-    elif email.endswith('@icloud.com'):
-        return 'smtp.mail.me.com', 587  # TLS
-    elif email.endswith('@zoho.com'):
-        return 'smtp.zoho.com', 587  # TLS
-    else:
-        return None, None  # Unrecognized email provider
-
-# Get the correct email settings
-EMAIL_HOST, EMAIL_PORT = get_email_settings(EMAIL_HOST_USER)
-
-# Set email backend dynamically
-if EMAIL_HOST_USER and EMAIL_HOST_PASSWORD and EMAIL_HOST:
-    EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-    EMAIL_USE_TLS = True  # Always use TLS for security
-else:
-    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
-    EMAIL_HOST = None
-    EMAIL_PORT = None
-    EMAIL_USE_TLS = None  # No TLS required for console
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
 
 MESSAGE_STORAGE = 'django.contrib.messages.storage.session.SessionStorage'
+
+ACCOUNT_ADAPTER = 'allauth.account.adapter.DefaultAccountAdapter'
+SOCIALACCOUNT_ADAPTER = 'allauth.socialaccount.adapter.DefaultSocialAccountAdapter'
 
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
-    'formatters': {
-        'verbose': {
-            'format': '{levelname} {asctime} {module} {message}',
-            'style': '{',
-        },
-        'simple': {
-            'format': '{levelname} {message}',
-            'style': '{',
-        },
-    },
     'handlers': {
-        'console': {
-            'class': 'logging.StreamHandler',
-            'formatter': 'simple',
-        },
         'file': {
-            'level': 'ERROR',
+            'level': 'DEBUG',
             'class': 'logging.FileHandler',
-            'filename': os.path.join(BASE_DIR, 'django_error.log'),
-            'formatter': 'verbose',
+            'filename': 'django_debug.log',
         },
     },
     'loggers': {
         'django': {
-            'handlers': ['console', 'file'],
-            'level': 'ERROR',
+            'handlers': ['file'],
+            'level': 'DEBUG',
             'propagate': True,
         },
     },
