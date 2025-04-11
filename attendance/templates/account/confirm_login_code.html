@@ -1,0 +1,73 @@
+{% extends "account/base_entrance.html" %}
+{% load i18n %}
+{% load allauth account %}
+
+{% block head_title %}
+    {% translate "Sign In" %}
+{% endblock head_title %}
+
+{% block content %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        {% if form.errors %}
+            {% for field in form %}
+                {% for error in field.errors %}
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Wrong Code',
+                        text: 'The code you entered is incorrect.',
+                        footer: '<small>If the issue persists, please contact the administrator.</small>',
+                    });
+                {% endfor %}
+            {% endfor %}
+
+            {% for error in form.non_field_errors %}
+                // Show SweetAlert for non-field-specific errors
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Something went wrong and it\'s not your fault',
+                    text: '{{ error }}',
+                    footer: 'Send this error to support for help.',
+                    showConfirmButton: true,
+                });
+            {% endfor %}
+        {% endif %}
+    });
+</script>
+<div class="container d-flex justify-content-center align-items-center min-vh-100">
+    <div class="col-md-6">
+        <div class="card shadow-lg rounded-4 p-4">
+            <div class="card-body text-dark">
+                <h1 class="card-title text-center mb-3">{% translate "Enter Sign-In Code" %}</h1>
+
+                {% setvar email_link %}
+                    <a href="mailto:{{ email }}">{{ email }}</a>
+                {% endsetvar %}
+
+                <p class="text-center text-muted mb-4">
+                    {% blocktranslate %}We’ve sent a code to {{ email_link }}. The code expires shortly, so please enter it soon.{% endblocktranslate %}
+                </p>
+
+                {% url 'account_confirm_login_code' as login_url %}
+                <form action="{{ login_url }}" method="post">
+                    {% csrf_token %}
+                    <div class="form-floating">
+                        <input class="form-control" type="text" name="code" placeholder="Code" autocomplete="one-time-code" required="" id="id_code" autofocus>
+                        <label for="id_code">Enter Code</label>
+                    </div>
+                    <div class="d-flex justify-content-center">
+                        <button class="btn btn-outline-primary" type="submit" tags="prominent,login">{% translate "Request Code" %}</button>
+                    </div>
+                </form>
+
+                
+
+                <form id="logout-from-stage" method="post" action="{% url 'account_logout' %}">
+                    <input type="hidden" name="next" value="{% url 'account_login' %}">
+                    {% csrf_token %}
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock content %}

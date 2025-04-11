@@ -1,0 +1,80 @@
+{% block content %}
+<div class="card mb-3">
+    <div class="card-header">
+        <div class="card-text text-center text-dark">Monthly Attendance Chart</div>
+    </div>
+    <div class="card-body ratio ratio-21x9">
+        <canvas id="attendanceChart"></canvas>
+    </div>
+</div>
+
+<script>
+    // Get data from Django
+    var attendanceData = JSON.parse('{{ attendance_data|escapejs }}');
+
+    var ctx = document.getElementById('attendanceChart').getContext('2d');
+
+    // Data for each attendance status (EARLY, PRESENT, LATE, ABSENT)
+    const earlyData = attendanceData.EARLY; 
+    const presentData = attendanceData.PRESENT;
+    const lateData = attendanceData.LATE;
+    const absentData = attendanceData.ABSENT;
+
+    var attendanceChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: attendanceData.labels,  // 📅 X-axis (Dates)
+            datasets: [{
+                label: 'Early Attendance',
+                data: earlyData,  // 📊 Y-axis (Early Attendance Count)
+                borderColor: '#007bff',
+                backgroundColor: 'rgba(0, 123, 255, 0.2)',
+                borderWidth: 2,
+                pointRadius: 4,
+                pointBackgroundColor: '#007bff',
+                fill: true
+            },
+            {
+                label: 'Present Attendance',
+                data: presentData,  // 📊 Y-axis (Present Attendance Count)
+                borderColor: '#28a745',
+                backgroundColor: 'rgba(40, 167, 69, 0.2)',
+                borderWidth: 2,
+                pointRadius: 4,
+                pointBackgroundColor: '#28a745',
+                fill: true
+            },
+            {
+                label: 'Late Attendance',
+                data: lateData,  // 📊 Y-axis (Late Attendance Count)
+                borderColor: '#ffc107',
+                backgroundColor: 'rgba(255, 193, 7, 0.2)',
+                borderWidth: 2,
+                pointRadius: 4,
+                pointBackgroundColor: '#ffc107',
+                fill: true
+            },
+            {
+                label: 'Absent Attendance',
+                data: absentData,  // 📊 Y-axis (Absent Attendance Count)
+                borderColor: '#dc3545',
+                backgroundColor: 'rgba(220, 53, 69, 0.2)',
+                borderWidth: 2,
+                pointRadius: 4,
+                pointBackgroundColor: '#dc3545',
+                fill: true
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true
+                }
+            }
+        }
+    });
+
+</script>
+{% endblock %}

@@ -1,0 +1,318 @@
+{% block content %}
+{% load group_filter %}
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { font-family: Arial, sans-serif; }
+        #calendar { max-width: 1080px; margin: 40px auto;}
+        .modal-backdrop{
+            z-index: -1 !important;
+        }
+        .swal2-input {
+           margin:0;
+          padding: 0;
+        }
+        .swal2-html-container {
+            overflow-x: hidden;
+        }
+
+        .fc {
+            background-color: #ffffff;
+            border-radius: 10px;
+            padding: 15px;
+            box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .fc-day-today{
+            background-color: #bebebe !important;
+        }
+
+        .fc-daygrid-day-number{
+            text-decoration: none;
+            color: #343a40 !important;
+        }
+        
+        /* Style the header toolbar */
+        .fc-toolbar {
+            background-color: #343a40; /* Dark theme */
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+        }
+
+        .fc-button {
+            background-color: #007bff !important;
+            border: none !important;
+            color: white !important;
+            font-weight: bold;
+            padding: 5px 10px;
+            border-radius: 5px;
+        }
+
+        /* Hover effect for events */
+        .fc-event:hover {
+            opacity: 0.8;
+            transform: scale(0.99);
+            transition: all 0.2s ease-in-out;
+        }
+
+        /* Style the event title */
+        .fc-title {
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        /* Style the description text */
+        .fc-description {
+            font-size: 12px;
+            font-style: italic;
+            color: #ddd;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div id="calendar"></div>
+    </div>
+
+    <!-- Modal for Event Details -->
+    <div class="modal fade" id="eventModal" tabindex="-2">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="eventTitle"></h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p><strong>Date:</strong> <span id="eventDate"></span></p>
+                    <p><strong>Description:</strong> <span id="eventDescription"></span></p>
+                    <p><strong>Event Type:</strong> <span id="eventType"></span></p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary d-none" id="visitEvent">Visit Event</button> <!-- Initially hidden -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- FullCalendar & Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- rrule lib -->
+    <script src='https://cdn.jsdelivr.net/npm/rrule@2.6.4/dist/es5/rrule.min.js'></script>
+
+    <!-- fullcalendar bundle -->
+    <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js'></script>
+
+    <!-- the rrule-to-fullcalendar connector. must go AFTER the rrule lib -->
+    <script src='https://cdn.jsdelivr.net/npm/@fullcalendar/rrule@6.1.15/index.global.min.js'></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            let calendarEl = document.getElementById('calendar');
+
+            var events = {{ events|safe }};  // Events include holidays (blue) and user events (red)
+
+            console.table(events); // Log the events to check their structure
+
+            // Initialize the calendar
+            var calendar = new FullCalendar.Calendar(calendarEl, {
+                themeSystem: 'bootstrap5',
+                initialView: 'dayGridMonth', // Month view
+                // Toolbar configuration
+                headerToolbar: {
+                    left: 'prev timeGridDay timeGridWeek dayGridMonth',        // Navigation buttons
+                    center: 'title',                                            // Title in the center
+                    right: 'today listWeek listYear next'                       // List Buttons
+                },
+                views: {
+                    // Default views
+                    today: {
+                        buttonText: 'Today'
+                    },
+                    dayGridMonth: {
+                        buttonText: 'Month'
+                    },
+                    timeGridWeek: {
+                        buttonText: 'Week'
+                    },
+                    timeGridDay: {
+                        buttonText: 'Day'
+                    },
+                    listWeek: {
+                        buttonText: 'ListWeek'
+                    },
+
+                    listYear: {
+                        type: 'list',
+                        duration: { days: 365 },
+                        buttonText: 'ListYear'
+                    }
+                },
+                selectable: {% if user|has_group:"HR ADMIN" %} true {% else %} false {% endif %}, // Allow selection of dates for non-staff users
+                editable: true,
+                eventClick: function(info) {
+                    info.jsEvent.preventDefault(); // don't let the browser navigate
+
+                    // Check if the event has a URL
+                    if (info.event.url) {
+                        // If the event has a URL, show the button to visit it
+                        document.getElementById('visitEvent').classList.remove('d-none');
+                        document.getElementById('visitEvent').onclick = function() {
+                            window.open(info.event.url, '_blank'); // Open URL in a new tab
+                        };
+                    } else {
+                        // Hide the button if no URL is present
+                        document.getElementById('visitEvent').classList.add('d-none');
+                    }
+                    
+                    // Ensure modal is closed before opening a new one
+                    var modalEl = document.getElementById('eventModal');
+                    var modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+
+                    // Update modal content
+                    document.getElementById('eventTitle').innerText = info.event.title;
+                    document.getElementById('eventDate').innerText = info.event.start.toDateString();
+                    document.getElementById('eventDescription').innerText = info.event.extendedProps.description || "No description available";
+                    document.getElementById('eventType').innerText = info.event.extendedProps.holidayType || "School Event";
+                    var modal = new bootstrap.Modal(document.getElementById('eventModal'));
+                    modal.show();
+                },
+
+                select: function(info) {
+                    // Get the current selection's start and end dates
+                    let startDate = info.startStr;  // Start date in string format (ISO format)
+        
+                    // SweetAlert2 prompt with separate input fields for date and time
+                    Swal.fire({
+                        title: 'Enter Event Details',
+                        html: `
+                            <div class="row text-center p-4">
+                                <div class="col-md-12">
+                                    <label for="eventTitle">Event Title:</label>
+                                    <input id="eventTitle" class="swal2-input form-control" placeholder="Enter event title" required>
+                                </div>
+
+                                <div class="col-md-12">
+                                    <label for="description">Description:</label>
+                                    <textarea rows="4" id="description" class="swal2-input form-control" required></textarea>
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label for="startDate">Start Date:</label>
+                                    <input type="date" id="startDate" class="swal2-input form-control" value="${startDate}" required>
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label for="startTime">Start Time:</label>
+                                    <input type="time" id="startTime" class="swal2-input form-control" required>
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label for="endDate">End Date:</label>
+                                    <input type="date" id="endDate" class="swal2-input form-control " required>
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label for="endTime">End Time:</label>
+                                    <input type="time" id="endTime" class="swal2-input form-control" required>
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label for="url">Url(Optional):</label>
+                                    <input rows="4" id="url" class="swal2-input form-control" required></input>
+                                </div>
+
+                                <div class="col-md-6 mt-2 d-flex justify-content-center align-items-center">
+                                    <input type="checkbox" id="all_day">
+                                    <label for="all_day">All Day Event?</label>
+                                </div>
+                                
+                                <div class="col-md-12">
+                                    <label for="daysOfWeek">Recurrence</label>
+                                    <select id="daysOfWeek" name="daysOfWeek" multiple class="form-control">
+                                        <option value="0">Sunday</option>
+                                        <option value="1">Monday</option>
+                                        <option value="2">Tuesday</option>
+                                        <option value="3">Wednesday</option>
+                                        <option value="4">Thursday</option>
+                                        <option value="5">Friday</option>
+                                        <option value="6">Saturday</option>
+                                    </select>
+                                </div>
+
+                            </div>
+                        `,
+                        showCancelButton: true,
+                        confirmButtonText: 'Save Event',
+                        cancelButtonText: 'Cancel',
+                        focusConfirm: false,
+                        preConfirm: () => {
+                            const title = Swal.getPopup().querySelector('#eventTitle').value;
+                            const startDate = Swal.getPopup().querySelector('#startDate').value;
+                            const startTime = Swal.getPopup().querySelector('#startTime').value;
+                            const endDate = Swal.getPopup().querySelector('#endDate').value;
+                            const endTime = Swal.getPopup().querySelector('#endTime').value;
+                            const description = Swal.getPopup().querySelector('#description').value;
+                            const url = Swal.getPopup().querySelector('#url').value;
+                            const daysOfWeek = Array.from(Swal.getPopup().querySelector('#daysOfWeek').selectedOptions).map(option => option.value);
+                            const allDay = Swal.getPopup().querySelector('#all_day').checked;
+                            
+                            if (!title || !startDate || !startTime || !endDate || !endTime || !description) {
+                                Swal.showValidationMessage('All fields are required');
+                                return false;
+                            }
+
+                            const start = `${startDate}T${startTime}`; // Combine date and time for start
+                            const end = `${endDate}T${endTime}`; // Combine date and time for end
+
+                            return { title, description, url, start, end, daysOfWeek, allDay };
+                        }
+                    }).then((result) => {
+                        if (result.isConfirmed) {
+                            console.table(result.value);
+                            
+                            let eventData = {
+                                title: result.value.title,
+                                description: result.value.description,
+                                start: result.value.start,
+                                end: result.value.end,
+                                daysOfWeek: result.value.daysOfWeek,
+                                url: result.value.url,
+                                allDay: result.value.allDay
+                            };
+                            // Send the event data to the server using Fetch API
+                            // Note: Adjust the URL to match your Django view for creating events
+                            fetch("/create-event/", {
+                                method: "POST",
+                                headers: { 
+                                    "Content-Type": "application/json",
+                                    "X-CSRFToken": '{{ csrf_token }}'  // CSRF token for Django
+                                },
+                                body: JSON.stringify(eventData)
+                            })
+                            .then(response => response.json())
+                            .then(data => {
+                                if (data.event_id) {
+                                    Swal.fire('Event Added!', '', 'success');
+                                    location.reload();  // Reload calendar
+                                } else {
+                                    Swal.fire('Something went wrong', '', 'error');
+                                    alert("Error: " + data.error);
+                                }
+                            })
+                            .catch(error => console.error("Fetch error:", error));
+                            
+
+                            Swal.fire('Event Added!', '', 'success');
+                        }
+                    });
+                },
+                events: events,  // Load all events
+            });
+
+            calendar.render();
+        });
+    </script>
+</body>
+{% endblock %}

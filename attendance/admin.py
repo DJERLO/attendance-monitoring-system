@@ -5,12 +5,16 @@ from django.http import HttpResponse
 from django.utils.html import mark_safe
 from django.db.models import Value, CharField
 from django.db.models.functions import Concat
+from django.contrib.auth.models import User
+from django.contrib.auth.admin import UserAdmin as DefaultUserAdmin
 from django.urls import reverse
 from django.utils.html import format_html
+from django.contrib.admin import SimpleListFilter
 from rangefilter.filters import (
     DateRangeFilterBuilder
 )
-from .models import Employee, FaceImage, ShiftRecord, WorkHours
+
+from .models import Announcement, Camera, EmergencyContact, Employee, FaceImage, LeaveRequest, Notification, ShiftRecord, WorkHours, Event
 
 # Set custom admin site titles
 admin.site.site_header = "Attendance Management System Admin Portal"  # For example, "Attendance System Admin"
@@ -27,17 +31,66 @@ class WorkHoursAdmin(admin.ModelAdmin):
     def has_add_permission(self, request):
         """Prevents adding a new WorkHours instance if one already exists."""
         return not WorkHours.objects.exists()  # Disable "Add" if record exists
+    
+
+# Inline Emergency Contact model
+class EmergencyContactInline(admin.StackedInline):  # or TabularInline for table layout
+    model = EmergencyContact
+    extra = 0  # Don't show extra blank forms
+    can_delete = False  # Prevent removing it
+    verbose_name_plural = "Emergency Contact Info"
+
+
+# Employee Inline (including image preview)
+class EmployeeInline(admin.StackedInline):
+    model = Employee
+    extra = 0
+    show_change_link = True
+    readonly_fields = ['profile_image_preview']
+    verbose_name_plural = "Employee Information"
+    fields = (
+        'employee_number', 'first_name', 'middle_name', 'last_name',
+        'gender', 'birth_date', 'hire_date',
+        'email', 'contact_number', 'group',
+        'employment_status', 'hourly_rate', 'profile_image', 'profile_image_preview'
+    )
+    inlines = [EmergencyContactInline]
+
+    def profile_image_preview(self, obj):
+        if obj.profile_image:
+            return mark_safe(
+                f'<img src="{obj.profile_image.url}" width="100" height="100" style="object-fit: cover; border-radius: 8px;" />'
+            )
+        return "No image uploaded"
+    profile_image_preview.short_description = "Profile Preview"
 
 class EmployeeAdmin(admin.ModelAdmin):
+    inlines = [EmergencyContactInline]
+
+    # Fieldsets
+    fieldsets = (
+        ('Account Information', {
+            'fields': ('user', 'profile_image_preview', 'profile_image')
+        }),
+        ('Personal Info', {
+            'fields': ('first_name', 'middle_name', 'last_name', 'gender', 'birth_date'),
+        }),
+        ('Contact Info', {
+            'fields': ('email', 'contact_number'),
+        }),
+        ('Employment Details', {
+            'fields': ('employee_number', 'hire_date',  'group', 'employment_status', 'hourly_rate'),
+        }),
+    )
+
+    readonly_fields = ('profile_image_preview',)
+
+
     # List of fields displayed in the admin list view
     list_display = [
         "profile_image_display", 
-        "first_name", 
-        "middle_name", 
-        "last_name",
-        "group", 
-        "email", 
-        "contact_number", 
+        "full_name",
+        "group",
         "total_hours_display",  
         "average_hours_display"  
     ]
@@ -59,8 +112,17 @@ class EmployeeAdmin(admin.ModelAdmin):
             change_url = reverse('admin:%s_%s_change' % (obj._meta.app_label, obj._meta.model_name), args=[obj.pk])
             return format_html('<a href="{0}"><img src="{1}" width="100" height="100" /></a>', change_url, obj.profile_image.url)
         return "No Image"
+        
     
     profile_image_display.short_description = "Profile Image"
+
+    def profile_image_preview(self, obj):
+        if obj.profile_image:
+            return mark_safe(
+                f'<img src="{obj.profile_image.url}" width="100" height="100" style="object-fit: cover; border-radius: 8px;" />'
+            )
+        return "No image uploaded"
+    profile_image_preview.short_description = "Current Profile Image"
 
     # Displaying the total hours worked by an employee
     def total_hours_display(self, obj):
@@ -93,8 +155,12 @@ admin.site.register(Employee, EmployeeAdmin)
 class ShiftRecordsAdmin(admin.ModelAdmin):
     list_display = ["employee_profile_picture", "employee_full_name", "date", "clock_in", "clock_out", "total_hours"]
     list_select_related = ("employee",)  # Optimizes database queries by fetching related Employee data with ShiftRecord
-    list_filter = [("date", DateRangeFilterBuilder())]
-    
+    list_filter = [
+        ("date", admin.DateFieldListFilter),  # Date range filter for the date field
+        "employee__group",  # Filter by employee group
+        "employee__hourly_rate",  # Filter by whether the employee has an hourly rate
+    ]
+
     def get_queryset(self, request):
         """
         Annotates employee full name dynamically for search.
@@ -184,3 +250,63 @@ class FaceImageAdmin(admin.ModelAdmin):
         return "(No Image)"
 
     image_preview.short_description = "Face Preview"
+
+class EventsAdmin(admin.ModelAdmin):
+    list_display = ('title', 'get_days_of_week', 'start', 'end')
+    list_filter = (
+        ('start', DateRangeFilterBuilder()),  # Date range filter for the start date
+        'all_day',  # Filter by whether the event is all-day or not
+    )
+    search_fields = ('title', 'description')  # Search by title and description
+    ordering = ('start',)  # Default ordering by event start date
+
+    def get_days_of_week(self, obj):
+        day_map = {
+            '0': 'Sun',
+            '1': 'Mon',
+            '2': 'Tue',
+            '3': 'Wed',
+            '4': 'Thu',
+            '5': 'Fri',
+            '6': 'Sat'
+        }
+        return ", ".join([day_map[day] for day in obj.days_of_week]) if obj.days_of_week else "N/A"
+    
+    get_days_of_week.short_description = "Repeats On"  # Display name in admin
+
+
+# Register the Event model with the custom EventsAdmin 
+admin.site.register(Event, EventsAdmin)
+admin.site.register(Notification)
+
+class CameraAdmin(admin.ModelAdmin):
+    list_display = ("name", "mode", "camera_url", "is_active")
+    list_filter = ("mode", "is_active")
+    search_fields = ("name", "camera_url")
+
+admin.site.register(Camera, CameraAdmin)
+
+class LeaveRequestAdmin(admin.ModelAdmin):
+    list_display = ("employee", "start_date", "end_date", "status", "duration", "approved_by", "created_at")
+    list_filter = ("status", "start_date", "end_date")
+    search_fields = ("employee__first_name", "employee__last_name", "employee__employee_number")
+    date_hierarchy = "start_date"
+    autocomplete_fields = ["employee", "approved_by"]
+
+admin.site.register(LeaveRequest, LeaveRequestAdmin)
+
+class AnnouncementAdmin(admin.ModelAdmin):
+    list_display = ("title", "created_by", "created_at", "is_active")
+    list_filter = ("is_active", "created_at")
+    search_fields = ("title", "message")
+    autocomplete_fields = ["created_by"]
+
+admin.site.register(Announcement, AnnouncementAdmin)
+
+# Unregister the original User admin
+admin.site.unregister(User)
+
+# Re-register with our custom inline
+@admin.register(User)
+class CustomUserAdmin(DefaultUserAdmin):
+    inlines = [EmployeeInline]

@@ -1,25 +1,54 @@
 {% load allauth socialaccount %}
 {% get_providers as socialaccount_providers %}
+<style>
+    a[title]::after {
+    content: attr(title);
+    position: absolute;
+    background: #000;
+    color: #fff;
+    padding: 4px 8px;
+    font-size: 12px;
+    border-radius: 4px;
+    opacity: 0;
+    transform: translateY(-10px);
+    transition: all 0.2s ease-in-out;
+    pointer-events: none;
+}
 
+a[title]:hover::after {
+    opacity: 1;
+    transform: translateY(-20px);
+}
+</style>
+<script src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js"></script>
 {% if socialaccount_providers %}
-    <div class="d-flex flex-column justify-content-center align-content-center">
+    <div class="d-flex flex-row justify-content-center align-content-center">
         {% for provider in socialaccount_providers %}
             {% if provider.id == "openid" %}
                 {% for brand in provider.get_brands %}
                     {% provider_login_url provider openid=brand.openid_url process=process as href %}
                     <div class="w-100 mb-3">
-                        <a href="{{ href }}" class="btn btn-outline-primary btn-lg w-100" title="{{ provider.name }}">
-                            <i class="fab fa-{{ brand.name | lower }}"></i> {{ brand.name }}
+                        <a href="{{ href }}" class="btn btn-outline-primary" title="{{ provider.name }}">
+                            <i class="fab fa-{{ brand.name | lower }}"></i>
                         </a>
                     </div>
                 {% endfor %}
             {% else %}
-                {% provider_login_url provider process=process scope=scope auth_params=auth_params as href %}
-                <div class="w-100 mb-3">
-                    <a href="{{ href }}" class="btn btn-outline-primary btn-lg w-100" title="{{ provider.name }}">
-                        <i class="fab fa-{{ provider.id | lower }}"></i> {{ provider.name }}
-                    </a>
-                </div>
+            {% provider_login_url provider process=process scope=scope auth_params=auth_params as href %}
+            <div class="d-flex flex-row justify-content-center m-2">
+                <a href="{{ href }}"
+                   class="btn btn-outline-dark d-flex align-items-center justify-content-center p-0"
+                   title="{{ provider.name }}"
+                   style="width: 50px; height: 50px; border-radius: 0.5rem;">
+                   
+                   {% if provider.id == "facebook" %}
+                       <iconify-icon icon="logos:facebook" width="32" height="32"></iconify-icon>
+                   {% else %}
+                       <iconify-icon icon="logos:{{ provider.id }}-icon" width="32" height="32"></iconify-icon>
+                   {% endif %}
+            
+                </a>
+            </div>
             {% endif %}
         {% endfor %}
     </div>

@@ -1,0 +1,72 @@
+{% extends "user/base.html" %}
+{% block head_title %}Employee Management{% endblock head_title %}
+{% block page_content %}
+<div class="container mt-4 px-4">
+    <h2 class="mb-3">Employee List</h2>
+    <table id="employeeTable" class="table table-hover table-bordered">
+        <thead class="table-dark">
+            <tr>
+                <th>Profile</th>
+                <th>Employee #</th>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Contact</th>
+                <th>Department</th>
+                <th>View</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for employee in employees %}
+            <tr>
+                <td>
+                    <img src="{{ employee.profile_image.url }}" alt="Profile" class="rounded-circle" width="50" height="50">
+                </td>
+                <td>{{ employee.employee_number }}</td>
+                <td>{{ employee.first_name }} {% if employee.middle_name %}{{ employee.middle_name }}{% endif %} {{ employee.last_name }}</td>
+                <td>{{ employee.email }}</td>
+                <td>{{ employee.contact_number }}</td>
+                <td>{{ employee.group.name|default:"N/A" }}</td>
+                <td><a class="btn btn-primary" href="{% url 'employee-details' employee.employee_number  %}"><i class="fa-regular fa-eye fa-shake"></i></a></td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="6" class="text-center">No employees found.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        let table = document.getElementById('employeeTable');
+        let dataTable = new DataTable(table, {
+            "order": [[1, "asc"]], // Default sorting by Employee # (2nd column)
+            "fixedHeader": true,  // Enable fixed header
+            "scrollCollapse": false,
+            "scroller": true,
+            "responsive": true,
+            "scrollY": 400,
+            "stateSave": true,  // Enable state saving
+            "searching": true,  // Enable global search
+            "dom": 'Plfrtip',  // Enables SearchPanes, length menu, filter, etc.
+            "columnDefs": [
+                { "targets": 0, "searchPanes": { "show": false } },
+                { "targets": 1, "searchPanes": { "show": true, "viewTotal": false  } },
+                { "targets": 2, "searchPanes": { "show": true } },
+                { "targets": 3, "searchPanes": { "show": false } }, 
+                { "targets": 4, "searchPanes": { "show": false } },
+                { "targets": 5, "searchPanes": { "show": true } },  // Department column
+                { "targets": '_all', "className": 'text-center' }
+            ],
+            "searchPanes": {
+                initCollapsed: true,  // Start with panes collapsed
+                "cascadePanes": true,
+                "viewTotal": false
+            },
+            "language": {
+                "emptyTable": "No employee(s) records available."
+            },
+        });
+    });
+</script>
+{% endblock page_content %}

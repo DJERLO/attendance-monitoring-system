@@ -6,62 +6,202 @@
 {% block head_title %}Profile{% endblock head_title %}
 {% block page_content %}
 <div class="container-fluid">
-    <div class="row justify-content-center">
-        <div class="col-md-8">
-            <div class="card shadow-lg">
+    <div class="row p-3">
+        <div class="col-md-6">
+            <div class="card shadow-lg flex-fill h-100">
                 <div class="card-header text-center bg-primary text-white">
-                    <img src="{% static 'img/logo.png' %}" alt="" width="80" height="80">
+                    <img class="img-fluid mb-3" src="{{ employee.profile_image.url }}" alt="" width="80" height="80">
                     <h3>{{ employee.full_name }}</h3>
                     <small>Employee Number: {{ employee.employee_number }}</small>
                 </div>
                 <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-4 text-center">
-                            <img 
-                                src="{{ employee.avatar_url }}" 
-                                alt="Profile Image" 
-                                class="img-fluid rounded-circle mb-3" 
-                                style="max-width: 150px;"
-                            />
+                    <div class="row gy-3">
+                        <div class="col-md-12">
+                            <a href="{% url 'account_change_password' %}" class="btn btn-dark text-white w-100">
+                                <i class="bi bi-lock"></i> Change Password
+                            </a>
                         </div>
-                        <div class="col-md-8">
-                            <ul class="list-group list-group-flush">
-                                <li class="list-group-item">
-                                    <strong>Email:</strong> {{ employee.email }}
-                                </li>
-                                <li class="list-group-item">
-                                    <strong>Contact Number:</strong> {{ employee.contact_number }}
-                                </li>
-                                <li class="list-group-item">
-                                    <strong>Total Hours Worked:</strong> {{ employee.total_hours_worked|floatformat:2 }}
-                                </li>
-                                <li class="list-group-item">
-                                    <strong>Average Hours Worked per Shift:</strong> {{ employee.average_hours_worked|floatformat:2 }}
-                                </li>
-                            </ul>
+                        <div class="col-md-12">
+                            <a href="{% url 'account_email' %}" class="btn btn-dark text-white w-100">
+                                <i class="bi bi-envelope"></i> Update Email Address
+                            </a>
+                        </div>
+                        <div class="col-md-12">
+                            <a href="{% url 'socialaccount_connections' %}" class="btn btn-dark text-white w-100">
+                                <i class="bi bi-link"></i> Manage Linked Accounts
+                            </a>
+                        </div>
+                        <div class="col-md-12">
+                            <a href="{% url 'Manage-Face' %}" class="btn btn-dark text-white w-100">
+                                <i class="bi bi-person-bounding-box"></i> Manage Your Face Data
+                            </a>
+                        </div>
+                        <div class="col-md-12">
+                            <a href="{% url 'mfa_index' %}" class="btn btn-dark text-white w-100">
+                                <i class="bi bi-shield-lock"></i> Set/Manage MFA
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card-footer text-center">
+                    <div class="row g-2">
+                        
+                    </div>
+
+                </div>                
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card shadow-lg flex-fill h-100">
+                <div class="card-header text-center bg-primary text-white">
+                    <h3>Employee Details</h3>
+                </div>
+                <div class="card-body text-dark" id="employee-details">
+                    <div class="row">
+                        <div class="col-6 mb-3">
+                            <strong>First Name:</strong><br>
+                            <span data-name="first_name" data-type="text">John</span>
+                        </div>
+                        <div class="col-6 mb-3">
+                            <strong>Middle Name:</strong><br>
+                            <span data-name="middle_name" data-type="text">Andrew</span>
+                        </div>
+                        <div class="col-6 mb-3">
+                            <strong>Last Name:</strong><br>
+                            <span data-name="last_name" data-type="text">Doe</span>
+                        </div>
+                        <div class="col-6 mb-3">
+                            <strong>Gender:</strong><br>
+                            <span data-name="gender" data-type="select"
+                                  data-options='[
+                                      {"value": "male", "label": "Male"},
+                                      {"value": "female", "label": "Female"},
+                                      {"value": "other", "label": "Other"}
+                                  ]'>Male</span>
+                        </div>
+                        <div class="col-6 mb-3">
+                            <strong>Date of Birth:</strong><br>
+                            <span data-name="birth_date" data-type="date">1990-01-01</span>
+                        </div>
+                        <div class="col-6 mb-3">
+                            <strong>Hire Date:</strong><br>
+                            <span data-name="hire_date" data-type="date">2022-06-15</span>
+                        </div>
+                        <div class="col-6 mb-3">
+                            <strong>Email Address:</strong><br>
+                            <span data-name="email" data-type="email">john.doe@example.com</span>
+                        </div>
+                        <div class="col-6 mb-3">
+                            <strong>Contact Number:</strong><br>
+                            <span data-name="contact_number" data-type="text">+63 912 345 6789</span>
+                        </div>
+                        <div class="col-6 mb-3">
+                            <strong>Department:</strong><br>
+                            <span data-name="group" data-type="select"
+                                  data-options='[
+                                      {"value": "hr", "label": "Human Resources"},
+                                      {"value": "it", "label": "IT Department"},
+                                      {"value": "acct", "label": "Accounting"},
+                                      {"value": "admin", "label": "Administration"}
+                                  ]'>IT Department</span>
+                        </div>
+                        <div class="col-6 mb-3">
+                            <strong>Employment Status:</strong><br>
+                            <span data-name="employment_status" data-type="select"
+                                  data-options='[
+                                      {"value": "full_time", "label": "Full-Time"},
+                                      {"value": "part_time", "label": "Part-Time"},
+                                      {"value": "contract", "label": "Contractual"},
+                                      {"value": "probation", "label": "Probationary"},
+                                      {"value": "intern", "label": "Intern"},
+                                      {"value": "resigned", "label": "Resigned"},
+                                      {"value": "terminated", "label": "Terminated"},
+                                      {"value": "retired", "label": "Retired"}
+                                  ]'>Full-Time</span>
                         </div>
                     </div>
                 </div>
                 <div class="card-footer text-center">
-                    <a href="{% url 'account_email' %}" class="btn btn-primary">
-                        <i class="bi bi-envelope"></i> Update Email Address
-                    </a>
-                    
-                    <a href="{% url 'facial-registration' user.employee.employee_number %}" class="btn btn-warning">
-                        <i class="bi bi-person-bounding-box"></i> Manage Your Face Data
-                    </a>
-                    
-                    <a href="{% url 'socialaccount_connections' %}" class="btn btn-danger">
-                        <i class="bi bi-link"></i> Manage Linked Accounts
-                    </a>
-                    
-                    <a href="{% url 'mfa_index' %}" class="btn btn-info">
-                        <i class="bi bi-shield-lock"></i> Set/Manage MFA
-                    </a>
-                    
-                </div>                
+                    <button id="edit-btn" class="btn btn-sm btn-outline-primary">Edit</button>
+                    <button id="save-btn" class="btn btn-sm btn-success d-none">Save</button>
+                </div>
             </div>
         </div>
     </div>
 </div>
+<!-- JavaScript: Inline or in a <script> tag -->
+    <script>
+        const editBtn = document.getElementById("edit-btn");
+        const saveBtn = document.getElementById("save-btn");
+        
+    
+        editBtn.addEventListener("click", () => {
+            const spans = document.querySelectorAll(".card-body span");
+            spans.forEach(span => {
+                const name = span.dataset.name;
+
+                // Skip department and employment status fields
+                if (name === "group" || name === "employment_status") return;
+                
+                const type = span.dataset.type;
+                const value = span.textContent.trim();
+    
+                let input;
+    
+                if (type === "text" || type === "date" || type === "email" || type === "number") {
+                    input = document.createElement("input");
+                    input.type = type;
+                    input.className = "form-control";
+                    input.value = value;
+                    input.setAttribute("name", name);
+                } else if (type === "select") {
+                    input = document.createElement("select");
+                    input.className = "form-select";
+                    input.setAttribute("name", name);
+    
+                    const options = JSON.parse(span.dataset.options);
+                    options.forEach(opt => {
+                        const option = document.createElement("option");
+                        option.value = opt.value;
+                        option.textContent = opt.label;
+                        if (opt.label === value || opt.value === value.toLowerCase().replace(" ", "_")) {
+                            option.selected = true;
+                        }
+                        input.appendChild(option);
+                    });
+                }
+    
+                span.replaceWith(input);
+            });
+    
+            editBtn.classList.add("d-none");
+            saveBtn.classList.remove("d-none");
+        });
+    
+        saveBtn.addEventListener("click", () => {
+            const inputs = document.querySelectorAll(".card-body input, .card-body select");
+            inputs.forEach(input => {
+                const span = document.createElement("span");
+                span.setAttribute("data-name", input.name);
+    
+                if (input.tagName.toLowerCase() === "select") {
+                    const selectedOption = input.options[input.selectedIndex];
+                    span.textContent = selectedOption.textContent;
+                    span.setAttribute("data-type", "select");
+                    span.setAttribute("data-options", JSON.stringify(
+                        Array.from(input.options).map(opt => ({ value: opt.value, label: opt.textContent }))
+                    ));
+                } else {
+                    span.textContent = input.value;
+                    span.setAttribute("data-type", input.type);
+                }
+    
+                input.replaceWith(span);
+            });
+    
+            editBtn.classList.remove("d-none");
+            saveBtn.classList.add("d-none");
+        });
+    </script>
 {% endblock page_content %}

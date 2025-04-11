@@ -104,12 +104,7 @@
                     <div id="filter" class="filter d-flex flex-nowrap align-self-stretch justify-content-center align-content-center">
                         <div class="input-group w-100">
                             <span class="input-group-text" id="monthLabel">Select Month:</span>
-                            <input type="month" class="form-control" id="monthInput" onchange="filterRecords()">
-                            {% if employee %}
-                                <button class="btn btn-primary print" onclick="downloadPDF()"><i class='bx bxs-download'></i>PDF</button>
-                                <button class="btn btn-success" onclick="exportToExcel()"><i class='bx bx-download'></i>Excel</button>
-                            {% endif %}
-                            
+                            <input type="month" class="form-control" id="monthInput" onchange="filterRecords()">  
                         </div>
                     </div>
                 </div>
@@ -125,21 +120,34 @@
                 {% if employee is not None %}
                 <tbody>
                     {% for date in all_dates %}
-                        {% with record=shift_records|get_item:date %}
-                            <tr>
-                                <td data-order="{{ date|date:'Y-m-d' }}" >{{ date|date:"M j, Y" }}</td>
-                                {% if record %}
+                        {% with records=shift_records|get_item:date %}
+                            {% if records %}
+                                {% for record in records %}
+                                    <tr>
+                                        {% if forloop.first %}
+                                            <td data-order="{{ date|date:'Y-m-d' }}" rowspan="{{ records|length }}">{{ date|date:"M j, Y" }}</td>
+                                            <td>{{ record.clock_in|time:"g:i A"|default:"" }}</td>
+                                            <td>{{ record.clock_out|time:"g:i A"|default:"" }}</td>
+                                            <td>{{ record.total_hours|floatformat:2|default:0 }}</td>
+                                            <td>{{ record.status|default:"ABSENT" }}</td>
+                                        {%else%}
+                                            <td class="d-none" data-order="{{ date|date:'Y-m-d' }}">{{ date|date:"M j, Y" }}</td>
+                                            <td>{{ record.clock_in|time:"g:i A"|default:"" }}</td>
+                                            <td>{{ record.clock_out|time:"g:i A"|default:"" }}</td>
+                                            <td>{{ record.total_hours|floatformat:2|default:0 }}</td>
+                                            <td>{{ record.status|default:"ABSENT" }}</td>
+                                        {% endif %}
+                                    </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr>
+                                    <td data-order="{{ date|date:'Y-m-d' }}">{{ date|date:"M j, Y" }}</td>
                                     <td>{{ record.clock_in|time:"g:i A"|default:"" }}</td>
                                     <td>{{ record.clock_out|time:"g:i A"|default:"" }}</td>
                                     <td>{{ record.total_hours|floatformat:2|default:0 }}</td>
-                                    <td>{{ record.status|default:"ABSENT"}}</td>
-                                {% else %}
-                                    <td>{{ record.clock_in|time:"g:i A"|default:"" }}</td>
-                                    <td>{{ record.clock_out|time:"g:i A"|default:"" }}</td>
-                                    <td>{{ record.total_hours|floatformat:2|default:0 }}</td>
-                                    <td>{{ record.status|default:"ABSENT"}}</td>
-                                {% endif %}
-                            </tr>
+                                    <td>{{ record.status|default:"ABSENT" }}</td>
+                                </tr>
+                            {% endif %}
                         {% endwith %}
                     {% endfor %}
                 </tbody>
@@ -176,7 +184,12 @@
         "stateSave": true,  // Enable state saving
         "searching": true,  // Enable global search
         "paging": true,  // Disable pagination (since it's a daily log)
-        "dom": 'Plfrtip',  // Enables SearchPanes, length menu, filter, etc.
+        "dom": 'PlfBrtip',  // Enables SearchPanes, length menu, filter, etc.
+        'buttons': [
+                'copy',       // Copy to clipboard
+                'excel',      // Export to Excel
+                'csv',        // Export to CSV 
+            ],
         "columnDefs": [
             { "targets": 0, "type": "date", "searchPanes": { "show": false } },
             { "targets": 1, "searchPanes": { "show": false } },
@@ -299,136 +312,4 @@
     // Call the setDefaultMonth function when the page loads
     window.onload = setDefaultMonth;
 
-    //Export to Excel
-    function exportToExcel() {
-        const monthInput = document.getElementById('monthInput').value;
-        const [selectedYear, selectedMonth] = monthInput.split('-'); // Extract year and month
-        let table = document.getElementById("attendanceRecords"); // Get the table
-        let wb = XLSX.utils.book_new(); // Create a new workbook
-        let ws = XLSX.utils.table_to_sheet(table, { raw: false }); // Convert table to sheet
-
-        // **No merged cells since it's single shift format**
-        ws["!merges"] = []; 
-
-        // Adjust column widths to match your table (Date | Clock-In | Clock-Out | Total Hours)
-        let wscols = [
-            { wch: 15 }, // Date Column
-            { wch: 12 }, // Clock-In
-            { wch: 12 }, // Clock-Out
-            { wch: 12 },  // Total Hours
-            { wch: 15 }  // Status
-        ];
-        ws["!cols"] = wscols;
-
-        // Apply header styling (bold, center alignment, light yellow background)
-        let headerRange = XLSX.utils.decode_range(ws["!ref"]); // Get range
-        for (let C = headerRange.s.c; C <= headerRange.e.c; C++) {
-            let cellAddress = XLSX.utils.encode_cell({ r: 0, c: C }); // Get cell address
-            if (ws[cellAddress]) {
-                ws[cellAddress].s = {
-                    font: { bold: true },
-                    alignment: { horizontal: "center", vertical: "center" },
-                    fill: { fgColor: { rgb: "FFFFCC" } } // Light yellow background
-                };
-            }
-        }
-
-        // Apply border to all cells
-        let borderStyle = { style: "thin", color: { rgb: "000000" } };
-        for (let R = headerRange.s.r; R <= headerRange.e.r; R++) {
-            for (let C = headerRange.s.c; C <= headerRange.e.c; C++) {
-                let cellAddress = XLSX.utils.encode_cell({ r: R, c: C });
-                if (!ws[cellAddress]) ws[cellAddress] = {}; // Ensure cell exists
-                ws[cellAddress].s = ws[cellAddress].s || {};
-                ws[cellAddress].s.border = {
-                    top: borderStyle, bottom: borderStyle,
-                    left: borderStyle, right: borderStyle
-                };
-            }
-        }
-
-        // Append sheet and trigger download
-        XLSX.utils.book_append_sheet(wb, ws, "Attendance Records");
-        XLSX.writeFile(wb, `Attendance Records - ${selectedMonth}-${selectedYear}.xlsx`);
-    }
-
-    //For PDF Download
-    function downloadPDF() {
-        const monthInput = document.getElementById('monthInput').value;
-        const [selectedYear, selectedMonth] = monthInput.split('-');  // Extract year and month
-        const records = document.querySelectorAll('#attendanceRecords tbody tr');
-        
-        // Array of month names
-        const months = [
-            "January", "February", "March", "April", "May", "June",
-            "July", "August", "September", "October", "November", "December"
-        ];
-
-        // Get the full month name
-        const fullMonthName = months[selectedMonth - 1];
-
-        // Prepare data arrays for the columns and rows
-        const columns = ["Date", "Clock In", "Clock Out", "Total Hours"];
-        const rows = [];
-
-        // Loop through the filtered rows in the table
-        records.forEach(row => {
-            const dateCell = row.children[0].textContent; // Get the date cell
-            const rowDate = new Date(dateCell);
-            
-            // Check if the row matches the selected month and year
-            const isSameMonth = (rowDate.getFullYear() == selectedYear && rowDate.getMonth() == selectedMonth - 1);
-
-            if (isSameMonth) {
-                const rowData = [];
-                row.querySelectorAll('td').forEach(cell => {
-                    rowData.push(cell.textContent.trim() || 'No Record');
-                });
-                rows.push(rowData);  // Add to rows array if the row matches the selected month
-            }
-        });
-
-        // Initialize jsPDF instance
-        var doc = new jsPDF();
-
-        // Add the logo (optional)
-        const logo = new Image();
-        logo.src = '{% static "img/logo.png" %}';  // Specify the path to your logo
-        logo.onload = function() {
-            const pageWidth = doc.internal.pageSize.width; // Get page width
-            const logoWidth = 24; // Width of the logo
-            const logoHeight = 24; // Height of the logo
-            const centerX = (pageWidth - logoWidth) / 2; // Calculate X to center the logo
-            // Add the logo to the PDF
-            doc.addImage(logo, 'PNG', centerX, 0, logoWidth, logoHeight);  // Center the logo horizontally at y = 10
-            
-
-            // Add the header title next to the logo
-            doc.setFontSize(16);  // Set font size for the title
-            doc.setFont('helvetica', 'bold');  // Set font type and style
-            doc.text(`Attendance Records of ${fullMonthName} ${year}`, 105, 26, { align: 'center' });  // Position (x, y) for the title
-
-            // Use autoTable to generate the table in the PDF with borders and center-aligned content
-            doc.autoTable(columns, rows, {
-                startY: 30,  // Start the table below the title
-                styles: {
-                    lineWidth: 0.1,
-                    lineColor: [0, 0, 0],
-                    halign: 'center',
-                    cellPadding: 1
-                },
-                headStyles: {
-                    halign: 'center',
-                    fillColor: [0, 0, 0],
-                    textColor: [255, 255, 255]
-                },
-                bodyStyles: {
-                    halign: 'center'
-                }
-            });
-    
-            // Save the PDF with the selected month and year in the filename
-            doc.save(`${employeeName} - ${fullMonthName} - ${selectedYear}.pdf`);
-        };
-    }
 </script>

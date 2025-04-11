@@ -9,20 +9,22 @@ import face_recognition
 import numpy as np
 from django.shortcuts import get_object_or_404, render, redirect
 from django.contrib import messages
-from django.contrib.auth import logout
+from django.contrib.auth import logout, login, authenticate
 from django.http import FileResponse, HttpResponse, JsonResponse
+from django.db.models import Count
 from django.template.loader import get_template
 from django.urls import reverse
 from django.conf import settings
 from django.utils import timezone
-from datetime import timedelta
-from django.db.models import Q
+from datetime import timedelta, datetime as dt
+from django.db.models import Q, Sum
 from pytz import timezone as pytz_timezone
 from asgiref.sync import sync_to_async
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.decorators import login_required
-from attendance.forms import EmployeeRegistrationForm, UserRegistrationForm
-from attendance.models import ShiftRecord, Employee, FaceImage, WorkHours
+import requests
+from attendance.forms import EmployeeEmergencyContactForm, EmployeeRegistrationForm, UserRegistrationForm
+from attendance.models import Announcement, Event, Notification, ShiftRecord, Employee, FaceImage, WorkHours
 from xhtml2pdf import pisa
 from .model_evaluation import detect_face_spoof
 from PIL import Image
@@ -32,6 +34,11 @@ from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 from django.http import HttpResponse
 from upstash_redis import Redis
+from django.core.cache import cache
+from django.contrib.auth.decorators import user_passes_test
+from django.core.exceptions import PermissionDenied
+from django.views.decorators.cache import cache_page
+from django.utils.timezone import now
 
 redis = Redis.from_env()
 
@@ -44,6 +51,20 @@ MODEL_PATH = os.path.join(CURRENT_DIR, 'training.pth')
 def counter(request):
     count = redis.incr('counter')
     return HttpResponse(f'Page visited {count} times.')
+
+# Check if the user is in the certain group (For Role-Based Access Control)
+def is_Admin(user):
+    if user.groups.filter(name='ADMIN').exists():
+        return True
+    return PermissionError
+def is_hr(user):
+    if user.groups.filter(name='HR ADMIN').exists():
+        return True
+    return PermissionError
+def is_faculty(user):
+    if user.groups.filter(name__icontains='Teaching Staff').exists():
+        return True
+    return PermissionError
 
 #index.html
 def index(request):
@@ -125,6 +146,7 @@ async def clock_out(employee_number):
     return None  # Or raise an exception if no record is found
 
 # Check-In View Attendance
+@cache_page(60 * 5)
 def check_in_attendance(request):
     """Renders the attendance page."""
     load_known_faces(KNOWN_FACES_DIR) # Loads all the employee's faces in our dataset
@@ -248,6 +270,7 @@ async def checking_in(request):
     return JsonResponse({"result":[{"status": "No Content"}]}, status=200)
 
 # Check-Out View Attendance
+@cache_page(60 * 5)
 def check_out_attendance(request):
     """Renders the attendance page."""
     load_known_faces(KNOWN_FACES_DIR) # Loads all the employee's faces in our dataset
@@ -406,14 +429,21 @@ def user_registration(request):
                     user.set_password(set_password)
                     user.save()
                     messages.success(request, "Password successfully set.")
+                    
+                    # Re-authenticate to keep the user logged in
+                    user = authenticate(request, username=user.username, password=set_password)
+                    if user is not None:
+                        login(request, user)
+
                 else:
                     messages.error(request, "Please set a password to complete registration.")
-                    return redirect('user-registration')
+                    return redirect('employee-registration')
 
             user_form = UserRegistrationForm(request.POST, instance=user)
             employee_form = EmployeeRegistrationForm(request.POST, request.FILES)
+            emergency_contact_form = EmployeeEmergencyContactForm(request.POST)
 
-            if user_form.is_valid() and employee_form.is_valid():
+            if user_form.is_valid() and employee_form.is_valid() and emergency_contact_form.is_valid() :
                 # Create User instance
                 user = user_form.save()
                 # Create Employee instance and link to User
@@ -423,6 +453,11 @@ def user_registration(request):
                 employee.last_name = user.last_name    # Set last name from user
                 employee.email = user.email            # Set email from user
                 employee.save()  # Save employee instance
+
+                #For Emergency Contact of Employee
+                emergency_contact = emergency_contact_form.save(commit=False)
+                emergency_contact.employee = employee  # link to employee
+                emergency_contact.save()
 
                 messages.success(request, "Employee registered successfully! Please proceed to facial registration.")
                 return redirect('facial-registration', employee_number=employee.employee_number)  # Redirect to a face registration page to capture their face for face recognition
@@ -436,14 +471,15 @@ def user_registration(request):
                 'username': user.username,  # If you want to pre-fill the username as well
             })
             employee_form = EmployeeRegistrationForm()
-        
+            emergency_contact_form= EmployeeEmergencyContactForm()
     else:
         #If user choose to register without linking Google or any Third party
         if request.method == 'POST':
             user_form = UserRegistrationForm(request.POST)
             employee_form = EmployeeRegistrationForm(request.POST, request.FILES)
+            emergency_contact_form = EmployeeEmergencyContactForm(request.POST)
 
-            if user_form.is_valid() and employee_form.is_valid():
+            if user_form.is_valid() and employee_form.is_valid() and emergency_contact_form.is_valid():
                 # Create User instance
                 user = user_form.save()
                 # Create Employee instance and link to User
@@ -454,17 +490,24 @@ def user_registration(request):
                 employee.email = user.email            # Set email from user
                 employee.save()  # Save employee instance
 
+                #For Emergency Contact of Employee
+                emergency_contact = emergency_contact_form.save(commit=False)
+                emergency_contact.employee = employee  # link to employee
+                emergency_contact.save()
+
                 messages.success(request, "Employee registered successfully! Please proceed to facial registration.")
                 return redirect('facial-registration', employee_number=employee.employee_number)  # Redirect to a face registration page to capture their face for face recognition
 
         else:
             user_form = UserRegistrationForm()
             employee_form = EmployeeRegistrationForm()
+            emergency_contact_form = EmployeeEmergencyContactForm()
 
     return render(request, 'attendance/employee-registration.html', {
         "user_has_social_account": user_has_social_account,
         'user_form': user_form,
         'employee_form': employee_form,
+        'emergency_contact_form': emergency_contact_form,
     })
 
 # Upload Face Images
@@ -567,7 +610,9 @@ def user_face_registration(request, employee_number):
 
 # Face Verification Process
 def face_verification(request):
-    load_known_faces(KNOWN_FACES_DIR) # Loads all the employee's faces in our dataset
+    # Ensure faces are loaded only once
+    if not cache.get("known_faces"):
+        load_known_faces(KNOWN_FACES_DIR)
     return render(request, 'attendance/face-verification.html')
 
 async def face_recognition_test(request):
@@ -710,65 +755,128 @@ def upload_image(request):
         return JsonResponse({"error": "No image data received"}, status=400)
     return render(request, "training/anti-spoofing.html")
 
+def get_top_employees():
+    """Fetch the top 10 employees with the highest work hours."""
+    employees = Employee.objects.all()
+    # Sort using the improved total_hours_worked method
+    sorted_employees = sorted(employees, key=lambda emp: emp.total_hours_worked(), reverse=True)
+    return sorted_employees[:10]
+
+# Notifications Views Start
+# Mark Notification as Read
+@csrf_exempt
+def mark_notification_read(request, id):
+    if request.method == "POST":
+        try:
+            notif = Notification.objects.get(pk=id)
+            if not notif.is_read:
+                notif.is_read = True
+                notif.save()
+                return JsonResponse({"status": "success"})
+            return JsonResponse({"status": "already_read"})
+        except Notification.DoesNotExist:
+            return JsonResponse({"error": "Notification not found"}, status=404)
+
+# Mark All Notifications as Read
+@csrf_exempt
+@csrf_exempt
+def mark_all_notifications_read(request):
+    if request.method == "POST" and request.user.is_authenticated:
+        try:
+            employee = request.user.employee  # assuming OneToOne relation from User to Employee
+            unread_notifications = Notification.objects.filter(employee=employee, is_read=False)
+            count = unread_notifications.update(is_read=True)
+            return JsonResponse({"status": "success", "updated_count": count})
+        except AttributeError:
+            return JsonResponse({"error": "Employee not found for user"}, status=400)
+    return JsonResponse({"error": "Unauthorized or invalid request"}, status=403)
+
+# Notifications Views End
+from collections import Counter, defaultdict
+STATUS_PRIORITY = {
+    "EARLY": 1,
+    "PRESENT": 2,
+    "LATE": 3,
+    "ABSENT": 4
+}
+
+def get_dominant_status(statuses):
+    return sorted(statuses, key=lambda s: STATUS_PRIORITY.get(s, 99))[0]
+
+def get_status_summary_per_day(date):
+    daily_records = ShiftRecord.objects.filter(date=date)
+    per_employee_status = defaultdict(list)
+
+    for record in daily_records:
+        per_employee_status[record.employee.id].append(record.status)
+
+    status_counter = {status: 0 for status in STATUS_PRIORITY.keys()}
+
+    for statuses in per_employee_status.values():
+        dominant_status = get_dominant_status(statuses)
+        status_counter[dominant_status] += 1
+
+    return status_counter
+
 @login_required
 def dashboard(request):
-    user = request.user  # Get the logged-in user
-    
+    user = request.user
     try:
-        employee = Employee.objects.get(user=request.user)
-        total_employees = Employee.objects.all().count()
-        
-        # Get today's date and time
-        today = timezone.now()
+        employee = Employee.objects.get(user=user)
+        notifications = Notification.objects.filter(employee=employee).order_by('-created_at')[:20]
+        total_employees = Employee.objects.count()
+        top_10_employees = get_top_employees()
+
+        today = now().date()
         manila_tz = pytz_timezone('Asia/Manila')
-        current_time = timezone.now().astimezone(manila_tz)  # Convert to Manila timezone
+        current_time = now().astimezone(manila_tz)
         current_hour = current_time.hour
-        is_am = 6 <= current_hour < 12  # From 6:00 AM to 11:59 AM
+        timemode = 'am' if 6 <= current_hour < 12 else 'pm'
 
-        work_hours = WorkHours.objects.first()  # Assuming you have one WorkHours entry
-
+        work_hours = WorkHours.objects.first()
         if not work_hours:
             return JsonResponse({"message": "Work hours not set."}, status=400)
 
-        # Fetch attendance based on the time of day
-        if is_am:
-            timemode = 'am'
-        else:
-            timemode = 'pm'
-
-
-        shiftstatus = ShiftRecord.objects.filter(employee=employee, date=today).first()
+        shiftstatus = ShiftRecord.objects.filter(employee=employee, date=today).last()
         shiftlogs = ShiftRecord.objects.filter(employee=employee).order_by('-date')
-        check_in_time = getattr(shiftstatus, f"clock_in", None)
-        check_out_time = getattr(shiftstatus, f"clock_out", None)
+        check_in_time = shiftstatus.clock_in if shiftstatus else None
+        check_out_time = shiftstatus.clock_out if shiftstatus else None
 
-        # Determine button states based on check-in and check-out times
         can_check_in = check_in_time is None
         can_check_out = check_in_time is not None and check_out_time is None
 
+        # Date range for current month
         first_day_of_month = today.replace(day=1)
         last_day_of_month = (first_day_of_month + timedelta(days=31)).replace(day=1) - timedelta(days=1)
-
-        # Generate a list of all dates in the current month
         all_dates = [first_day_of_month + timedelta(days=i) for i in range((last_day_of_month - first_day_of_month).days + 1)]
 
-        # Fetch attendance records for the employee for the current month
-        shift_records = ShiftRecord.objects.filter(employee=employee, date__month=today.month, date__year=today.year)
+        # Generate monthly attendance data
+        attendance_data = {
+            "labels": [date.strftime("%Y-%m-%d") for date in all_dates],
+            "EARLY": [],
+            "PRESENT": [],
+            "LATE": [],
+            "ABSENT": [],
+        }
 
-        # Count of employees who are active today
-        active_today = ShiftRecord.objects.filter(date=today, status__in=['EARLY', 'PRESENT', 'LATE']).count()
+        for date in all_dates:
+            summary = get_status_summary_per_day(date)
+            for status in attendance_data:
+                if status != "labels":
+                    attendance_data[status].append(summary.get(status, 0))
 
-        # Fetch the number of active employees from the previous day
-        yesterday = today - timedelta(days=1)
-        active_yesterday = ShiftRecord.objects.filter(date=yesterday).count()
+        # Compute today's and yesterday's attendance summary
+        today_summary = get_status_summary_per_day(today)
+        yesterday_summary = get_status_summary_per_day(today - timedelta(days=1))
 
-        # Calculate the percentage increase or decrease in active employees
+        active_today = today_summary["EARLY"] + today_summary["PRESENT"] + today_summary["LATE"]
+        active_yesterday = yesterday_summary["EARLY"] + yesterday_summary["PRESENT"] + yesterday_summary["LATE"]
+
         if active_yesterday > 0:
             active_today_percentage = ((active_today - active_yesterday) / active_yesterday) * 100
         else:
-            active_today_percentage = 0  # Avoid division by zero if there were no active employees yesterday
-        
-        # Determine if it's an increase or decrease
+            active_today_percentage = 0
+
         if active_today_percentage > 0:
             active_today_trend = "increase"
         elif active_today_percentage < 0:
@@ -776,19 +884,24 @@ def dashboard(request):
         else:
             active_today_trend = "no change"
 
-        # Pass all the necessary data to the template
-        return render(request, 'user/dashboard.html', { 
-            'user': user, 
+        # Attendance overview (today)
+        absent_count = total_employees - active_today
+        attendance_overview = {
+            "EARLY": today_summary["EARLY"],
+            "PRESENT": today_summary["PRESENT"],
+            "LATE": today_summary["LATE"],
+            "ABSENT": absent_count,
+        }
+
+        return render(request, 'user/dashboard.html', {
+            'user': user,
             'employee': employee,
+            'notifications': notifications,
+            'top_employees': top_10_employees,
             'total_employees': total_employees,
             'all_dates': all_dates,
-            'shift_records': shift_records,
-            'active_today': active_today,
-            'active_today_percentage': active_today_percentage,
-            'active_today_trend': active_today_trend,  # Pass the trend to the template
-            'shiftstatus': shiftstatus,
             'shiftlogs': shiftlogs,
-            'timemode': timemode,
+            'shiftstatus': shiftstatus,
             'check_in_time': check_in_time,
             'check_out_time': check_out_time,
             'can_check_in': can_check_in,
@@ -796,10 +909,15 @@ def dashboard(request):
             'can_clock_in': work_hours.can_clock_in(),
             'opening_time': work_hours.open_time,
             'closing_time': work_hours.close_time,
+            'attendance_data': json.dumps(attendance_data),
+            'attendance_overview': attendance_overview,
+            'active_today': active_today,
+            'active_today_percentage': active_today_percentage,
+            'active_today_trend': active_today_trend,
+            'timemode': timemode,
         })
-    
+
     except Employee.DoesNotExist:
-        # Redirect to employee registration to continue
         return redirect('employee-registration')
 
 @login_required
@@ -808,7 +926,7 @@ def attendance_sheet(request):
     
     try:
         employee = Employee.objects.get(user=request.user)
-
+        notifications = Notification.objects.filter(employee=employee).order_by('-created_at')[:20]
         total_employees = Employee.objects.all().count()
         
         # Get today's date
@@ -830,6 +948,7 @@ def attendance_sheet(request):
             'total_employees': total_employees,
             'all_dates': all_dates,
             'shift_records': shift_records,
+            'notifications': notifications,
         })
     
     except Employee.DoesNotExist:
@@ -842,6 +961,7 @@ def attendance_sheet_date(request, month, year):
     
     try:
         employee = Employee.objects.get(user=user)
+        notifications = Notification.objects.filter(employee=employee).order_by('-created_at')[:20]
         total_employees = Employee.objects.all().count()
         
         # Convert month and year to an integer (in case they are strings from the URL)
@@ -871,15 +991,18 @@ def attendance_sheet_date(request, month, year):
             'total_employees': total_employees,
             'all_dates': all_dates,
             'shift_records': shift_records,
+            'current_path': request.path,  # Pass request path to the template
+            'notifications': notifications,
         })
     
     except Employee.DoesNotExist:
         # Redirect to employee registration to continue
         return redirect('employee-registration')
 
+@login_required
 def employee_attendance_sheet(request, month, year, employee_number=None):
     user = request.user  # Get the logged-in user
-    
+    notifications = Notification.objects.filter(employee__user=user).order_by('-created_at')[:20]
     try:
         total_employees = Employee.objects.all().count()
         
@@ -919,16 +1042,132 @@ def employee_attendance_sheet(request, month, year, employee_number=None):
             'total_employees': total_employees,
             'all_dates': all_dates,
             'shift_records': shift_records,
+            'notifications': notifications,
         })
     
     except Employee.DoesNotExist:
         # Redirect to employee registration to continue
         return redirect('employee-registration')
     
+# School Event Calendar
+@login_required
+def school_event_calendar(request):
+    user = request.user
+    employee = get_object_or_404(Employee, user=user)  # Prevents crash if employee doesn't exist
+    notifications = Notification.objects.filter(employee=employee).order_by('-created_at')[:20]
+    current_year = timezone.now().year
+    url = f"https://date.nager.at/api/v3/PublicHolidays/{current_year}/PH"
+
+    try:
+        response = requests.get(url, timeout=5)  # Added timeout to prevent hanging requests
+        response.raise_for_status()  # Raises an error for HTTP codes 4xx/5xx
+        holidays = response.json()
+        
+    except requests.RequestException as e:
+        holidays = []  # If API fails, return an empty list
+        print(f"Error fetching holidays: {e}")  # Log error for debugging
+        
+    
+    # Get all events from the database
+    events = Event.objects.all()
+    all_events = []
+
+     # Define color mapping for each type of holiday
+    holiday_type_colors = {
+        'Public': 'blue',
+        'Bank': 'green',
+        'School': 'yellow',
+        'Authorities': 'orange',
+        'Optional': 'purple',
+        'Observance': 'gray',
+    }
+
+    # Convert holidays to FullCalendar format (blue color)
+    for holiday in holidays:
+
+        holiday_type = holiday.get("types", [])  # Get types (may be empty)
+        # Set the color based on the first type (if available)
+        color = holiday_type_colors.get(holiday_type[0], 'blue') if holiday_type else 'blue'
+
+        all_events.append({
+            "title": holiday["localName"],  # Holiday name
+            "start": holiday["date"],  # YYYY-MM-DD
+            "description": holiday["name"],
+            'startEditable': False,
+            "allDay": True,
+            "color": color,  # Holidays are blue
+            "extendedProps": {
+                "holidayType": holiday_type[0] if holiday_type else "Unknown",  # Add holiday type
+            }
+        })
+    
+
+    # Convert user-created events
+    for event in events:
+        # Check if the event has a recurring pattern (days_of_week)
+        if event.days_of_week:
+            if event.url is not None:
+                all_events.append({
+                    "id": event.id,
+                    "daysOfWeek": event.days_of_week,  # List of days the event occurs
+                    "title": event.title,
+                    'startEditable': False,
+                    "startRecur": event.start.isoformat(),
+                    "endRecur": event.end.isoformat(),
+                    "description": event.description,
+                    "url": event.url,
+                    "allDay": event.all_day,
+                    "color": "red",  # User events are red
+                })
+            else:
+                all_events.append({
+                    "id": event.id,
+                    "daysOfWeek": event.days_of_week,  # List of days the event occurs
+                    "title": event.title,
+                    'startEditable': False,
+                    "startRecur": event.start.isoformat(),
+                    "endRecur": event.end.isoformat(),
+                    "description": event.description,
+                    "allDay": event.all_day,
+                    "color": "red",  # User events are red
+                })
+            
+        if not event.days_of_week:
+            if event.url is not None:
+                all_events.append({
+                    "id": event.id,
+                    "title": event.title,
+                    'startEditable': False,
+                    "start": event.start.isoformat(),
+                    "end": event.end.isoformat(),
+                    "description": event.description,
+                    "url": event.url,
+                    "allDay": event.all_day,
+                    "color": "red",  # User events are red
+                })
+            else:
+                all_events.append({
+                    "id": event.id,
+                    "title": event.title,
+                    'startEditable': False,
+                    "start": event.start.isoformat(),
+                    "end": event.end.isoformat(),
+                    "description": event.description,
+                    "allDay": event.all_day,
+                    "color": "red",  # User events are red
+                })
+
+    return render(request, 'user/event_calendar.html', {
+        'user': user,
+        'employee': employee,
+        'events': json.dumps(all_events),  # Pass all events to template
+        'notifications': notifications,
+    })
+    
 @login_required
 def profile_view(request):
     user = request.user  # Get the logged-in user
-    
+    notifications = Notification.objects.filter(employee__user=user).order_by('-created_at')[:20]
     try:
         employee = Employee.objects.get(user=request.user)
 
@@ -936,9 +1175,133 @@ def profile_view(request):
         return render(request, 'user/profile.html', { 
             'user': user, 
             'employee': employee,
+            'notifications': notifications,
+        })
+    
+    except Employee.DoesNotExist:
+        # Redirect to employee registration to continue
+        return redirect('employee-registration')
+
+@login_required
+def create_event(request):
+    if request.method == "POST":
+        try:
+            data = json.loads(request.body)  # Parse JSON request data
+            print(data)
+            # Convert start & end to DateTime
+            start = dt.fromisoformat(data.get("start"))
+            end = dt.fromisoformat(data.get("end"))
+
+            # Convert daysOfWeek list into a comma-separated string for MultiSelectField
+            days_of_week = ",".join(data.get("daysOfWeek", []))
+
+            # Create and save event
+            event = Event.objects.create(
+                title=data.get("title"),
+                description=data.get("description", ""),
+                start=start,
+                end=end,
+                url=data.get("url", ""),
+                days_of_week=days_of_week,
+                all_day=data.get("allDay", False)
+            )
+
+            return JsonResponse({"message": "Event created successfully!", "event_id": event.id}, status=201)
+
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=400)
+
+    return JsonResponse({"error": "Invalid request method"}, status=405)
+    
+@login_required
+def manage_face_images(request):
+    try:
+        user = request.user
+        employee = Employee.objects.get(user=user)
+        notifications = Notification.objects.filter(employee=employee).order_by('-created_at')[:20]
+        face_images = FaceImage.objects.filter(employee=employee)  # Or filter for specific employee if needed
+
+        # Pass all the necessary data to the template
+        return render(request, 'user/manage_face.html', { 
+            'user': user, 
+            'employee': employee,
+            'face_images': face_images,
+            "notifications": notifications,
         })
     
     except Employee.DoesNotExist:
         # Redirect to employee registration to continue
         return redirect('employee-registration')
     
+
+@login_required
+def delete_face_image(request, image_id):
+    face_image = get_object_or_404(FaceImage, id=image_id)
+    if request.method == 'POST':
+        face_image.delete()
+        return redirect('manage_face_images')  # Redirect back to the face image management page
+    return render(request, 'confirm_delete.html', {'face_image': face_image})
+
+#HR Management
+@login_required
+def employee_management(request):
+    try:
+        user = request.user
+        notifications = Notification.objects.filter(employee__user=user).order_by('-created_at')[:20]
+        # Manually check if the user is in the HR group
+        if not user.groups.filter(name='HR ADMIN').exists():
+            raise PermissionDenied  # Ensures a 403 Forbidden response
+
+        employee = Employee.objects.get(user=user)  # Get the logged-in employee
+        
+        employees = Employee.objects.all()
+        total_employees = employees.count()
+        
+        return render(request, 'user/employee_management.html', {
+            'user': user,
+            'employee': employee,
+            'employees': employees,
+            'total_employees': total_employees,
+            'notifications': notifications,
+
+        })
+    
+    except Employee.DoesNotExist:
+        # Redirect to employee registration to continue
+        return redirect('employee-registration')
+
+def employee_details(request, employee_number):
+    """HR Management for Employee Profile"""
+    try:
+        user= request.user  # Get the logged-in user
+        employee = Employee.objects.get(user=user)  # Get the logged-in employee
+        notifications = Notification.objects.filter(employee=employee).order_by('-created_at')[:20]
+        employee_profile = get_object_or_404(Employee, employee_number=employee_number)  # Get the employee profile by employee_number
+        attendance_records = ShiftRecord.objects.filter(employee=employee_profile).order_by('-date')
+
+        return render(request, 'user/employee_profile.html', {
+            'user': user,
+            'employee': employee,
+            'employee_profile': employee_profile,
+            'attendance_records': attendance_records,
+            'notifications': notifications,
+        })
+    
+    except Employee.DoesNotExist:
+        # Redirect to employee registration to continue
+        return redirect('employee-registration')
+
+def announcement_board(request):
+    try:
+        user = request.user
+        employee = Employee.objects.get(user=user)
+        announcements = Announcement.objects.filter(is_active=True).order_by('-created_at')
+        return render(request, 'user/announcement.html', {
+            'user': user,
+            'employee': employee,
+            'announcements': announcements
+        })
+    
+    except Employee.DoesNotExist:
+        # Redirect to employee registration to continue
+        return redirect('employee-registration')

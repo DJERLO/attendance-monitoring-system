@@ -27,83 +27,94 @@
         object-fit: cover; /* Ensure the image covers the square area */
     }
 </style>
-<body class="d-flex w-100 h-100 p-5 g-0 align-items-stretch">
-    <div class="container w-100 h-75 justify-content-center align-self-center">
-        <form class="row w-100 h-100 mt-4 p-4 needs-validation" method="post" action="{% url 'employee-registration' %}" enctype="multipart/form-data" novalidate>
+<body class="d-flex w-100 p-1 g-0 align-items-stretch">
+    <div class="container w-100 justify-content-center align-self-center">
+        <form class="row w-100 mx-auto py-3 needs-validation" method="post" action="{% url 'employee-registration' %}" enctype="multipart/form-data" novalidate>
             {% csrf_token %}
             <!-- Section for User and Employee Form -->
-            <div class="order-1 col-md-6 p-4 justify-content-center align-self-stretch border border-3 border-dark">
+            <div class="order-1 col-md-4 p-4 justify-content-center align-self-stretch border border-3 border-dark">
 
-                <h3 class="text-center">Employee Information</h3>
+                <h3 class="text-center">User Information</h3>
 
-                <div class="mb-2 d-flex justify-content-center align-self-stretch">
-                    <img class="img-fluid border border-dark border-2 rounded-circle" id="image-preview" src="{% static 'img/blank_profile.webp' %}" width="250px" height="250px">
+                <div class="mb-1 d-flex justify-content-center align-self-stretch">
+                    <img class="img-fluid border border-dark border-2 rounded-circle" id="image-preview" src="{% static 'img/blank_profile.webp' %}" width="100px" height="100px">
                 </div>
 
+                <div class="mb-1">
+                    <label for="{{ employee_form.profile_image.id_for_label }}">Profile Image</label>
+                    {% render_field employee_form.profile_image class="form-control" id="image-upload" accept="image/*" title="Please upload a valid image file (jpg, png)." %}
+                    <div class="valid-feedback">This is Optional</div>
+                </div>
 
-                <div class="mb-2">
+                <div class="mb-1">
                     <label for="{{ user_form.username.id_for_label }}">Username</label>
                     {% render_field user_form.username class="form-control" %}
-                    <div class="invalid-feedback">Please provide a Username.</div>
+                    <div class="invalid-feedback">Username Required</div>
                     <div class="valid-feedback">Looking Good!</div>
                 </div>
 
                 {% if user_has_social_account %}
                 <div class="mb-2">
-                    <div class="mb-2" id="set-password-section">
+                    <div class="mb-1" id="set-password-section">
                         <label for="set_password">Set Password</label>
                         <input type="password" class="form-control" id="set_password" name="set_password" required>
+                        <div class="invalid-feedback">A password can't be too similar to the users other personal information.</div>
+                        <div class="invalid-feedback">A password must contain at least 8 characters.</div>
+                        <div class="invalid-feedback">A password can't be a commonly used password.</div>
+                        <div class="invalid-feedback">A password can't be entirely numeric.</div>
                     </div>
                 </div>
                 {% endif %}
-    
-                <div class="mb-2">
-                    <label for="{{ employee_form.profile_image.id_for_label }}">Profile Image</label>
-                    {% render_field employee_form.profile_image class="form-control" id="image-upload" accept="image/*" title="Please upload a valid image file (jpg, png)." %}
-                    <div class="valid-feedback">(Optional) Please upload a valid profile image under 2MB (jpg, png).</div>
-                </div>
                    
             </div>
     
-            <div class="order-2 col-md-6 p-4 justify-content-center align-self-stretch border border-3 border-dark">
+            <div class="order-2 col-md-4 p-4 justify-content-center align-self-stretch border border-3 border-dark">
 
-                
-                
-                <div class="mb-2">
+                <h3 class="text-center">Employee Information</h3>
+
+                <div class="mb-1">
                     <label for="{{ employee_form.employee_number.id_for_label }}">Employee ID</label>
                     {% render_field employee_form.employee_number class="form-control" %}
                     <div class="invalid-feedback">Please provide a valid Employee ID.</div>
                     <div class="valid-feedback">Looking Good!</div>
                 </div>
 
-                <div class="mb-2">
-                    <label for="{{ user_form.first_name.id_for_label }}">First Name</label>
-                    {% render_field user_form.first_name class="form-control" %}
-                    <div class="invalid-feedback">Please provide a first name.</div>
-                    <div class="valid-feedback">Looking Good!</div>
+                <div class="row">
+                    <div class="col-6 mb-1">
+                        <label for="{{ user_form.first_name.id_for_label }}">First Name</label>
+                        {% render_field user_form.first_name class="form-control" %}
+                        <div class="invalid-feedback">Please provide a first name.</div>
+                        <div class="valid-feedback">Looking Good!</div>
+                    </div>
+
+                    <div class="col-6 mb-1">
+                        <label for="{{ employee_form.middle_name.id_for_label }}">Middle Name</label>
+                        {% render_field employee_form.middle_name class="form-control" %}
+                    </div>
+        
+                    <div class="col-6 mb-1">
+                        <label for="{{ user_form.last_name.id_for_label }}">Last Name</label>
+                        {% render_field user_form.last_name class="form-control" %}
+                        <div class="invalid-feedback">Last Name Required</div>
+                        <div class="valid-feedback">Looking Good!</div>
+                    </div>
+                    
+                    <div class="col-6 mb-1">
+                        <label for="{{ employee_form.gender.id_for_label }}">Gender:</label>
+                        {% render_field employee_form.gender class="form-select" %}
+                        <div class="invalid-feedback">Provide your gender.</div>
+                        <div class="valid-feedback">Looking Good!</div>
+                    </div>
                 </div>
 
-                <div class="mb-2">
-                    <label for="{{ employee_form.middle_name.id_for_label }}">Middle Name</label>
-                    {% render_field employee_form.middle_name class="form-control" %}
-                    <div class="valid-feedback">(Optional) Please provide a middle name.</div>
-                </div>
-    
-                <div class="mb-2">
-                    <label for="{{ user_form.last_name.id_for_label }}">Last Name</label>
-                    {% render_field user_form.last_name class="form-control" %}
-                    <div class="invalid-feedback">Please provide a last name.</div>
-                    <div class="valid-feedback">Looking Good!</div>
-                </div>
-    
-                <div class="mb-2">
-                    <label for="{{ employee_form.contact_number.id_for_label }}">Contact Number</label>
+                <div class="mb-1">
+                    <label for="{{ employee_form.contact_number.id_for_label }}">Phone Number:</label>
                     {% render_field employee_form.contact_number class="form-control" %}
                     <div class="invalid-feedback">Please provide a valid contact number.</div>
                     <div class="valid-feedback">Looking Good!</div>
                 </div>
 
-                <div class="mb-2">
+                <div class="mb-1">
                     <div class="mb-2 form-check">
                         <input type="checkbox" class="form-check-input" id="termsCheckbox" required>
                         <label class="form-check-label" for="termsCheckbox">
@@ -118,6 +129,45 @@
                 </div>
                 
             </div>
+            
+            <div class="order-3 col-md-4 p-4 justify-content-center align-self-stretch border border-3 border-dark">
+                
+                <h3 class="text-center">Additional Information</h3>
+
+                <div class="mb-1">
+                    <label for="{{ employee_form.birth_date.id_for_label }}">Birth Date</label>
+                    {% render_field employee_form.birth_date type="date" class="form-control" %}
+                    <div class="invalid-feedback">Please provide a valid Birth Date.</div>
+                    <div class="valid-feedback">Provide your Birthday</div>
+                </div>
+
+                <div class="mb-1">
+                    <label for="{{ emergency_contact_form.contact_name.id_for_label }}">Contact Name</label>
+                    {% render_field emergency_contact_form.contact_name class="form-control" %}
+                    <div class="invalid-feedback">Please provide a valid Contact Name</div>
+                    <div class="valid-feedback">Looking Good!</div>
+                </div>
+
+                <div class="mb-1">
+                    <label for="{{ emergency_contact_form.relationship.id_for_label }}">Relationship</label>
+                    {% render_field emergency_contact_form.relationship class="form-control" %}
+                    <div class="invalid-feedback">Please provide a Relationship.</div>
+                    <div class="valid-feedback">Looking Good!</div>
+                </div>
+
+                <div class="mb-1">
+                    <label for="{{ emergency_contact_form.phone_number.id_for_label }}">Emergency Contact Number</label>
+                    {% render_field emergency_contact_form.phone_number class="form-control" %}
+                    <div class="valid-feedback">(Optional) Please provide an Emergency Contact Number.</div>
+                </div>
+    
+                <div class="mb-1">
+                    <label for="{{ emergency_contact_form.email.id_for_label }}">Emergency Email</label>
+                    {% render_field emergency_contact_form.email class="form-control" %}
+                    <div class="valid-feedback">(Optional) Please provide an Emergency Email.</div>
+                </div>
+
+            </div>
         </form>
 
         <!-- Modal for Terms and Conditions -->
@@ -129,7 +179,33 @@
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
                     <div class="modal-body">
-                        <p>Your terms and conditions text goes here. Make sure to include all relevant details that users need to agree to.</p>
+                        <h5>Introduction</h5>
+                        <p>By registering for employment and agreeing to the use of biometric data (such as facial recognition), you consent to the collection and processing of your personal data as described in this document.</p>
+
+                        <h5>Collection of Personal Data</h5>
+                        <p>As part of our employee registration process, we collect personal information including your name, contact details, and other relevant information as required by law. Additionally, we will collect biometric data (e.g., facial images) to facilitate secure access to company systems and physical locations.</p>
+
+                        <h5>Use of Biometric Data</h5>
+                        <p>Your biometric data, including facial images, will only be used for identification purposes related to company systems and access control. The data will be stored securely in compliance with applicable privacy laws and company policies.</p>
+                        <p>Biometric data will not be shared with third parties unless required by law, and will not be used for any purpose other than for employee identification and security purposes within the company.</p>
+
+                        <h5>Data Retention</h5>
+                        <p>Your personal and biometric data will be retained for the duration of your employment with the company or until your data is no longer required for the purposes for which it was collected. Upon termination of your employment, your data will be securely deleted or anonymized, subject to applicable legal requirements.</p>
+
+                        <h5>Privacy and Security</h5>
+                        <p>We take the privacy and security of your data seriously. All biometric data will be encrypted and stored in a secure database. Only authorized personnel will have access to this data. We employ industry-standard security measures to protect your personal and biometric data from unauthorized access, alteration, or disclosure.</p>
+
+                        <h5>Consent</h5>
+                        <p>By proceeding with your registration and providing your biometric data (including facial images), you acknowledge that you understand and consent to the collection, use, retention, and processing of your personal and biometric data as described in these Terms and Conditions.</p>
+
+                        <h5>Withdrawal of Consent</h5>
+                        <p>You have the right to withdraw your consent for the use of your biometric data at any time by contacting the HR department. Please note that withdrawing consent may affect your ability to access certain company systems or locations that require biometric identification.</p>
+
+                        <h5>Changes to Terms</h5>
+                        <p>The company reserves the right to modify or update these Terms and Conditions at any time. You will be notified of any material changes, and your continued use of company systems will constitute your acceptance of the updated terms.</p>
+
+                        <h5>Contact Information</h5>
+                        <p>If you have any questions or concerns about these Terms and Conditions or our handling of your personal or biometric data, please contact the HR department at [HR contact information].</p>
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
@@ -137,7 +213,6 @@
                 </div>
             </div>
         </div>
-    </div>
 
 
     </div>
@@ -145,7 +220,7 @@
     <script src="{% static 'js/bootstrap.bundle.min.js' %}"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.all.min.js"></script>
     
-    {% if user_form.errors or employee_form.errors %}
+    {% if user_form.errors or employee_form.errors or emergency_contact_form.errors  %}
     <script>
         document.addEventListener('DOMContentLoaded', function () {
             // Prepare the error messages
@@ -197,6 +272,25 @@
     </script>
     {% endif %}
     <script>
+        // Bootstrap 5 client-side validation
+        (function () {
+            'use strict'
+
+            // Fetch all the forms we want to apply custom Bootstrap validation styles to
+            var forms = document.querySelectorAll('.needs-validation')
+
+            // Loop over them and prevent submission
+            Array.prototype.slice.call(forms)
+                .forEach(function (form) {
+                    form.addEventListener('submit', function (event) {
+                        if (!form.checkValidity()) {
+                            event.preventDefault()
+                            event.stopPropagation()
+                        }
+                        form.classList.add('was-validated')
+                    }, false)
+                })
+        })()
         // Display Image Preview
         document.getElementById('image-upload').addEventListener('change', function(event) {
             const file = event.target.files[0];

@@ -7,11 +7,17 @@
 {% block page_content %}
 <div class="row ms-3">
     <div class="col-md-6 justify-content-center align-content-stretch">
-        {% include 'user/components/cards.html' %}
+        <div class="col-md-12">{% include 'user/components/cards.html' %}</div>
+        <div class="col-md-12">{% include 'user/components/charts/attendance_trends.html' %}</div>
+        <div class="col-md-12">{% include 'user/components/charts/leaderboard.html' %}</div>
     </div>
     <div class="col-md-6">
         <div class="col-md-12">{% include 'user/components/user_attendance_status.html' %}</div>
+        <div class="col-md-12">{% include 'user/components/charts/monthly_attendance.html' %}</div>
         <div class="col-md-12">{% include 'user/components/attendance_logs.html' %}</div>
+    </div>
+    <div class="col-md-6">
+        
     </div>
 </div>
 {% endblock page_content %}

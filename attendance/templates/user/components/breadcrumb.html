@@ -1,0 +1,26 @@
+{% load breadcrumb %}
+<div class="container-fluid">
+    <div class="p-3 mb-2 bg-light border rounded shadow-sm">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-0">
+                <li class="breadcrumb-item">
+                    <a href="{% url 'index' %}" class="text-decoration-none text-primary">
+                        <i class="bi bi-house-door"></i> Home
+                    </a>
+                </li>
+
+                {% for crumb in request.path|breadcrumb_path %}
+                    {% if forloop.last %}
+                        <li class="breadcrumb-item active" aria-current="page">{{ crumb.name }}</li>
+                    {% else %}
+                        <li class="breadcrumb-item">
+                            <a href="{{ crumb.url }}" class="text-primary">
+                                {{ crumb.name }}
+                            </a>
+                        </li>
+                    {% endif %}
+                {% endfor %}
+            </ol>
+        </nav>
+    </div>
+</div>

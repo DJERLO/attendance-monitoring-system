@@ -36,3 +36,28 @@ class AttendanceConsumer(AsyncWebsocketConsumer):
         """Handles real-time dashboard updates"""
         data = json.loads(event["data"])
         await self.send(text_data=json.dumps(data))
+
+# Notification Consumer
+# This consumer handles real-time notifications for the users.
+# It listens for new notifications and sends them to connected clients.
+class NotificationConsumer(AsyncWebsocketConsumer):
+    async def connect(self):
+        self.group_name = f'notifications'
+
+        await self.channel_layer.group_add(
+            self.group_name,
+            self.channel_name
+        )
+        await self.accept()
+
+    async def disconnect(self, close_code):
+        await self.channel_layer.group_discard(
+            self.group_name,
+            self.channel_name
+        )
+
+    async def receive(self, text_data):
+        pass  # We only send from backend
+
+    async def send_notification(self, event):
+        await self.send(text_data=json.dumps(event["data"]))

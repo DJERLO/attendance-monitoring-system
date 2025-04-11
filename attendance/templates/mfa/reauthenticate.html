@@ -3,6 +3,35 @@
 {% load allauth %}
 
 {% block reauthenticate_content %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        {% if form.errors %}
+            {% for field in form %}
+                {% for error in field.errors %}
+                    // Show SweetAlert for each error related to a field
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Incorrect Code',
+                        text: 'The code you entered is incorrect. Please try again.',
+                        showConfirmButton: true,
+                        confirmButtonText: 'Retry',
+                        confirmButtonColor: '#3085d6',
+                        footer: '<small>If the issue persists, please check your authentication method or contact support.</small>'
+                    });
+                {% endfor %}
+            {% endfor %}
+
+            {% for error in form.non_field_errors %}
+                // Show SweetAlert for non-field-specific errors
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: '{{ error }}',
+                });
+            {% endfor %}
+        {% endif %}
+    });
+</script>
 <div class="container mt-5">
     <div class="row justify-content-center">
         <div class="col-md-12">
@@ -16,9 +45,9 @@
                     {% url 'mfa_reauthenticate' as action_url %}
                     <form method="post" action="{{ action_url }}">
                         {% csrf_token %}
-                        <div class="mb-3">
-                            <label for="id_code">Code:</label>
-                            <input class="form-control" type="text" name="code" placeholder="Code" autocomplete="one-time-code" required="" id="id_code">
+                        <div class="form-floating mb-3">
+                            <input class="form-control" type="text" name="code" placeholder="Code" autocomplete="one-time-code" required="" id="id_code" autofocus>
+                            <label for="id_code">Enter your 6-Digit Code:</label>
                         </div>
                         {{ redirect_field }}
                         <div class="d-grid">

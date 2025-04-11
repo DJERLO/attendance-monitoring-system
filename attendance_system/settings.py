@@ -49,8 +49,10 @@ INSTALLED_APPS = [
     'allauth.mfa',
     'allauth.socialaccount',
     'allauth.socialaccount.providers.google',
+    'allauth.socialaccount.providers.facebook',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django_extensions',
     'attendance',
     'widget_tweaks',
     "ninja_extra",
@@ -157,6 +159,11 @@ JAZZMIN_SETTINGS = {
         "sites.site": "fas fa-globe",
         "account.emailaddress": "fas fa-at",
         "attendance.employee": "fas fa-user-tie",
+        "attendance.event": "fas fa-clipboard-list",
+        "attendance.leaverequest": "fas fa-file-signature",
+        "attendance.announcement": "fas fa-bullhorn",
+        "attendance.camera": "fas fa-camera",
+        "attendance.notification": "fas fa-bell",
         "attendance.faceimage": "fas fa-user-circle",
         "attendance.shiftrecord": "fas fa-clipboard-user",
         "attendance.workhours": "fas fa-clock",
@@ -271,8 +278,12 @@ AUTHENTICATION_BACKENDS = (
 )
 ACCOUNT_EMAIL_VERIFICATION = 'mandatory'
 ACCOUNT_EMAIL_REQUIRED = True
-ACCOUNT_LOGIN_METHODS = {'email'} # The ACCOUNT_AUTHENTICATION_METHOD is deprecated
-
+ACCOUNT_EMAIL_NOTIFICATIONS = True  # Enable email notifications for account actions
+ACCOUNT_LOGIN_METHODS = {'email', 'username'} # The ACCOUNT_AUTHENTICATION_METHOD is deprecated
+ACCOUNT_EMAIL_VERIFICATION_BY_CODE_ENABLED = True # Enable email verification by code
+ACCOUNT_LOGIN_BY_CODE_ENABLED  = True  # Enables sending login codes via email
+ACCOUNT_EMAIL_VERIFICATION_BY_CODE_MAX_ATTEMPTS = 3 # Max attempts for email verification by code
+ACCOUNT_EMAIL_VERIFICATION_BY_CODE_TIMEOUT = 900 # Timeout for email verification by code (in seconds)
 ACCOUNT_AUTHENTICATED_LOGIN_REDIRECTS = True  # Default is True
 ACCOUNT_LOGIN_ON_EMAIL_CONFIRMATION = True
 
@@ -281,7 +292,7 @@ MFA_SUPPORTED_TYPES = ["totp", "webauthn", "recovery_codes"]
 # Optional: enable support for logging in using a (WebAuthn) passkey.
 MFA_PASSKEY_LOGIN_ENABLED = True
 # local development and testing.
-MFA_WEBAUTHN_ALLOW_INSECURE_ORIGIN = True
+MFA_WEBAUTHN_ALLOW_INSECURE_ORIGIN = True # Set to True if you are using a self-signed certificate or testing locally
 ACCOUNT_MFA_ENABLED = True
 ACCOUNT_MFA_REQUIRED = False  # Set to True if you want MFA to be mandatory
 ACCOUNT_MFA_MAX_DEVICES = 5  # Number of devices a user can register
@@ -312,6 +323,33 @@ SOCIALACCOUNT_PROVIDERS = {
         'AUTH_PARAMS': {
             'access_type': 'online',  # Can be 'offline' if you need refresh tokens
         }
+    },
+    'facebook': {
+        'APP': {
+            'client_id': '1206770111029927',  # Replace with your Facebook App ID
+            'secret': 'ceb6925d343d0069591a9f16c01b675b',  # Replace with your Facebook App Secret
+            'key': ''
+        },
+        'METHOD': 'oauth2',  # Set to 'js_sdk' to use the Facebook connect SDK
+        'SDK_URL': '//connect.facebook.net/{locale}/sdk.js',
+        'SCOPE': ['email', 'public_profile'],
+        'AUTH_PARAMS': {'auth_type': 'reauthenticate'},
+        'INIT_PARAMS': {'cookie': True},
+        'FIELDS': [
+            'id',
+            'first_name',
+            'last_name',
+            'middle_name',
+            'name',
+            'name_format',
+            'picture',
+            'short_name'
+        ],
+        'EXCHANGE_TOKEN': True,
+        'LOCALE_FUNC': 'path.to.callable',
+        'VERIFIED_EMAIL': False,
+        'VERSION': 'v13.0',
+        'GRAPH_API_URL': 'https://graph.facebook.com/v13.0',
     }
 }
 
@@ -361,6 +399,22 @@ DATABASES = {
         'PORT': os.getenv('DB_PORT', default=''),
     }
 }
+
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        "LOCATION": "local-cache",
+    }
+}
+
+
+#Caches
+# CACHES = {
+#     "default": {
+#         "BACKEND": "django.core.cache.backends.redis.RedisCache",
+#         "LOCATION": "rediss://:AYn5AAIjcDE3MjcxMjk4MTc0Zjc0NGJmYTgzZjUwM2RiZjFjOWYxYnAxMA@proven-alpaca-35321.upstash.io:6379",
+#     }
+# }
 
 # Redis
 CHANNEL_LAYERS = {
@@ -427,7 +481,7 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')  # Absolute path to the media direc
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Email Server
-EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True

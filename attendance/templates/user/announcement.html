@@ -1,0 +1,24 @@
+{% extends "user/base.html" %}
+{% block head_title %}Announcements{% endblock head_title %}
+{% block page_content %}
+<div class="container mt-4 px-4">
+    <h2 class="mb-4">📢 Announcement Board</h2>
+    {% for announcement in announcements %}
+        <div class="card mb-3 shadow-sm text-dark mx-auto">
+            <div class="card-body">
+                <h5 class="card-title">{{ announcement.title }}</h5>
+                <p class="card-text">{{ announcement.message|linebreaks }}</p>
+                <p class="card-text text-muted small">
+                    Posted by {{ announcement.created_by }} on {{ announcement.created_at|date:"M d, Y H:i" }}
+                </p>
+            </div>
+        </div>
+    {% empty %}
+    <div class="card mb-3 shadow-sm text-dark">
+        <div class="card-body">
+            <h5 class="card-title">No announcements at the moment.</h5>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endblock page_content %}

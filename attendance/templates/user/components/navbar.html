@@ -17,31 +17,293 @@
         object-fit: cover; /* Ensures image covers the square */
     }
 
+    .modal-backdrop{
+        position: inherit;
+    }
+
+    .notification-list {
+        display: none;
+        position: absolute;
+        top: 50px;
+        right: 20px;
+        z-index: 1050;
+        width: 280px;
+        max-height: 300px;
+        overflow-y: hidden;
+        border-radius: 8px;
+    }
+
+    .notification-list .list-group-item {
+        padding: 8px 12px;
+        font-size: 14px;
+    }
+
+    .notification-list .list-group-item:hover {
+        background-color: #f8f9fa;
+    }
+
+    .notification-list button {
+        border: none;
+        cursor: pointer;
+        padding: 0;
+    }
+
 </style>
+
 <!-- Navbar with Real-Time Clock -->
 <nav class="navbar position-sticky sticky-top navbar-expand-lg navbar-dark bg-dark mb-4 top-nav d-block">
-    <div class="container-fluid"> <!-- Use container-fluid for proper spacing -->
-        <div class="row w-100 h-100"> <!-- Flexbox for alignment -->
+    <div class="container-fluid">
+        <div class="row w-100 h-100">
             <div class="row dropdown d-inline-flex text-wrap flex-row flex-nowrap align-self-stretch mx-3">
-                <div class="col-4 p-0 me-2" style="flex: 0 0 4%;">
+                <div class="col-4 p-0 me-2" style="flex: 0 0 1%;">
                     {% if user.employee.profile_image %}
                         <img id="profile" src="{{  user.employee.profile_image.url }}" alt="{{ user.username }}'s profile picture" class="w-100 h-100 img-thumbnail" style="object-fit: scale-down;"> 
                     {% else %}
                         <img id="profile" src="{% static 'img/blank_profile.webp' %}" alt="Default Profile Picture" class="img-fluid img-thumbnail">
                     {% endif %}
                 </div>
-                <div class="col-6 flex-grow-1" style="flex: 0 0 75%;">
-                    <div class="me-4 align-self-center"> <!-- Margin end for spacing -->
-                        <a class="nav_title navbar-brand me-auto text-truncate" href="#">{% trans "Welcome" %} {{ user.username }}!</a> <!-- Me-auto pushes the welcome message to the left -->
+                <div class="col-8 flex-grow-1">
+                    <div class="col-5 flex-grow-1" style="flex: 0 0 75%;">
+                        <div class="me-4 align-self-center">
+                            <a class="nav_title navbar-brand me-auto text-truncate" href="#">{% trans "Welcome" %} {{ user.username }}!</a>
+                        </div>
+                        <div class="col-5 flex-grow-1 align-self-center">
+                            <span id="currentTime" class="text-nowrap text-white text-end">
+                                <span class="text-light"></span>
+                            </span>
+                        </div>
                     </div>
-                    <div class="col-6 flex-grow-1 align-self-center">
-                        <span id="currentTime" class="text-nowrap text-white text-end"> <!-- Real-Time Clock -->
-                            <span class="text-light"></span> <!-- To ensure the text is visible against the dark background -->
-                        </span>
+                </div>
+                <div class="col-4 d-flex justify-content-end align-items-center" style="flex: 0 0 1%;">
+                    <!-- Notification Button Section -->
+                    <div class="d-flex justify-content-end align-items-center ms-auto">
+                        <button class="btn btn-outline-light position-relative" type="button" id="notificationButton">
+                            <i id="bellIcon" class="bi bi-bell"></i> <!-- Bootstrap Icons bell icon -->
+                            <span id="notificationCount" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="display: none;">
+                                0 <!-- Default count -->
+                            </span>
+                        </button>
                     </div>
-                    
                 </div>
             </div>
         </div>
     </div>
 </nav>
+
+<!-- Toggleable Notification List -->
+<div class="notification-list shadow-sm" id="notificationList" style="max-height: 400px; overflow-x: hidden; overflow-y: auto;">
+    <div class="bg-primary text-white sticky-top p-2">
+        <div class="text-center fw-bold mb-2">
+            Notifications
+        </div>
+        
+        <div class="row g-1 mb-2">
+            <div class="col-6">
+                <button  id="unreadBtn" class="btn btn-sm w-100 filter-button" onclick="filterNotifications('unread')">Unread</button>
+            </div>
+            <div class="col-6">
+                <button id="readBtn" class="btn btn-sm w-100 filter-button" onclick="filterNotifications('read')">Read</button>
+            </div>
+        </div>
+    
+        <div class="text-center">
+            <button class="btn btn-sm btn-outline-light w-100" onclick="markAllAsRead()">Mark All as Read</button>
+        </div>
+    </div>
+    <div class="card overflow-hidden" style="overflow-y:hidden;">
+        <div class="card-body p-0 text-dark">   
+            <div class="list-group" id="notification-list">
+                <!-- Always render the placeholder, but toggle visibility later -->
+                <button id="noNotificationsPlaceholder" class="list-group-item list-group-item-action border-bottom bg-white text-dark"
+                    {% if notifications %}style="display: none;"{% endif %}>
+                    No notifications available.
+                </button>
+                {% for notif in notifications %}
+                <button class="list-group-item list-group-item-action border-bottom
+                    {% if not notif.is_read %}
+                        bg-info text-dark
+                    {% else %}
+                        bg-white text-dark
+                    {% endif %}"
+                    onclick="markAsRead({{ notif.id }}, this)">
+                    {{ notif.message }}
+                    <br><small class="text-muted">{{ notif.created_at|date:"M d, Y H:i A" }}</small>
+                </button>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+
+    // Initialize unreadCount from rendered notifications(if exist)
+    document.addEventListener("DOMContentLoaded", function () {
+        const unreadItems = document.querySelectorAll('#notification-list .list-group-item.bg-info');
+        unreadCount = unreadItems.length;
+        updateBellIcon();
+    });
+
+    document.getElementById("notificationButton").addEventListener("click", function() {
+        var list = document.getElementById("notificationList");
+        list.style.display = (list.style.display === "none" || list.style.display === "") ? "block" : "none";
+    });
+    const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+    const sockeNotificationUrl = `${protocol}://${window.location.host}/ws/notifications/`;
+    const notifSocket = new WebSocket(sockeNotificationUrl);
+    const placeholder = document.getElementById('noNotificationsPlaceholder');
+
+    let unreadCount = 0;
+
+    // Initialize the notification count based on existing notifications
+    function updateBellIcon() {
+        const bellIcon = document.getElementById('bellIcon');
+        const notificationCountElement = document.getElementById('notificationCount');
+        
+        // Show the bell count only if it's greater than 0
+        if (unreadCount > 0) {
+            notificationCountElement.style.display = "inline";
+            notificationCountElement.innerText = unreadCount;
+            bellIcon.classList.remove('bi-bell'); // Remove the empty bell class
+            bellIcon.classList.add('bi-bell-fill'); // Add the filled bell class
+        } else {
+            notificationCountElement.style.display = "none";
+            bellIcon.classList.remove('bi-bell-fill'); // Remove the filled bell class
+            bellIcon.classList.add('bi-bell'); // Add the empty bell class
+        }
+    }
+
+
+    notifSocket.onmessage = function(e) {
+        const data = JSON.parse(e.data);
+        console.table(data);
+
+        // Hide the placeholder if it's visible
+        if (placeholder && placeholder.style.display !== "none") {
+            placeholder.style.display = "none";
+        }
+
+        // Check if the notification is unread
+        if (!data.is_read) {
+            unreadCount++;  // Increment the unread notification count
+        }
+
+        // Update the bell icon and notification count in real-time
+        updateBellIcon();
+
+        // Update the notification count display
+        document.getElementById('notificationCount').innerText = unreadCount;
+
+        const notifList = document.querySelector('.list-group');
+        const newNotif = document.createElement('button');
+        newNotif.className = "list-group-item list-group-item-action border-bottom bg-info text-dark";
+        newNotif.innerHTML = `${data.message} <br><small class="text-muted">${data.created_at}</small>`;
+        newNotif.setAttribute("onclick", `markAsRead(${data.id}, this)`);
+        notifList.prepend(newNotif);  // Show new at top
+    };
+
+    notifSocket.onclose = function(e) {
+        console.error('WebSocket closed unexpectedly');
+    };
+
+    // Function to mark notification as read
+    // and change its style
+    function markAsRead(id, element) {
+
+        // Prevent marking as read if the notification has already been marked as read
+        if (element.classList.contains('bg-white')) {
+            return;  // Exit the function early if it's already marked as read
+        }
+        
+        fetch(`/notifications/mark-read/${id}/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'Content-Type': 'application/json'
+            }
+        }).then(response => response.json())
+        .then(data => {
+            if (data.status === "success") {
+                // Mark the notification as read (change styles)
+                element.classList.remove('bg-info', 'text-dark');
+                element.classList.add('bg-white', 'text-dark');
+
+                // Decrease the unread notification count
+                unreadCount--;
+                document.getElementById('notificationCount').innerText = unreadCount;
+                
+                // Update the bell icon if needed
+                updateBellIcon();
+            } else if (data.status === "already_read") {
+                // If the notification is already marked as read, just change the styles
+                element.classList.remove('bg-info', 'text-dark');
+                element.classList.add('bg-white', 'text-dark');
+            }
+        });
+    }
+
+    // Function to mark all notifications as read
+    function markAllAsRead() {
+        fetch('/notifications/mark-all-read/', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === "success") {
+                document.querySelectorAll('.list-group-item.bg-info').forEach(btn => {
+                    btn.classList.remove('bg-info', 'text-dark');
+                    btn.classList.add('bg-white', 'text-dark');
+                    btn.disabled = true;
+                });
+
+                // Reset the counter and update bell icon
+                unreadCount = 0;
+                // Update the bell icon and notification count in real-time
+                updateBellIcon();
+                
+            }
+        });
+    }
+
+    // This function filters notifications based on the selected type (unread or read)
+    function filterNotifications(type) {
+        const items = document.querySelectorAll('#notification-list .list-group-item');
+        let anyVisible = false;
+
+        items.forEach(item => {
+            if (item.id === 'noNotificationsPlaceholder') return;
+
+            const isUnread = item.classList.contains('bg-info');
+            const shouldShow = (type === 'unread' && isUnread) || (type === 'read' && !isUnread);
+
+            item.style.display = shouldShow ? '' : 'none';
+            if (shouldShow) anyVisible = true;
+        });
+
+        // Show/hide the "No notifications" placeholder based on visibility of notifications
+        const placeholder = document.getElementById('noNotificationsPlaceholder');
+        placeholder.style.display = anyVisible ? 'none' : '';
+
+        // Update active button styles
+        document.querySelectorAll('.filter-button').forEach(btn => {
+            btn.classList.remove('btn-light');
+            btn.classList.add('btn-outline-light'); // reset all buttons to unselected
+        });
+
+        // Highlight the active button (for the current filter)
+        const activeBtn = document.getElementById(type + 'Btn');
+        activeBtn.classList.remove('btn-outline-light'); //
+        activeBtn.classList.add('btn-light');
+    }
+
+    // On page load, set the default filter (Unread) and highlight the button
+    document.addEventListener("DOMContentLoaded", function () {
+        // Apply default filter to unread on load
+        filterNotifications('unread');
+    });
+
+</script>

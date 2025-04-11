@@ -1,9 +1,16 @@
 import json
-from django.db.models.signals import post_save
+import os
+from django.conf import settings
+from django.db.models.signals import post_save, post_delete
 from django.dispatch import receiver
 from channels.layers import get_channel_layer
-from asgiref.sync import async_to_sync
-from .models import Employee, ShiftRecord
+from asgiref.sync import async_to_sync, sync_to_async
+from django.utils.timezone import localtime
+
+from attendance.recognize_faces import load_known_faces
+from .models import Announcement, Employee, ShiftRecord, Notification
+
+KNOWN_FACES_DIR = os.path.join(settings.MEDIA_ROOT, 'known_faces')
 
 # Signal receiver to update the dashboard
 # when a new ShiftRecord is created or updated or when a new Employee is created  
@@ -48,3 +55,66 @@ def update_dashboard(sender, instance, **kwargs):
             "data": json.dumps(data)
         }
     )
+
+# Signal receiver to update the face_encoding cache
+# when a new Employee instance is created or deleted
+@receiver(post_save, sender=Employee)
+@receiver(post_delete, sender=Employee)
+def update_face_cache(sender, instance, **kwargs):
+    """Reload face encodings whenever an employee is added or removed"""
+    print("Employee face data changed. Reloading known faces...")
+    load_known_faces(KNOWN_FACES_DIR)  # Reload faces
+
+# Signal receiver to send real-time notifications
+# when a new Notification instance is created
+@receiver(post_save, sender=Notification)
+def send_notification_realtime(sender, instance, created, **kwargs):
+    if created:
+        from channels.layers import get_channel_layer
+        from asgiref.sync import async_to_sync
+
+        channel_layer = get_channel_layer()
+        data = {
+            "id": instance.id,
+            "message": instance.message,
+            "created_at": localtime(instance.created_at).strftime("%b %d, %Y %I:%M %p"),
+            "is_read": instance.is_read,
+        }
+
+        async_to_sync(channel_layer.group_send)(
+            "notifications",
+            {
+                "type": "send_notification",
+                "data": data
+            }
+        )
+
+@receiver(post_save, sender=ShiftRecord)
+def create_clockin_notification(sender, instance, created, **kwargs):
+    
+    if created and instance.clock_in:
+        # Save the notification
+        notification = Notification.objects.create(
+            employee=instance.employee,
+            message=f"You have clocked in at {instance.clock_in.strftime('%I:%M %p on %B %d, %Y')}."
+        )
+    
+    if created and instance.clock_out:
+        # Save the notification
+        notification = Notification.objects.create(
+            employee=instance.employee,
+            message=f"You have clocked out at {instance.clock_out.strftime('%I:%M %p on %B %d, %Y')}."
+        )
+
+@receiver(post_save, sender=Announcement)
+def create_notifications_for_announcement(sender, instance, created, **kwargs):
+    if created:
+        employees = Employee.objects.exclude(id=instance.created_by.id) if instance.created_by else Employee.objects.all()
+        notifications = [
+            Notification(
+                employee=employee,
+                message=f"New Announcement: {instance.title}"
+            )
+            for employee in employees
+        ]
+        Notification.objects.bulk_create(notifications)

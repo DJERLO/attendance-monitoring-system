@@ -38,38 +38,38 @@
             </div>
         </div>
         <div class="card-footer bg-dark text-center d-flex justify-content-center align-self-center">
+            {% if not employee.is_hourly_employee %}
             <div class="btn-group" role="group" aria-label="Attendance Actions" style="gap: 10px;">
-                
-                    {% if can_check_in %}
-                        {% if can_clock_in %}
-                            <a id="clock-in-{{employee.employee_number}}" href="/check-in/" type="button" class="btn btn-primary {% if not can_check_in %}disabled{% endif %} w-100 h-100">
-                                <i class="bi bi-clock-in"></i> Clock-In
-                            </a>
-                        {% else %}
-                            <div class="text-danger">
-                                "Clock-in is only available from {{opening_time}} to {{closing_time}}. Please return during working hours."
-                            </div>
-                        {% endif %}
-                    {% endif %}
-                    
-                    {% if can_check_out %}
-                        {% if can_clock_in %}
-                        <a id="clock-in-{{employee.employee_number}}" href="/check-out/" class="btn btn-secondary {% if not can_check_out %}disabled{% endif %} w-100 h-100">
-                            <i class="bi bi-clock-out"></i> Clock-Out
+                {% if can_check_in %}
+                    {% if can_clock_in %}
+                        <a id="clock-in-{{employee.employee_number}}" href="/check-in/" type="button" class="btn btn-primary {% if not can_check_in %}disabled{% endif %} w-100 h-100">
+                            <i class="bi bi-clock-in"></i> Clock-In
                         </a>
-                        {% else %}
-                            <div class="text-danger">
-                                "Clock-out is only available from {{opening_time}} to {{closing_time}}. Please return during working hours."
-                            </div>
-                        {% endif %}
+                    {% else %}
+                        <div class="text-danger">
+                            "Clock-in is only available from {{opening_time}} to {{closing_time}}. Please return during working hours."
+                        </div>
                     {% endif %}
+                {% endif %}
                 
+                {% if can_check_out %}
+                    {% if can_clock_in %}
+                    <a id="clock-in-{{employee.employee_number}}" href="/check-out/" class="btn btn-secondary {% if not can_check_out %}disabled{% endif %} w-100 h-100">
+                        <i class="bi bi-clock-out"></i> Clock-Out
+                    </a>
+                    {% else %}
+                        <div class="text-danger">
+                            "Clock-out is only available from {{opening_time}} to {{closing_time}}. Please return during working hours."
+                        </div>
+                    {% endif %}
+                {% endif %}
             </div>
-            <!-- Alert or info if needed (e.g., for error, disabled button, or reminder) -->
-            {% if not can_check_in and not can_check_out  %}
-                <div class="text-danger">
-                    "Clock-in is only available from {{opening_time}} to {{closing_time}}. Please return during working hours."
-                </div>
+                <!-- Alert or info if needed (e.g., for error, disabled button, or reminder) -->
+                {% if not can_check_in and not can_check_out  %}
+                    <div class="text-danger">
+                        "Clock-in is only available from {{opening_time}} to {{closing_time}}. Please return during working hours."
+                    </div>
+                {% endif %}
             {% endif %}
             </div>
         </div>

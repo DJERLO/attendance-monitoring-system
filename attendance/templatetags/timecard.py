@@ -4,7 +4,6 @@ register = template.Library()
 
 @register.filter
 def get_item(records, date):
-    for record in records:
-        if record.date == date:
-            return record
-    return None
+    # Collect all records that match the date
+    matching_records = [record for record in records if record.date == date]
+    return matching_records

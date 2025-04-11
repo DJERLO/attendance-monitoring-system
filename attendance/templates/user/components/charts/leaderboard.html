@@ -1,0 +1,31 @@
+<div class="card">
+    <div class="card-header text-center text-dark">
+        <p class="card-title">🏆 Top 10 Employees - This Month</p>
+    </div>
+    <div class="card-body">
+        <table class="table table-striped table-responsive">
+            <thead>
+                <tr>
+                    <th>Rank</th>
+                    <th>Profile</th>
+                    <th>Employee</th>
+                    <th>Total Hours</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for employee in top_employees %}
+                <tr>
+                    <td>#{{ forloop.counter }}</td>
+                    <td><img class="ratio ratio-1x1" src="{{employee.profile_image.url}}" width="50" height="50"></td>
+                    <td>{{ employee.full_name }}</td>
+                    <td>{{ employee.total_hours_worked|floatformat:2 }} hrs</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="3">No data available.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>

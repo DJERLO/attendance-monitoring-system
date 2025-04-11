@@ -1,0 +1,60 @@
+<!-- employee_profile.html -->
+
+{% extends 'user/base.html' %}
+{% block head_title %}Employee Profile: {{ employee_profile.full_name }}{% endblock head_title %}
+
+{% block page_content %}
+<div class="container mt-5">
+    <div class="row mb-4">
+        <div class="col-lg-12 text-center">
+            <h2 class="display-4 text-center">Employee Profile</h2>
+            <p class="lead">View detailed information for {{ employee_profile.full_name }}</p>
+        </div>
+    </div>
+
+    <div class="row">
+
+        <!-- Employee Information -->
+        <div class="col-md-6">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white d-flex justify-content-center align-items-center">
+                    <img src="{{ employee_profile.profile_image.url }}" alt="Profile Image" class="img-fluid rounded-circle shadow" width="200">
+                </div>
+                <div class="card-body">
+                    <table class="table table-borderless">
+                        <tbody>
+                            <tr>
+                                <th scope="row" class="font-weight-bold">Employee Number:</th>
+                                <td>{{ employee_profile.employee_number }}</td>
+                            </tr>
+                            <tr>
+                                <th scope="row" class="font-weight-bold">Full Name:</th>
+                                <td>{{ employee_profile.first_name }} {% if employee_profile.middle_name %}{{ employee_profile.middle_name }}{% endif %} {{ employee_profile.last_name }}</td>
+                            </tr>
+                            <tr>
+                                <th scope="row" class="font-weight-bold">Email Address:</th>
+                                <td>{{ employee_profile.email }}</td>
+                            </tr>
+                            <tr>
+                                <th scope="row" class="font-weight-bold">Contact Number:</th>
+                                <td>{{ employee_profile.contact_number }}</td>
+                            </tr>
+                            <tr>
+                                <th scope="row" class="font-weight-bold">Department:</th>
+                                <td>{{ employee_profile.group.name|default:"N/A" }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Back to Employee List Button -->
+            <div class="mt-3">
+                <a href="{% url 'employee-list' %}" class="btn btn-outline-primary">
+                    <i class="fa fa-arrow-left"></i> Back to Employee List
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

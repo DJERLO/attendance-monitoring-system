@@ -1,0 +1,68 @@
+{% extends "account/base_entrance.html" %}
+{% load i18n %}
+{% load allauth account %}
+
+{% block head_title %}
+    {% translate "Sign In" %}
+{% endblock head_title %}
+
+{% block content %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        {% if form.errors %}
+            {% for field in form %}
+                {% for error in field.errors %}
+                    Swal.fire({
+                        icon: 'error',
+                        title: '{{ field.errors }}',
+                        text: '{{ error }}',
+                        footer: '<small>If the issue persists, please contact the adminstrator.</small>',
+                    });
+                {% endfor %}
+            {% endfor %}
+
+            {% for error in form.non_field_errors %}
+                // Show SweetAlert for non-field-specific errors
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Something went wrong and it\'s not your fault',
+                    text: '{{ error }}',
+                    footer: 'Send this error to support for help.',
+                    showConfirmButton: true,
+                });
+            {% endfor %}
+        {% endif %}
+    });
+</script>
+<div class="container d-flex justify-content-center align-items-center min-vh-100">
+    <div class="col-md-6">
+        <div class="card shadow-lg rounded-4 p-4">
+            <div class="card-body text-dark">
+                <h1 class="card-title text-center mb-3">{% translate "Mail me a sign-in code" %}</h1>
+                <p class="text-center text-muted mb-4">
+                    {% blocktranslate %}You will receive an email containing a special code for a password-free sign-in.{% endblocktranslate %}
+                </p>
+
+                {% url 'account_request_login_code' as login_url %}
+                <form action="{{ login_url }}" method="post">
+                    {% csrf_token %}
+                    <div class="form-floating mb-3">
+                        <input class="form-control" type="email" name="email" placeholder="Email address" autocomplete="email" maxlength="320" required="" id="id_email">
+                        <label for="id_email">Email address</label>
+                    </div>
+                    <div class="d-flex justify-content-center">
+                        <button class="btn btn-outline-primary" type="submit" tags="prominent,login">{% translate "Request Code" %}</button>
+                    </div>
+                </form>
+
+                <div class="text-center mt-3">
+                    {% url 'account_login' as login_url %}
+                    {% element button href=login_url tags="link" class="btn btn-link" %}
+                        {% translate "Other sign-in options" %}
+                    {% endelement %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock content %}

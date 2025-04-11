@@ -4,7 +4,7 @@ from django.conf.urls.static import static
 from django.urls import path
 from . import views
 from .api_v1 import api
-
+from allauth.account.views import PasswordChangeView
 urlpatterns = [
     # API Endpoints
     path("api/v1/", api.urls), #Include API endpoints
@@ -38,9 +38,21 @@ urlpatterns = [
     path('attendance-sheet/', views.attendance_sheet, name='attendance-sheet'),  # Default page
     path('attendance-sheet/<int:month>-<int:year>/', views.attendance_sheet_date, name='attendance-sheet-by-date'), #Filter by month and year 
     path('attendance-sheet/<str:employee_number>/<int:month>-<int:year>/', views.employee_attendance_sheet, name='attendance-sheet-by-employee'), #Filter by employee
-    path('profile/', views.profile_view, name='profile'),  # Profile URL
+    path('account/', views.profile_view, name='profile'),  # Profile URL
+    path('account/change-password/', PasswordChangeView.as_view(), name='account_change_password'),
+    path('account/manage-face-images/', views.manage_face_images, name='Manage-Face'),
+    path('delete-face-image/<int:image_id>/', views.delete_face_image, name='delete_face_image'),
+    path('calendar', views.school_event_calendar, name='event-calendar'),
+    path("create-event/", views.create_event, name="create_event"),
+    
+    #HR/ADMIN URL's
+    path('employees/', views.employee_management, name='employee-list'),  # Employee List URL
+    path('employees/<str:employee_number>/', views.employee_details, name='employee-details'),  # Employee Detail URL
+    path('announcements/', views.announcement_board, name='announcement_board'),
 
-    #HR/ADMIN URL's            
+    # Notifications URL's
+    path('notifications/mark-read/<int:id>/', views.mark_notification_read, name='mark_notification_read'),
+    path('notifications/mark-all-read/', views.mark_all_notifications_read, name='mark_all_notifications_read'),
 ]
 
 # Serve media files during development

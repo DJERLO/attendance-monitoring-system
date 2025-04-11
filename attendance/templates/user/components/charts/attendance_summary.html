@@ -1,0 +1,34 @@
+<div class="card">
+    <div class="card-header">
+        <div class="card-text text-center text-dark">Attendance Summary (Today)</div>
+    </div>
+    <div class="card-body">
+        <canvas id="attendancePieChart"></canvas>
+    </div>
+</div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        // Data from Django
+        const attendanceData = {{ attendance_overview|safe }};
+        
+        // Extract values for chart
+        const labels = ["Early", "Present", "Late", "Absent"];
+        const dataValues = [attendanceData.EARLY, attendanceData.PRESENT, attendanceData.LATE, attendanceData.ABSENT];
+
+        // 🎨 Pie Chart - Attendance Summary
+        var ctxPie = document.getElementById("attendancePieChart").getContext("2d");
+        new Chart(ctxPie, {
+            type: "pie",
+            data: {
+                labels: labels,
+                datasets: [{
+                    data: dataValues,
+                    backgroundColor: ["#007bff", "#28a745", "#ffc107", "#dc3545"],
+                    borderWidth: 1
+                }]
+            }
+        });
+
+    });
+</script>

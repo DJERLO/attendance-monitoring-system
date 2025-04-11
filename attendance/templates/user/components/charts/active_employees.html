@@ -1,0 +1,29 @@
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <div class="card-text text-center text-dark">Active Employee Chart</div>
+    </div>
+    <div class="card-body">
+        <canvas id="activeEmployeesChart"></canvas>
+    </div>
+</div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+
+        // Active Employees Doughnut Chart
+        var ctx2 = document.getElementById('activeEmployeesChart').getContext('2d');
+        var activeEmployeesChart = new Chart(ctx2, {
+            type: 'doughnut',
+            data: {
+                labels: ['Active Today', 'Absent'],
+                datasets: [{
+                    data: [{{ active_today }}, {{ total_employees}}],
+                    backgroundColor: ['blue', 'red']
+                }]
+            },
+            options: { responsive: true }
+        });
+    });
+</script>
+{% endblock %}

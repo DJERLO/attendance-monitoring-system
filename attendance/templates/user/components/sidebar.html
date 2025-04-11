@@ -1,3 +1,6 @@
+{% load tz %}
+{% load group_filter %}
+{% now "n-Y" as current_month_year %}
 {% load static %}
 <!-- Sidebar for navigation -->
 <div class="sidebar">
@@ -5,10 +8,10 @@
       <!-- Icon and logo name -->
       <!-- <i class='bx bxl-c-plus-plus icon'></i> -->
       <img class="icon me-2" src="{% static 'img/logo.png' %}" alt="">
-      <div class="logo_name">Attendance</div>
+      <div class="logo_name">AMS</div>
       <i class='bx bx-menu' id="btn"></i> <!-- Menu button to toggle sidebar -->
     </div>
-    <ul class="navigation-list">
+    <ul class="navigation-list overflow-hidden">
       <!-- Search bar -->
       <!-- <li>
         <i class='bx bx-search'></i>
@@ -32,33 +35,51 @@
         <span class="tooltip">Profile</span>
       </li>
       <li>
-        <a href="{% url 'attendance-sheet' %}" class="{% if request.path == '/attendance-sheet/' %}active{% endif %}" title="Attendance Sheet">
-          <i class='bx bxs-calendar'></i>
+        <a href="{% url 'attendance-sheet-by-date' month=current_month_year|slice:":-5" year=current_month_year|slice:"-4:" %}"
+          class="{% if current_path %}active{% endif %}"
+          title="Attendance Sheet">
+          <i class='bx bxs-spreadsheet'></i>
           <span class="links_name">Attendance</span>
         </a>
         <span class="tooltip">Attendance</span>
       </li>
       <li>
-        <a href="#" title="Analytics">
-          <i class='bx bx-pie-chart-alt-2'></i>
-          <span class="links_name">Analytics</span>
+        <a href="{% url 'event-calendar' %}" class="{% if request.path == '/calendar' %}active{% endif %}" title="Calendar">
+          <i class='bx bxs-calendar' ></i>
+          <span class="links_name">Calendar</span>
         </a>
-        <span class="tooltip">Analytics</span>
+        <span class="tooltip">Calendar</span>
+      </li>
+      {% if user|has_group:"HR ADMIN" %}
+      <li>
+        <a href="{% url 'employee-list' %}" title="Employees">
+          <i class="fa-solid fa-users"></i>
+          <span class="links_name">Employees</span>
+        </a>
+        <span class="tooltip">Employees</span>
+      </li>
+      {% endif %}
+      <li>
+        <a href="#" title="Leave Requests">
+          <i class='bx bx-calendar'></i>
+          <span class="links_name">Leave Requests</span>
+        </a>
+        <span class="tooltip">Leave Requests</span>
       </li>
       <li>
-        <a href="#" title="Time">
-          <i class="bx bx-file"></i>
-          <span class="links_name">Time-Off</span>
+        <a href="{% url 'announcement_board' %}" title="Announcements">
+          <i class='bx bxs-megaphone'></i>
+          <span class="links_name">Announcements</span>
         </a>
-        <span class="tooltip">File Leave</span>
+        <span class="tooltip">Announcements</span>
       </li>
-      <li>
+      <!-- <li>
         <a href="#" title="Attendance">
           <i class='bx bx-cog'></i>
           <span class="links_name">Settings</span>
         </a>
         <span class="tooltip">Settings</span>
-      </li>
+      </li> -->
       <!-- Profile section -->
       <li class="profile">
         <div class="profile-details">
