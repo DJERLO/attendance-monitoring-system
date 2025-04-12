@@ -1,5 +1,5 @@
 from django import forms
-from .models import EmergencyContact, Employee
+from .models import EmergencyContact, Employee, LeaveRequest
 from django.contrib.auth.models import User
 from allauth.account.forms import ResetPasswordKeyForm
 from django.forms.widgets import TimeInput
@@ -44,3 +44,18 @@ class EmployeeEmergencyContactForm(forms.ModelForm):
             'phone_number',
             'email',
         ]
+
+#File Leave Form for Employees
+class LeaveRequestForm(forms.ModelForm):
+    class Meta:
+        model = LeaveRequest
+        fields = [
+            'start_date',
+            'end_date',
+            'reason',
+            'attachment',
+        ]
+        widgets = {
+            'start_date': forms.DateInput(attrs={'type': 'date'}),
+            'end_date': forms.DateInput(attrs={'type': 'date'}),
+        }   

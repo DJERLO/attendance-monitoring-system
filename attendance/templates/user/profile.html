@@ -61,15 +61,15 @@
                     <div class="row">
                         <div class="col-6 mb-3">
                             <strong>First Name:</strong><br>
-                            <span data-name="first_name" data-type="text">John</span>
+                            <span data-name="first_name" data-type="text">{{employee.first_name}}</span>
                         </div>
                         <div class="col-6 mb-3">
                             <strong>Middle Name:</strong><br>
-                            <span data-name="middle_name" data-type="text">Andrew</span>
+                            <span data-name="middle_name" data-type="text">{{employee.middle_name}}</span>
                         </div>
                         <div class="col-6 mb-3">
                             <strong>Last Name:</strong><br>
-                            <span data-name="last_name" data-type="text">Doe</span>
+                            <span data-name="last_name" data-type="text">{{employee.last_name}}</span>
                         </div>
                         <div class="col-6 mb-3">
                             <strong>Gender:</strong><br>
@@ -78,23 +78,19 @@
                                       {"value": "male", "label": "Male"},
                                       {"value": "female", "label": "Female"},
                                       {"value": "other", "label": "Other"}
-                                  ]'>Male</span>
+                                  ]'>{{employee.gender.capitalize}}</span>
                         </div>
                         <div class="col-6 mb-3">
                             <strong>Date of Birth:</strong><br>
-                            <span data-name="birth_date" data-type="date">1990-01-01</span>
-                        </div>
-                        <div class="col-6 mb-3">
-                            <strong>Hire Date:</strong><br>
-                            <span data-name="hire_date" data-type="date">2022-06-15</span>
+                            <span data-name="birth_date" data-type="date">{{ employee.birth_date|date:"Y-m-d" }}</span>
                         </div>
                         <div class="col-6 mb-3">
                             <strong>Email Address:</strong><br>
-                            <span data-name="email" data-type="email">john.doe@example.com</span>
+                            <span data-name="email" data-type="email">{{employee.email}}</span>
                         </div>
                         <div class="col-6 mb-3">
                             <strong>Contact Number:</strong><br>
-                            <span data-name="contact_number" data-type="text">+63 912 345 6789</span>
+                            <span data-name="contact_number" data-type="text">{{employee.contact_number}}</span>
                         </div>
                         <div class="col-6 mb-3">
                             <strong>Department:</strong><br>
@@ -104,7 +100,7 @@
                                       {"value": "it", "label": "IT Department"},
                                       {"value": "acct", "label": "Accounting"},
                                       {"value": "admin", "label": "Administration"}
-                                  ]'>IT Department</span>
+                                  ]'>{{employee.group}}</span>
                         </div>
                         <div class="col-6 mb-3">
                             <strong>Employment Status:</strong><br>
@@ -119,6 +115,10 @@
                                       {"value": "terminated", "label": "Terminated"},
                                       {"value": "retired", "label": "Retired"}
                                   ]'>Full-Time</span>
+                        </div>
+                        <div class="col-6 mb-3">
+                            <strong>Hire Date:</strong><br>
+                            <span data-name="hire_date" data-type="date">{{employee.hire_date| default:'---'}}</span>
                         </div>
                     </div>
                 </div>
@@ -142,7 +142,7 @@
                 const name = span.dataset.name;
 
                 // Skip department and employment status fields
-                if (name === "group" || name === "employment_status") return;
+                if (name === "group" || name === "employment_status" || name == 'hire_date') return;
                 
                 const type = span.dataset.type;
                 const value = span.textContent.trim();
@@ -178,30 +178,51 @@
             editBtn.classList.add("d-none");
             saveBtn.classList.remove("d-none");
         });
-    
+        
         saveBtn.addEventListener("click", () => {
             const inputs = document.querySelectorAll(".card-body input, .card-body select");
+
+            const formData = new FormData();
             inputs.forEach(input => {
-                const span = document.createElement("span");
-                span.setAttribute("data-name", input.name);
-    
-                if (input.tagName.toLowerCase() === "select") {
-                    const selectedOption = input.options[input.selectedIndex];
-                    span.textContent = selectedOption.textContent;
-                    span.setAttribute("data-type", "select");
-                    span.setAttribute("data-options", JSON.stringify(
-                        Array.from(input.options).map(opt => ({ value: opt.value, label: opt.textContent }))
-                    ));
-                } else {
-                    span.textContent = input.value;
-                    span.setAttribute("data-type", input.type);
-                }
-    
-                input.replaceWith(span);
+                formData.append(input.name, input.value);
             });
-    
-            editBtn.classList.remove("d-none");
-            saveBtn.classList.add("d-none");
+
+            fetch("{% url 'update-profile' %}", {
+                method: "POST",
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}',
+                },
+                body: formData
+            })
+            .then(response => response.json())  // or .text() if you're not returning JSON
+            .then(data => {
+                if (data.status === 'success') {
+                    // Replace inputs back to spans
+                    inputs.forEach(input => {
+                        const span = document.createElement("span");
+                        span.setAttribute("data-name", input.name);
+
+                        if (input.tagName.toLowerCase() === "select") {
+                            const selectedOption = input.options[input.selectedIndex];
+                            span.textContent = selectedOption.textContent;
+                            span.setAttribute("data-type", "select");
+                            span.setAttribute("data-options", JSON.stringify(
+                                Array.from(input.options).map(opt => ({ value: opt.value, label: opt.textContent }))
+                            ));
+                        } else {
+                            span.textContent = input.value;
+                            span.setAttribute("data-type", input.type);
+                        }
+
+                        input.replaceWith(span);
+                    });
+
+                    editBtn.classList.remove("d-none");
+                    saveBtn.classList.add("d-none");
+                } else {
+                    alert("Failed to save. Try again.");
+                }
+            });
         });
     </script>
 {% endblock page_content %}

@@ -119,16 +119,19 @@
                     No notifications available.
                 </button>
                 {% for notif in notifications %}
-                <button class="list-group-item list-group-item-action border-bottom
-                    {% if not notif.is_read %}
+                    <div class="list-group-item list-group-item-action border-bottom
+                        {% if not notif.is_read %}
                         bg-info text-dark
-                    {% else %}
+                        {% else %}
                         bg-white text-dark
-                    {% endif %}"
-                    onclick="markAsRead({{ notif.id }}, this)">
-                    {{ notif.message }}
-                    <br><small class="text-muted">{{ notif.created_at|date:"M d, Y H:i A" }}</small>
-                </button>
+                        {% endif %}"
+                        onclick="markAsRead({{ notif.id }}, this)">
+                        {{ notif.message }}
+                        <br><small class="text-muted">{{ notif.created_at|date:"M d, Y H:i A" }}</small>
+                        <button class="btn btn-sm btn-danger justify-content-end" onclick="deleteNotification({{ notif.id }}, this)">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
                 {% endfor %}
             </div>
         </div>
@@ -178,28 +181,40 @@
         const data = JSON.parse(e.data);
         console.table(data);
 
-        // Hide the placeholder if it's visible
+        // Hide placeholder if visible
         if (placeholder && placeholder.style.display !== "none") {
             placeholder.style.display = "none";
         }
 
-        // Check if the notification is unread
+        // Check if unread and increment counter
         if (!data.is_read) {
-            unreadCount++;  // Increment the unread notification count
+            unreadCount++;
         }
 
-        // Update the bell icon and notification count in real-time
+        // Update bell icon and notification count
         updateBellIcon();
-
-        // Update the notification count display
         document.getElementById('notificationCount').innerText = unreadCount;
 
         const notifList = document.querySelector('.list-group');
-        const newNotif = document.createElement('button');
-        newNotif.className = "list-group-item list-group-item-action border-bottom bg-info text-dark";
-        newNotif.innerHTML = `${data.message} <br><small class="text-muted">${data.created_at}</small>`;
+
+        // Create the notification div
+        const newNotif = document.createElement('div');
+        newNotif.className = `list-group-item list-group-item-action border-bottom ${data.is_read ? 'bg-white' : 'bg-info'} text-dark`;
         newNotif.setAttribute("onclick", `markAsRead(${data.id}, this)`);
-        notifList.prepend(newNotif);  // Show new at top
+        newNotif.setAttribute("data-status", data.is_read ? "read" : "unread"); // 👈 Add status attribute
+
+        // Add message and created_at
+        newNotif.innerHTML = `
+            ${data.message}
+            <br>
+            <small class="text-muted">${data.created_at}</small>
+            <button class="btn btn-sm btn-danger justify-content-end" onclick="event.stopPropagation(); deleteNotification(${data.id}, this)">
+                <i class="bi bi-trash"></i>
+            </button>
+        `;
+
+        // Add to top of list
+        notifList.prepend(newNotif);
     };
 
     notifSocket.onclose = function(e) {
@@ -210,9 +225,12 @@
     // and change its style
     function markAsRead(id, element) {
 
+        const status = element.getAttribute('data-status');
+
         // Prevent marking as read if the notification has already been marked as read
-        if (element.classList.contains('bg-white')) {
-            return;  // Exit the function early if it's already marked as read
+        // Exit early if already marked as read
+        if (status === 'read') {
+            return;
         }
         
         fetch(`/notifications/mark-read/${id}/`, {
@@ -227,6 +245,7 @@
                 // Mark the notification as read (change styles)
                 element.classList.remove('bg-info', 'text-dark');
                 element.classList.add('bg-white', 'text-dark');
+                element.setAttribute('data-status', 'read');
 
                 // Decrease the unread notification count
                 unreadCount--;
@@ -234,6 +253,10 @@
                 
                 // Update the bell icon if needed
                 updateBellIcon();
+               
+                //Refresh the unread notification
+                filterNotifications('unread');
+                
             } else if (data.status === "already_read") {
                 // If the notification is already marked as read, just change the styles
                 element.classList.remove('bg-info', 'text-dark');
@@ -257,6 +280,7 @@
                 document.querySelectorAll('.list-group-item.bg-info').forEach(btn => {
                     btn.classList.remove('bg-info', 'text-dark');
                     btn.classList.add('bg-white', 'text-dark');
+                    element.setAttribute('data-status', 'read');
                     btn.disabled = true;
                 });
 
@@ -264,9 +288,52 @@
                 unreadCount = 0;
                 // Update the bell icon and notification count in real-time
                 updateBellIcon();
-                
+                //Refresh the unread notification
+                filterNotifications('unread');
             }
         });
+    }
+
+    function deleteNotification(id, button) {
+        // Get the parent element (notification div)
+        const notificationElement = button.closest('.list-group-item');
+
+        // Get the current status of the notification
+        const status = notificationElement.getAttribute('data-status');
+        // Confirm before deletion
+        if (confirm('Are you sure you want to delete this notification?')) {
+            fetch(`/notifications/delete/${id}/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}',
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === "success") {
+                    // Refresh the notifications based on the status (unread or read)
+                    if (status === 'unread') {
+                        // Remove the notification from the DOM
+                        notificationElement.remove();
+                        unreadCount--;
+                        updateBellIcon();
+                        filterNotifications('unread');
+                    } 
+                    
+                    if (status === 'read'){
+                        // Remove the notification from the DOM
+                        notificationElement.remove();
+                        unreadCount--;
+                        updateBellIcon();
+                        filterNotifications('read');
+                    }
+                    
+                } else {
+                    alert('Error: Could not delete the notification.');
+                }
+            });
+        }
     }
 
     // This function filters notifications based on the selected type (unread or read)

@@ -140,7 +140,11 @@ class Employee(models.Model):
     
 
     def full_name(self):
-        return f"{self.first_name} {self.middle_name or ''} {self.last_name}"
+        # Check if middle_name is None or empty and avoid including it
+        if self.middle_name is not None:
+            return f"{self.first_name} {self.middle_name} {self.last_name}"
+        else:
+            return f"{self.first_name} {self.last_name}"
 
     def __str__(self):
         return self.full_name()
@@ -372,6 +376,7 @@ class LeaveRequest(models.Model):
     end_date = models.DateField(verbose_name="End Date")
     reason = models.TextField(verbose_name="Reason for Leave")
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='PENDING', verbose_name="Leave Status")
+    attachment = models.FileField(upload_to='leave_attachments/', null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Request Created At")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="Last Updated At")
     approved_by = models.ForeignKey(Employee, on_delete=models.SET_NULL, null=True, blank=True, related_name='approved_leaves', verbose_name="Approved By")
@@ -392,6 +397,18 @@ class LeaveRequest(models.Model):
         """Check if the leave is currently active."""
         today = timezone.localdate()
         return self.start_date <= today <= self.end_date and self.status == 'APPROVED'
+    
+    #If the application is Approved by the HR/ADMIN/Manager
+    def save(self, *args, **kwargs):
+        # Check if status is approved and approved_by is not set
+        if self.status == 'APPROVED' and self.approved_by is None:
+            # Look into the kwargs for user context
+            request = kwargs.pop('request', None)
+            if request and hasattr(request.user, 'employee'):
+                self.approved_by = request.user.employee
+
+        super().save(*args, **kwargs)
+    
     
 # Notification Model
 # This model is used to store notifications for employees

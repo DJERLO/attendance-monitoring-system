@@ -21,9 +21,10 @@ from django.db.models import Q, Sum
 from pytz import timezone as pytz_timezone
 from asgiref.sync import sync_to_async
 from django.views.decorators.csrf import csrf_exempt
+from django.contrib.auth.models import Group
 from django.contrib.auth.decorators import login_required
 import requests
-from attendance.forms import EmployeeEmergencyContactForm, EmployeeRegistrationForm, UserRegistrationForm
+from attendance.forms import EmployeeEmergencyContactForm, EmployeeRegistrationForm, LeaveRequestForm, UserRegistrationForm
 from attendance.models import Announcement, Event, Notification, ShiftRecord, Employee, FaceImage, WorkHours
 from xhtml2pdf import pisa
 from .model_evaluation import detect_face_spoof
@@ -31,14 +32,14 @@ from PIL import Image
 import torch
 from torchvision import models
 from channels.layers import get_channel_layer
-from asgiref.sync import async_to_sync
 from django.http import HttpResponse
 from upstash_redis import Redis
 from django.core.cache import cache
-from django.contrib.auth.decorators import user_passes_test
 from django.core.exceptions import PermissionDenied
 from django.views.decorators.cache import cache_page
 from django.utils.timezone import now
+from django.core.paginator import Paginator
+from django.http import JsonResponse
 
 redis = Redis.from_env()
 
@@ -791,6 +792,18 @@ def mark_all_notifications_read(request):
             return JsonResponse({"error": "Employee not found for user"}, status=400)
     return JsonResponse({"error": "Unauthorized or invalid request"}, status=403)
 
+@csrf_exempt
+@login_required
+def delete_notification(request, id):
+    if request.method == 'POST':
+        try:
+            notif = Notification.objects.get(id=id, employee=request.user.employee)
+            notif.delete()
+            return JsonResponse({'status': 'success'})
+        except Notification.DoesNotExist:
+            return JsonResponse({'status': 'not_found'}, status=404)
+    return JsonResponse({'status': 'invalid_method'}, status=405)
+
 # Notifications Views End
 from collections import Counter, defaultdict
 STATUS_PRIORITY = {
@@ -1181,6 +1194,26 @@ def profile_view(request):
     except Employee.DoesNotExist:
         # Redirect to employee registration to continue
         return redirect('employee-registration')
+    
+@login_required
+def update_profile(request):
+    if request.method == "POST":
+        user = request.user
+        employee = user.employee  # adjust if your relation is different
+
+        employee.first_name = request.POST.get('first_name', employee.first_name)
+        employee.middle_name = request.POST.get('middle_name') or ''
+        employee.last_name = request.POST.get('last_name', employee.last_name)
+        employee.birth_date = request.POST.get('birth_date', employee.birth_date)
+        employee.email = request.POST.get('email', employee.email)
+        employee.contact_number = request.POST.get('contact_number', employee.contact_number)
+        employee.gender = request.POST.get('gender', employee.gender)
+
+        employee.save()
+        return JsonResponse({'status': 'success'})
+    
+    return JsonResponse({'status': 'error', 'message': 'Invalid method'})
+
 
 @login_required
 def create_event(request):
@@ -1269,7 +1302,23 @@ def employee_management(request):
     except Employee.DoesNotExist:
         # Redirect to employee registration to continue
         return redirect('employee-registration')
+    
+#File Request Leave
+def request_leave_view(request):
+    employee = request.user.employee
+    if request.method == 'POST':
+        form = LeaveRequestForm(request.POST, request.FILES)
+        if form.is_valid():
+            leave = form.save(commit=False)
+            leave.employee = request.user.employee  # assuming user is linked to Employee
+            leave.status = 'PENDING'
+            leave.save()
+            return redirect('dashboard')  # or wherever you list their requests
+    else:
+        form = LeaveRequestForm()
+    return render(request, 'user/file_leave.html', {'form': form, 'employee': employee})
 
+@login_required
 def employee_details(request, employee_number):
     """HR Management for Employee Profile"""
     try:
@@ -1291,6 +1340,7 @@ def employee_details(request, employee_number):
         # Redirect to employee registration to continue
         return redirect('employee-registration')
 
+@login_required
 def announcement_board(request):
     try:
         user = request.user

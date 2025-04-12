@@ -44,6 +44,8 @@ urlpatterns = [
     path('delete-face-image/<int:image_id>/', views.delete_face_image, name='delete_face_image'),
     path('calendar', views.school_event_calendar, name='event-calendar'),
     path("create-event/", views.create_event, name="create_event"),
+    path('update-profile/', views.update_profile, name='update-profile'),
+    path('file-leave/', views.request_leave_view, name='file-leave'),
     
     #HR/ADMIN URL's
     path('employees/', views.employee_management, name='employee-list'),  # Employee List URL
@@ -53,6 +55,8 @@ urlpatterns = [
     # Notifications URL's
     path('notifications/mark-read/<int:id>/', views.mark_notification_read, name='mark_notification_read'),
     path('notifications/mark-all-read/', views.mark_all_notifications_read, name='mark_all_notifications_read'),
+    path('notifications/delete/<int:id>/', views.delete_notification, name='delete_notification'),
+
 ]
 
 # Serve media files during development

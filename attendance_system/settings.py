@@ -305,9 +305,9 @@ ACCOUNT_FORMS = {
 }
 
 
-LOGIN_URL = '/accounts/login/'
+LOGIN_URL = '/account/login/'
 LOGIN_REDIRECT_URL = '/dashboard/'  # Redirect URL after login
-LOGOUT_REDIRECT_URL = '/accounts/login/'  # Redirect URL after logout
+LOGOUT_REDIRECT_URL = '/account/login/'  # Redirect URL after logout
 
 SOCIALACCOUNT_PROVIDERS = {
     'google': {
