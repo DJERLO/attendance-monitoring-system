@@ -58,3 +58,5 @@ attendance/known_faces/*
 
 # Ignore all files dlib
 dlib/
+
+erd.dot

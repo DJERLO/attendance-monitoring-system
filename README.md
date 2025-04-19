@@ -2,31 +2,58 @@
 
 ## Project Overview
 
-The purpose of this project is to implement a web-based attendance tracking system for employees using facial recognition technology. The system allows employees to log their attendance remotely, either onsite or offsite, using a webcam or device camera and a web browser. User authentication is managed using Django Allauth, ensuring that only registered users can access the attendance functionality.
+This project implements a web-based attendance system using facial recognition technology tailored for St. Clare College of Caloocan employees. The system aims to replace the current manual logbook system, addressing issues of inaccuracy, inefficiency, and security concerns. It allows employees to log their time-in and time-out using facial recognition, enhancing the accuracy and security of attendance tracking.
 
 ## Scope
 
-### The system will:
-- Detect faces using a real-time camera feed on the client side.
-- Ensure anti-spoofing mechanisms are in place before recognizing the employee.
-- Automatically record attendance data (with timestamp) for recognized employees without requiring explicit registration steps after facial recognition and log it to a database.
-- Be accessible both onsite and remotely, allowing employees to log attendance from any location with an internet connection.
+###   The system will:
 
-### The system will not:
-- Handle attendance for non-registered users.
-- Include multi-face recognition in a single frame.
-- Store facial data locally on the client side.
+* Automate employee attendance monitoring using facial recognition technology, primarily for employees with fixed salary rates.
+* Capture and validate employees’ facial features to log their time-in and time-out records. 
+* Store attendance logs in a database that can be accessed by authorized personnel. 
+* Generate daily, weekly, and monthly attendance reports for monitoring and evaluation. 
+* Support real-time verification to prevent proxy attendance or “buddy punching.” 
+* Include an admin portal to manage employee records and attendance, with features to accommodate manual entries or adjustments for employees with flexible schedules. 
+* Be deployed within the premises of St. Clare College of Caloocan and will function through IP cameras and a local network. 
+
+###   The system will not:
+
+* Support remote attendance for employees working off-site or from home.
+* Integrate directly with payroll or HR systems, but will provide attendance reports that can be manually exported. 
+* Accommodate student attendance monitoring. 
+* Allow manual attendance entries by employees, except for authorized HR personnel.
 
 ## Functional Requirements
 
-### User Authentication:
-- The system shall use Django Allauth to manage user registrations and logins.
-- Only authenticated users will have access to the attendance features.
+###   Attendance Automation:
 
-### Face Detection:
-- The system shall detect a face from the camera stream on the client side using the `face-api.js` library.
-- If no face is detected, the system shall continue streaming until a face is detected.
-- Once a face is detected, the system shall wait for 2000 milliseconds before sending the image data to the server for processing.
+* The system shall automate the time-in and time-out logging process using facial recognition primarily for employees with fixed salary rates.
+* The system should provide flexibility for HR to record attendance for employees with flexible hours or per-hour schedules (e.g., faculty), potentially through manual entry or a separate interface within the system.
+* The system shall aim to minimize manual attendance recording while accommodating the diverse scheduling needs of employees.
+
+###   User Interface:
+
+- The system shall provide a user-friendly interface for employees to check their attendance. 
+- The system shall include an admin portal for managing employee records and settings. 
+
+###   Data Management:
+
+* The system shall store attendance logs in a secure database. 
+* The system shall generate daily, weekly, and monthly attendance reports with advance filtering.
+
+###   Multi-Factor Authentication (MFA):
+
+* The system shall implement Multi-Factor Authentication (MFA) to enhance security.
+* The system shall support WebAuthn for strong, passwordless authentication using hardware security keys or biometrics.
+* The system shall support OAuth for secure authorization, allowing integration with other identity providers if needed.
+
+###   Face Detection:
+
+* The system shall employ different face detection mechanisms depending on the context:
+     * **Frontend (Webcam Capture):** The system shall detect a face from the camera stream on the client-side (e.g., employee's workstation webcam) using the `face-api.js` library.
+     * **Backend (IP Camera Feeds):** The system shall utilize the `face_recognition` library in Python to detect faces from IP camera feeds.
+* If no face is detected in either scenario, the system shall continue attempting to detect a face until one is found.
+* **For webcam capture in the UI,** the system may wait for a short interval (e.g., 2000 milliseconds) after a face is detected before sending the image data to the server for processing. This delay is a client-side optimization to ensure a stable image is captured via the browser's webcam API.
 
 ### Anti-Spoofing:
 - The system shall ensure that the detected face is real and not a spoof (such as a photo or video) using anti-spoofing algorithms trained on the [CASIA-FASD dataset](https://www.kaggle.com/datasets/minhnh2107/casiafasd).
@@ -46,73 +73,54 @@ The purpose of this project is to implement a web-based attendance tracking syst
 - The system shall allow employees to log attendance from any location with internet access, using their webcam.
 - Attendance can be marked remotely or onsite as long as the employee's face is recognized by the system.
 
-## Non-Functional Requirements
+##   Non-Functional Requirements
 
-### Performance:
-- The system must detect and recognize faces with a response time of less than 500 milliseconds.
-- The system should only process and send face data to the server every 2000 milliseconds to prevent excessive server requests.
+###   Accuracy:
 
-### Security:
-- Facial data shall not be stored locally on the client side but processed in real-time for recognition.
-- Data transferred between the client and server must be encrypted to ensure the security and privacy of employee information.
-- User authentication data will be securely managed using Django Allauth.
+* The system must ensure accurate facial recognition to prevent attendance fraud.
 
-### Usability:
-- The system interface must be user-friendly and accessible to employees without requiring technical knowledge.
-- Employees shall receive feedback after logging attendance (e.g., confirmation messages).
+###   Efficiency:
 
-### Availability:
-- The system must be available 24/7, allowing employees working different shifts or remotely to log their attendance anytime.
+* The system must streamline the attendance process and reduce administrative workload. 
+###   Security:
 
-### Constraints
+* The system must provide secure storage of attendance data and prevent unauthorized access. 
 
-1. **Device Compatibility**: The system is designed to work optimally on devices with modern web browsers (Chrome, Firefox, Safari, etc.) and may not function correctly on outdated browsers or devices.
-  
-2. **Camera Quality**: The effectiveness of the facial recognition feature depends on the quality of the camera used. Low-resolution cameras may result in inaccurate identification.
+###   Reliability:
 
-3. **Lighting Conditions**: The system requires adequate lighting for effective face detection and recognition. Poor lighting conditions may lead to failures in recognition.
+* The system must function consistently and reliably. 
 
-4. **User Privacy**: The system must comply with relevant data protection regulations (such as GDPR or CCPA) concerning employee privacy and data handling.
+###   Maintainability:
 
-5. **Server Load**: The system’s performance may be affected during peak usage times if the server cannot handle the volume of concurrent connections.
+* The system should be easy to update and troubleshoot. 
 
-6. **Training Data Updates**: Regular updates and retraining of the facial recognition model may be necessary to maintain accuracy as employee appearances change over time.
+##   Constraints
+1.  **Network Dependency:** The system relies on a stable local network. 
+2.  **Hardware Requirements:** Requires specific hardware like IP cameras and a server machine.
+3.  **Environmental Factors:** Facial recognition accuracy can be affected by lighting and facial changes. 
+4.  **Limited Integration:** Does not directly integrate with payroll or HR systems. 
+5.  **On-Site Use:** Designed for on-site attendance monitoring within St. Clare College. 
 
-7. **Network Latency**: A stable internet connection is crucial; high latency may impact the responsiveness of the attendance system.
+##   Assumptions
 
-8. **Hardware Limitations**: The performance of the facial recognition feature may vary based on the hardware specifications of the user's device.
+1.  Employees are willing to use the facial recognition system.
+2.  The system will be properly maintained to ensure continuous operation.
+3.  Sufficient training will be provided to users.
 
-### Assumptions
+##  Technologies Used
 
-1. **User Familiarity**: It is assumed that employees are comfortable using web applications and have basic technical skills.
+* **Face Recognition:** Utilizes facial recognition technology for automated attendance tracking. 
+* **Database Management:** Employs a database to securely store attendance records. 
+* **IP Cameras:** Uses IP cameras to capture employee facial data. 
+* **Programming Languages/Frameworks:** Python, Django, OpenCV, face_recognition with DLIB
 
-2. **Browser Permissions**: Users will grant the necessary permissions for camera access in their browsers.
+##  Getting Started
 
-3. **Registration Process**: Employees will complete the registration process correctly, including uploading a clear image for facial recognition.
-
-4. **Camera Positioning**: It is assumed that users will set up their cameras in a position that allows for clear visibility of their faces.
-
-5. **Stable Environment**: Employees will log their attendance from a stable environment without significant background movement that could interfere with facial recognition.
-
-6. **Internet Bandwidth**: It is assumed that employees have sufficient internet bandwidth to support real-time video streaming for face detection.
-
-7. **Software Updates**: Users will keep their web browsers and other relevant software updated to the latest versions for optimal functionality.
-
-8. **Fallback Mechanism**: It is assumed there will be a fallback mechanism (such as manual attendance) in case the facial recognition system fails to recognize an employee.
-
-## Technologies Used
-- **User Authentication**: Utilizes Django Allauth for managing user accounts and authentication.
-- **Face Detection**: Utilizes the `face-api.js` library for real-time face detection in the browser.
-- **Anti-Spoofing**: Employs the CASIA-FASD dataset to train anti-spoofing algorithms, ensuring that detected faces are not images or videos.
-- **Facial Recognition**: Implements a facial recognition model using Python to match detected faces with registered employee data.
-
-## Getting Started
-
-To get started with this project, clone the repository and follow the setup instructions in the [INSTALL.md](INSTALL.md) file.
+To get this project running, clone the repository and carefully follow the step-by-step installation guide in the [INSTALL.md](INSTALL.md) file.
 
 ## Contributing
 
-If you'd like to contribute to this project, please fork the repository and create a pull request with your changes.
+If you'd like to contribute to this project, please fork the repository and create a pull request with your changes or features.
 
 ## License
 

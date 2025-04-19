@@ -76,8 +76,11 @@ Create a `.env` file and add:
 SECRET_KEY='your-generated-secret-key'
 
 # Google OAuth 2.0 credentials
-CLIENT_ID=''
-CLIENT_SECRET=''
+GOOGLE_CLIENT_ID = ''
+GOOGLE_CLIENT_SECRET = ''
+
+FACEBOOK_CLIENT_ID = ''
+FACEBOOK_CLIENT_SECRETE = ''
 
 # Database Configuration (if using PostgreSQL)
 DB_ENGINE=''
@@ -86,6 +89,9 @@ DB_USER=''
 DB_PASSWORD=''
 DB_HOST=''
 DB_PORT=''
+
+#For Caching and Channels
+REDIS_URL= ''
 
 # Email Server
 EMAIL_HOST_USER='your-email@gmail.com'
@@ -245,6 +251,244 @@ Ensure **Visual Studio 2019/2022** is available.
 - **Ensure CUDA, cuDNN, and GPU drivers match versions.**  
 - If you encounter issues, reinstall CUDA/cuDNN.  
 - Consult [dlib's official documentation](http://dlib.net) for advanced configurations.  
+
+---
+
+# 🚀 Deploying a Django App Using ASGI (Daphne) on IIS with WebSockets Support
+
+This tutorial will guide you through deploying a **Django app on IIS (Internet Information Services)** using **Daphne** and `httpPlatformHandler`. This setup is ideal for Django apps utilizing **ASGI**, especially when integrating **WebSockets**.
+
+---
+
+## ✅ Prerequisites
+
+Before we begin, ensure we have the following:
+
+- **Python 3.12+** installed with PATH configured
+- Your Django app is ready (we'll clone an existing project for demonstration)
+- **IIS** is installed and running on your system
+
+---
+
+## 📁 Example File Structure
+
+We'll use my GitHub project: [`attendance-monitoring-system`](https://github.com/DJERLO/attendance-monitoring-system). Here's the simplified file structure of my project:
+
+```
+attendance-monitoring-system/
+├── attendance/
+│   ├── consumers.py         # WebSocket Consumers
+│   ├── routing.py           # WebSocket routing
+│   ├── templates/
+│   └── views.py
+├── attendance_system/
+│   ├── asgi.py              # ASGI config
+│   ├── settings.py
+├── manage.py
+├── requirements.txt
+├── web.config               # Required by IIS
+└── static/
+```
+
+---
+
+## 🧠 Step-by-Step Deployment Guide
+
+### 🔹 Step 1: Install Python 3.12 and Configure PATH
+
+1. Download and install [Python 3.12](https://www.python.org/downloads/).
+2. During installation, **check "Add Python to PATH"** to ensure Python is globally accessible in your system.
+
+---
+
+### 🔹 Step 2: Clone the Project and Install Requirements
+
+Clone the project inside this directory **C:/inetpub/wwwroot** and install dependencies :
+
+```bash
+git clone https://github.com/DJERLO/attendance-monitoring-system
+cd attendance-monitoring-system
+pip install -r requirements.txt
+
+# Optional if your database is SQLite or migrating to new one.
+python manage.py makemigrations
+python manage.py migrate
+```
+
+---
+
+### 🔹 Step 3: Install IIS and Enable Handler Mappings
+
+Open **PowerShell as Administrator** and run the following command to install IIS:
+
+```powershell
+Install-WindowsFeature -name Web-Server -IncludeManagementTools
+```
+
+Next, configure **Handler Mappings**:
+
+1. Open **IIS Manager**.
+2. Go to **Server Level > Feature Delegation**.
+3. Click **Handler Mappings** and set it to **Read/Write**.
+
+---
+
+### 🔹 Step 4: Create a Website on IIS
+
+1. Open **IIS Manager**.
+2. Right-click **Sites > Add Website**.
+3. Configure the following:
+   - **Site Name**: `attendance_system`
+   - **Physical Path**: `C:\inetpub\wwwroot\attendance-monitoring-system`
+   - **Port**: `8001`
+
+
+---
+
+### 🔹 Step 5: Install HttpPlatformHandler
+
+Download the **HttpPlatformHandler v1.2** from [IIS Downloads](https://www.iis.net/downloads/microsoft/httpplatformhandler).
+
+Install it. This module allows IIS to proxy requests to platforms like Python or Node.js.
+
+---
+
+### 🔹 Step 6: Configure HttpPlatform for Django
+
+In **IIS Manager**:
+
+1. Go to **Sites > attendance_system > Configuration Editor**.
+2. Navigate to `system.webServer/httpPlatform` and update the following settings:
+
+| Key               | Value                                                                 |
+|-------------------|-----------------------------------------------------------------------|
+| `processPath`     | `C:\Users\Lorna\AppData\Local\Programs\Python\Python312\python.exe`    |
+| `arguments`       | `C:\inetpub\wwwroot\attendance-monitoring-system\manage.py runserver %HTTP_PLATFORM_PORT%` |
+| `stdoutLogEnabled`| `true`                                                               |
+| `stdoutLogFile`   | `C:\inetpub\wwwroot\attendance-monitoring-system\logs`               |
+
+Add an environment variable in the `<environmentVariables>` section:
+
+```xml
+<environmentVariable name="SERVER_PORT" value="%HTTP_PLATFORM_PORT%" />
+```
+
+---
+
+### 🔹 Step 7: Configure App Settings
+
+In **Configuration Editor**, set the following values under `system.webServer/appSettings`:
+
+| Key                     | Value                                                             |
+|-------------------------|-------------------------------------------------------------------|
+| `PYTHONPATH`            | `C:\inetpub\wwwroot\attendance-monitoring-system`                 |
+| `WSGI_HANDLER`          | `attendance_system.wsgi.application`                              |
+| `DJANGO_SETTINGS_MODULE` | `attendance_system.settings`                                      |
+
+---
+
+### 🔹 Step 8: Add Module Mapping in IIS
+
+Go to **IIS Manager** and follow these steps:
+
+1. Navigate to **Sites > attendance_system > Handler Mappings**.
+2. Click **Add Module Mapping** and enter the following values:
+
+| Field                | Value                        |
+|----------------------|------------------------------|
+| Request Path         | `*`                          |
+| Module               | `httpPlatformHandler`        |
+| Name                 | `PythonHandlerHTTP`          |
+
+🔧 Click **“Request Restrictions”** and **uncheck** the option:  
+> “Invoke handler only if request is mapped to a file.”
+
+---
+
+### 🔹 Step 9: Create `web.config` in Root
+
+In the root of your project (where `manage.py` is located), create a file named `web.config` with the following content:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <system.webServer>
+        <httpPlatform 
+            processPath="C:\Users\Lorna\AppData\Local\Programs\Python\Python312\python.exe" 
+            arguments="C:\inetpub\wwwroot\attendance-monitoring-system\manage.py runserver %HTTP_PLATFORM_PORT%" 
+            stdoutLogEnabled="true" 
+            stdoutLogFile="C:\inetpub\wwwroot\attendance-monitoring-system\logs">
+            
+            <environmentVariables>
+                <environmentVariable name="SERVER_PORT" value="%HTTP_PLATFORM_PORT%" />
+            </environmentVariables>
+        </httpPlatform>
+
+        <handlers>
+            <add name="PythonHandlerHTTP" path="*" verb="*" modules="httpPlatformHandler" resourceType="Unspecified" />
+        </handlers>
+    </system.webServer>
+
+    <appSettings>
+        <add key="PYTHONPATH" value="C:\inetpub\wwwroot\attendance-monitoring-system" />
+        <add key="WSGI_HANDLER" value="attendance_system.wsgi.application" />
+        <add key="DJANGO_SETTINGS_MODULE" value="attendance_system.settings" />
+    </appSettings>
+</configuration>
+```
+
+---
+
+### 🧪 Final Step: Run and Test
+
+Visit `http://localhost:8001` in your browser. Your Django app should be running! 🎉
+
+---
+
+## 💡 Notes for ASGI + Daphne (WebSockets)
+
+For Django apps that use **WebSockets** and **ASGI**, you'll want to ensure you're using **Daphne** as the ASGI server.
+
+You can configure this by replacing `runserver` with Daphne in your `web.config`:
+
+```xml
+arguments="daphne -b 127.0.0.1 -p %HTTP_PLATFORM_PORT% attendance_system.asgi:application"
+```
+
+Make sure **Daphne** is installed in your virtual environment:
+
+```bash
+pip install daphne
+```
+But in my case, In Django 4.2+ and above, you no longer need to explicitly run Daphne as a separate process during development. Instead, you can rely on `daphne` integrated into `INSTALLED_APPS`.
+
+### Example in `settings.py`:
+
+```python
+INSTALLED_APPS = [
+    "daphne",
+    ...,
+]
+
+ASGI_APPLICATION = "attendance_system.asgi.application"
+```
+
+This will allow Django to automatically use Daphne for WebSocket support without additional arguments.
+
+---
+
+### 🔌 Testing WebSockets
+
+Test your WebSocket connections locally or in production using **PieSocket WebSocket Tester**:
+
+[PieSocket WebSocket Tester Extension](https://chromewebstore.google.com/detail/piesocket-websocket-teste/oilioclnckkoijghdniegedkbocfpnip)
+
+---
+
+## ✅ Done!
+
+You’ve now configured and served a Django ASGI app using IIS and `httpPlatformHandler` with support for WebSockets via Daphne. You can customize it further by using Gunicorn, Channels, or reverse proxy with Nginx if needed.
+
 
 ---
 

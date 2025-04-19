@@ -9,6 +9,7 @@ from django.utils.timezone import localtime, now
 from django.db.models.signals import post_migrate
 from django.dispatch import receiver
 from PIL import Image
+import requests
 
 # Model to store the work hours of the company
 # This model is used to set the default work hours for the company
@@ -68,7 +69,13 @@ class Employee(models.Model):
 
     def save(self, *args, **kwargs):
         """ Automatically update is_staff and sync permissions if the user belongs to the Admin group """
-    
+
+        # Check employment status and update is_active flag
+        if self.employment_status in ['resigned', 'terminated', 'retired']:
+            self.user.is_active = False  # Disable access for resigned/terminated/retired employees
+        else:
+            self.user.is_active = True  # Keep active for other statuses
+
         if self.group:
             # If assigned to Admin, set is_staff and assign permissions
             if self.group.name.upper() == "ADMIN" or self.group.name.upper() == "HR ADMIN":
@@ -76,12 +83,16 @@ class Employee(models.Model):
             else:
                 self.user.is_staff = False
 
+            if "TEACHING" in self.group.name.upper():
+                self.hourly_rate = True
+                
             # Sync User's Groups and Permissions
             self.user.groups.set([self.group])  # Ensure user is assigned to the correct group
             self.user.user_permissions.set(self.group.permissions.all())  # Apply group permissions
 
         else:
             # If no group is assigned, remove all permissions
+            self.hourly_rate = False
             self.user.is_staff = False
             self.user.groups.clear()
             self.user.user_permissions.clear()
@@ -212,10 +223,11 @@ class ShiftRecord(models.Model):
         ('PRESENT', 'Present'),
         ('LATE', 'Late'),
         ('ABSENT', 'Absent'),
+        ('HOLIDAY', 'Holiday'),
     ]
 
     employee = models.ForeignKey(Employee, on_delete=models.CASCADE)
-    date = models.DateField(default=timezone.now)
+    date = models.DateField(default=timezone.localdate)
     
     # Clock-in and clock-out timestamps
     clock_in = models.DateTimeField(blank=True, null=True)
@@ -228,6 +240,28 @@ class ShiftRecord(models.Model):
 
     def __str__(self):
         return f"{self.employee.full_name()} Attendance on {self.date}"
+    
+    #Use for checking national holidays
+    #If the date is a holiday, the attendance will be automatically marked as ABSENT without the need for HR intervention.
+    def is_holiday(self, date):
+        """Check if the date is a holiday using an external API."""
+        current_year = timezone.now().year
+        url = f"https://date.nager.at/api/v3/PublicHolidays/{current_year}/PH"
+        
+        try:
+            response = requests.get(url, timeout=5)
+            response.raise_for_status()
+            holidays = response.json()
+            holiday_dates = [holiday["date"] for holiday in holidays]
+            return str(date) in holiday_dates
+        except requests.RequestException as e:
+            print(f"Error fetching holidays: {e}")
+            return False
+        
+    #This will be use to check if it sunday
+    def is_sunday(self, date):
+        """Check if the given date is a Sunday."""
+        return date.weekday() == 6  # 6 is Sunday in Python's weekday() method
 
     @property
     def total_hours(self):
@@ -237,10 +271,41 @@ class ShiftRecord(models.Model):
             return round(total, 2)  # Round to 2 decimal places for accuracy
         return 0
     
-    def save(self, *args, **kwargs):
-        """Override save to update attendance status and auto clock-out within valid office hours."""
+    def clean(self):
+        """Override the clean method to enforce validation rules."""
         today = timezone.localdate()
 
+        has_approved_leave = LeaveRequest.objects.filter(
+            employee=self.employee,
+            status='APPROVED',
+            start_date__lte=self.date,
+            end_date__gte=self.date
+        ).exists()
+
+        if has_approved_leave:
+            raise ValidationError(f"{self.employee.full_name()} has an approved leave on {self.date}.")
+
+        # Check if the date is a Sunday
+        if self.is_sunday(self.date):
+            raise ValidationError("Clock-in is not allowed on Sundays. Please ensure that the date is a valid workday.")
+
+        # Call the parent's clean method to ensure no other validations are skipped
+        super().clean()
+    
+    def save(self, *args, **kwargs):
+        """Override save to update attendance status and auto clock-out within valid office hours."""
+        # If validation passes (no errors), then save as usual
+        self.full_clean()  # This will trigger the `clean` method before saving
+        
+        today = timezone.localdate()
+
+        # Check if the date is a holiday
+        if self.is_holiday(self.date):
+            self.status = 'HOLIDAY'
+            self.clock_in = None
+            self.clock_out = None
+            super().save(*args, **kwargs)
+            
         # Get work hours from DB or use fallback defaults
         work_hours = WorkHours.objects.first()
         if not work_hours:

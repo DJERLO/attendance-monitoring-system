@@ -34,6 +34,7 @@
         </a>
         <span class="tooltip">Profile</span>
       </li>
+      {% if not user|has_group:"HR ADMIN" %}
       <li>
         <a href="{% url 'attendance-sheet-by-date' month=current_month_year|slice:":-5" year=current_month_year|slice:"-4:" %}"
           class="{% if current_path %}active{% endif %}"
@@ -43,6 +44,7 @@
         </a>
         <span class="tooltip">Attendance</span>
       </li>
+      {% endif %}
       <li>
         <a href="{% url 'event-calendar' %}" class="{% if request.path == '/calendar' %}active{% endif %}" title="Calendar">
           <i class='bx bxs-calendar' ></i>
@@ -59,13 +61,15 @@
         <span class="tooltip">Employees</span>
       </li>
       {% endif %}
+      {% if user|has_group:"HR ADMIN" %}
       <li>
-        <a href="{% url 'file-leave'  %}" title="Leave Requests">
-          <i class='bx bx-calendar'></i>
-          <span class="links_name">Leave Requests</span>
+        <a href="{% url 'leave-request' %}" title="Leave Applications">
+          <i class='bx bxs-file'></i>
+          <span class="links_name">Leave Applications</span>
         </a>
-        <span class="tooltip">Leave Requests</span>
+        <span class="tooltip">Leave Applications</span>
       </li>
+      {% endif %}
       <li>
         <a href="{% url 'announcement_board' %}" title="Announcements">
           <i class='bx bxs-megaphone'></i>
@@ -73,13 +77,15 @@
         </a>
         <span class="tooltip">Announcements</span>
       </li>
-      <!-- <li>
-        <a href="#" title="Attendance">
-          <i class='bx bx-cog'></i>
-          <span class="links_name">Settings</span>
+      {% if user.is_staff %}
+      <li>
+        <a target="_blank" href="/admin/" title="Admin Panel">
+          <i class='bx bxs-book-content'></i>
+          <span class="links_name">Admin Panel</span>
         </a>
-        <span class="tooltip">Settings</span>
-      </li> -->
+        <span class="tooltip">Admin Panel</span>
+      </li>
+      {% endif %}
       <!-- Profile section -->
       <li class="profile">
         <div class="profile-details">
@@ -88,8 +94,8 @@
             <div class="name">St. Clare College</div>
             <div class="job">@stclarecollege</div>
           </div>
+          <a href="{% url 'account_logout' %}" id="log_out" title="Log Out"><i class='bx bx-log-out' id="log_out"></i></a> <!-- Logout icon -->
         </div>
-        <a href="{% url 'account_logout' %}" id="log_out" title="Log Out"><i class='bx bx-log-out' id="log_out"></i></a> <!-- Logout icon -->
       </li>
     </ul>
   </div>

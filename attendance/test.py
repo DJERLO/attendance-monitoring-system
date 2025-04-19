@@ -1,33 +1,17 @@
-import sys
 import threading
-import time
-import django
-from django.utils.timezone import now, make_naive
 import dlib
 import mediapipe as mp
 import cv2
 import face_recognition
 import numpy as np
 import os
+import sys
+import django
 from PIL import Image
 import torch
 from torch import nn
 import torchvision.transforms as transforms
 from torchvision import models
-
-
-# Set constants
-KNOWN_FACES_DIR = 'media/known_faces'  # Path to store known faces
-TOLERANCE = 0.4  # Threshold for face matching
-
-# Global variables
-known_face_encodings = []
-known_face_names = []
-employee_numbers = []  # List to store employee IDs
-display_frame = None
-frame_lock = threading.Lock()
-stop_display_thread = False
-
 
 # Get the project root directory (one level up from this script)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -41,11 +25,17 @@ os.environ.setdefault("DJANGO_SETTINGS_MODULE", "attendance_system.settings")  #
 # Initialize Django
 django.setup()
 
-today = now()
-clock_in_time = make_naive(today) # This will make the datetime timezone-aware
+from attendance.models import Camera
 
-# Import models AFTER setting up Django
-from attendance.models import Employee, ShiftRecord
+
+# Set constants
+KNOWN_FACES_DIR = 'media/known_faces'  # Path to store known faces
+TOLERANCE = 0.5  # Threshold for face matching
+
+# Global variables
+known_face_encodings = []
+known_face_names = []
+employee_numbers = []  # List to store employee IDs
 
 # Load the model
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -79,13 +69,8 @@ else:
 # Verify DLIB CUDA usage
 if dlib.cuda.get_num_devices() > 0 and dlib.DLIB_USE_CUDA:
     print(f"✅ DLIB is using CUDA for acceleration. ({dlib.cuda.get_num_devices()} GPU(s) detected)")
-    print(f"CUDA Device Name: {dlib.cuda.get_device_name(0)}")
-    #Set the model to Convolutional Neural Network (CNN) for face detection - best for GPU
-    face_location_model = "cnn"
 else:
     print("⚠️ DLIB is NOT using CUDA. Running on CPU.")
-    #Set the model to Histogram of Oriented Gradients (HOG) for face detection - best for CPU
-    face_location_model = "hog"
 
 
 
@@ -160,7 +145,7 @@ def detect_face_spoof(frame):
     return class_idx, confidence, message
 
 # Mediapipe Initialization
-mp_face_detection = mp.solutions.face_detection.FaceDetection(model_selection=1, min_detection_confidence=0.5)
+mp_face_detection = mp.solutions.face_detection.FaceDetection(min_detection_confidence=0.5)
 
 def face_detection(frame, result):
     """Processes a video frame with Mediapipe and recognizes faces using face_recognition."""
@@ -217,41 +202,15 @@ def face_detection(frame, result):
 #Summary - Face Recognition
 def recognize_face(frame, face_frame, bbox):
     name = ""
-    emp_no = ""
+    encodings = face_recognition.face_encodings(face_frame, model="large")
 
-     # Use face_location to find faces in the frame
-    face_locations = face_recognition.face_locations(face_frame, number_of_times_to_upsample=1, model=face_location_model)
-
-    if not face_locations:
-        pass  # No faces found, skip processing
-    
-    # Get the encodings for the detected faces
-    # Note: face_recognition.face_encodings() can return multiple encodings if multiple faces are detected
-    encodings = face_recognition.face_encodings(face_frame, known_face_locations=face_locations, model="large")
-
-    # Check if any encodings were found
     if encodings:
-        # Compare the encodings with known faces
-        face_distances = face_recognition.face_distance(known_face_encodings, encodings[0])
+        # Compare detected face encoding to known encodings
+        match_results = face_recognition.compare_faces(known_face_encodings, encodings[0], TOLERANCE)
         
-        # Get the index of the closest match
-        best_match_index = np.argmin(face_distances)
-
-        # Check if the distance is below the tolerance threshold
-        if face_distances[best_match_index] < TOLERANCE:
-            name = known_face_names[best_match_index]
-            emp_no = employee_numbers[best_match_index]
-
-            # Clock in the employee if recognized
-            if emp_no:
-                # Check if the employee is already clocked in for today
-                this_employee = Employee.objects.get(employee_number=emp_no)
-                existing_record = ShiftRecord.objects.filter(employee=this_employee, date=clock_in_time).first()
-                # If not clocked in, clock in the employee
-                if existing_record:
-                    print(f"Employee {emp_no} already clocked in successfully.")
-                if not existing_record:
-                    clock_in_employee(emp_no)
+        if True in match_results:
+            first_match_index = match_results.index(True)
+            name = known_face_names[first_match_index]
         else:
             name = "Unknown"
 
@@ -265,112 +224,55 @@ def recognize_face(frame, face_frame, bbox):
         cv2.putText(frame, name, (bbox[0] + 6, bbox[1] - 6), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
 
 
-#Clock-in the employee
-# This function is called when a recognized employee is detected
-# It creates a ShiftRecord for the employee with the current time as clock-in time  
-def clock_in_employee(employee_number):
-    try:
-        # Check if the employee exists in the database
-        employee = Employee.objects.get(employee_number=employee_number)
-        # Check if the employee is already clocked in for today
-        ShiftRecord.objects.create(employee=employee, clock_in=today)
-        print(f"Employee {employee_number} clocked in successfully.")
-    except Employee.DoesNotExist:
-        print(f"Employee {employee_number} does not exist.")
-    except Exception as e:
-        print(f"Error clocking in employee {employee_number}: {e}")
+def process_camera(camera):
+    print(f"Opening camera: {camera.name} | Mode: {camera.mode}")
+    cap = cv2.VideoCapture(camera.camera_url)
+    cap.set(cv2.CAP_PROP_FPS, 30)
+    cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
 
-def display_video():
-    global display_frame, stop_display_thread
+    if not cap.isOpened():
+        print(f"Error: Unable to access the camera {camera.name}.")
+        return
 
-    while not stop_display_thread:
-        if display_frame is not None:
-            frame_lock.acquire()
-            frame_to_show = display_frame.copy()
-            frame_lock.release()
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            print(f"Error: Failed to capture frame from {camera.name}.")
+            break
 
-            cv2.imshow("Face Recognition with Names", frame_to_show)
+        # Spoof detection
+        _, _, is_real_message = detect_face_spoof(frame)
+
+        # Face recognition
+        processed_frame = face_detection(frame, is_real_message)
+
+        # Show with unique window name
+        cv2.imshow(f"{camera.name} - {camera.mode}", processed_frame)
 
         if cv2.waitKey(1) & 0xFF == ord('q'):
-            stop_display_thread = True
             break
+
+    cap.release()
+    cv2.destroyWindow(f"{camera.name} - {camera.mode}")
+
+
+def main():
+    print("Loading known faces...")
+    load_known_faces()
+
+    cameras = Camera.objects.filter(is_active=True)
+    threads = []
+
+    for camera in cameras:
+        t = threading.Thread(target=process_camera, args=(camera,))
+        t.start()
+        threads.append(t)
+
+    for t in threads:
+        t.join()
 
     cv2.destroyAllWindows()
 
-class AsyncCamera:
-    def __init__(self, source=0):
-        self.capture = cv2.VideoCapture(source)
-        self.capture.set(cv2.CAP_PROP_FPS, 30)
-        self.capture.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-        self.capture.set(cv2.CAP_PROP_FRAME_WIDTH, 320)
-        self.capture.set(cv2.CAP_PROP_FRAME_HEIGHT, 240)
-        self.ret = False
-        self.frame = None
-        self.running = True
-        self.thread = threading.Thread(target=self.update, daemon=True)
-        self.thread.start()
-
-    def update(self):
-        while self.running:
-            self.ret, self.frame = self.capture.read()
-
-    def read(self):
-        return self.ret, self.frame
-
-    def stop(self):
-        self.running = False
-        self.thread.join()
-        self.capture.release()
-
-def main():
-    global display_frame, stop_display_thread
-
-    camera = AsyncCamera()
-
-    if not camera.capture.isOpened():
-        print("Error: Unable to access the camera.")
-        return
-
-    # Start display thread
-    display_thread = threading.Thread(target=display_video)
-    display_thread.start()
-
-    print("Press 'q' to quit.")
-
-    # FPS setup
-    prev_time = time.time()
-    fps = 0
-
-    while not stop_display_thread:
-        ret, frame = camera.read()
-        if not ret or frame is None:
-            continue
-
-        # FPS calculation
-        curr_time = time.time()
-        fps = 1 / (curr_time - prev_time)
-        prev_time = curr_time
-
-        # Anti-spoofing detection
-        _, _, is_real_message = detect_face_spoof(frame)
-
-        # Process the frame for recognition
-        processed_frame = face_detection(frame, is_real_message)
-
-        # Draw FPS counter
-        cv2.putText(processed_frame, f"FPS: {fps:.2f}", (10, 30), 
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
-
-        # Send frame to display thread
-        frame_lock.acquire()
-        display_frame = processed_frame.copy()
-        frame_lock.release()
-
-    # Cleanup
-    camera.stop()
-
 
 if __name__ == "__main__":
-    print("Loading known faces...")
-    load_known_faces()
     main()

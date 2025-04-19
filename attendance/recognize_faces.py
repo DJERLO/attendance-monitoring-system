@@ -1,6 +1,3 @@
-import torch
-from torchvision import models
-import torch.nn as nn
 from torchvision import transforms
 import face_recognition
 import numpy as np
@@ -8,7 +5,6 @@ import base64
 from PIL import Image
 import io
 import os
-import cv2
 from django.conf import settings  # Import settings to access MEDIA_ROOT
 from django.core.cache import cache
 
@@ -113,6 +109,3 @@ def recognize_faces_from_image(image_data):
         print(f"Error during recognition: {e}")
         load_known_faces(KNOWN_FACES_DIR)  # Reload known faces
         return []
-
-# Load known faces when the module is loaded
-load_known_faces(KNOWN_FACES_DIR)

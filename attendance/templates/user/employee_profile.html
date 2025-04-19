@@ -1,35 +1,44 @@
-<!-- employee_profile.html -->
-
 {% extends 'user/base.html' %}
-{% block head_title %}Employee Profile: {{ employee_profile.full_name }}{% endblock head_title %}
+
+{% block head_title %}Employee Profile: {{ employee_profile.first_name }} {% if employee_profile.middle_name %}{{ employee_profile.middle_name }}{% endif %} {{ employee_profile.last_name }}{% endblock head_title %}
 
 {% block page_content %}
-<div class="container mt-5">
-    <div class="row mb-4">
-        <div class="col-lg-12 text-center">
-            <h2 class="display-4 text-center">Employee Profile</h2>
-            <p class="lead">View detailed information for {{ employee_profile.full_name }}</p>
-        </div>
-    </div>
+<div class="container m-3">
 
     <div class="row">
+        <!-- Employee Profile Image and Basic Information -->
+        <div class="col-lg-4 mb-4">
+            <div class="card text-dark shadow-sm">
+                <div class="card-header bg-primary text-white text-center">
+                    <img src="{{ employee_profile.profile_image.url }}" alt="Profile Image" class="img-fluid rounded-circle shadow" width="180">
+                </div>
+                <div class="card-body text-center">
+                    <h4 class="card-title">{{ employee_profile.first_name }} {% if employee_profile.middle_name %}{{ employee_profile.middle_name }}{% endif %} {{ employee_profile.last_name }}</h4>
+                    <p class="card-text">{{ employee_profile.employee_number }}</p>
+                </div>
+            </div>
+        </div>
 
         <!-- Employee Information -->
-        <div class="col-md-6">
-            <div class="card shadow-sm">
-                <div class="card-header bg-primary text-white d-flex justify-content-center align-items-center">
-                    <img src="{{ employee_profile.profile_image.url }}" alt="Profile Image" class="img-fluid rounded-circle shadow" width="200">
+        <div class="col-lg-8">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-info text-white">
+                    Employee Information
                 </div>
                 <div class="card-body">
                     <table class="table table-borderless">
                         <tbody>
                             <tr>
-                                <th scope="row" class="font-weight-bold">Employee Number:</th>
-                                <td>{{ employee_profile.employee_number }}</td>
+                                <th scope="row" class="font-weight-bold">Gender:</th>
+                                <td>{{ employee_profile.gender|capfirst }}</td>
                             </tr>
                             <tr>
-                                <th scope="row" class="font-weight-bold">Full Name:</th>
-                                <td>{{ employee_profile.first_name }} {% if employee_profile.middle_name %}{{ employee_profile.middle_name }}{% endif %} {{ employee_profile.last_name }}</td>
+                                <th scope="row" class="font-weight-bold">Date of Birth:</th>
+                                <td>{{ employee_profile.birth_date|date:"M d, Y" }}</td>
+                            </tr>
+                            <tr>
+                                <th scope="row" class="font-weight-bold">Hire Date:</th>
+                                <td>{{ employee_profile.hire_date|date:"M d, Y" }}</td>
                             </tr>
                             <tr>
                                 <th scope="row" class="font-weight-bold">Email Address:</th>
@@ -43,17 +52,45 @@
                                 <th scope="row" class="font-weight-bold">Department:</th>
                                 <td>{{ employee_profile.group.name|default:"N/A" }}</td>
                             </tr>
+                            <tr>
+                                <th scope="row" class="font-weight-bold">Employment Status:</th>
+                                <td>{{ employee_profile.employment_status|capfirst }}</td>
+                            </tr>
                         </tbody>
                     </table>
                 </div>
             </div>
 
-            <!-- Back to Employee List Button -->
-            <div class="mt-3">
-                <a href="{% url 'employee-list' %}" class="btn btn-outline-primary">
-                    <i class="fa fa-arrow-left"></i> Back to Employee List
-                </a>
-            </div>
+            <!-- Emergency Contact Information -->
+            {% if employee_profile.emergency_contact %}
+                <div class="card shadow-sm">
+                    <div class="card-header bg-warning text-white">
+                        Emergency Contact Information
+                    </div>
+                    <div class="card-body">
+                        <table class="table table-borderless">
+                            <tbody>
+                                <tr>
+                                    <th scope="row" class="font-weight-bold">Contact Name:</th>
+                                    <td>{{ employee_profile.emergency_contact.contact_name }}</td>
+                                </tr>
+                                <tr>
+                                    <th scope="row" class="font-weight-bold">Relationship:</th>
+                                    <td>{{ employee_profile.emergency_contact.relationship }}</td>
+                                </tr>
+                                <tr>
+                                    <th scope="row" class="font-weight-bold">Phone Number:</th>
+                                    <td>{{ employee_profile.emergency_contact.phone_number }}</td>
+                                </tr>
+                                <tr>
+                                    <th scope="row" class="font-weight-bold">Email:</th>
+                                    <td>{{ employee_profile.emergency_contact.email|default:"N/A" }}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            {% endif %}
         </div>
     </div>
 </div>

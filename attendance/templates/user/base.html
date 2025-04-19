@@ -49,7 +49,7 @@
                 {% include 'user/components/navbar.html' %}
             </nav>
             {% include 'user/components/breadcrumb.html' %}
-            <div class="row d-flex align-content-center w-100 h-100">
+            <div class="row d-flex align-content-center w-100 h-100 mx-auto">
             {% block page_content %}
                 <!-- Contents appear here dynamically -->
             {% endblock page_content %}
@@ -98,10 +98,6 @@
                 if (data.message) {
                     // Handle notification messages
                     showToast(data.message);
-                } else if (data.total_employees !== undefined && data.active_today !== undefined) {
-                    // Handle dashboard updates
-                    clockInButtonVisibility(data);
-                    updateDashboard(data);
                 } else if (data.notification) {
                     // 📥 Handle individual notification for the logged-in employee
                     renderNotification(data.notification);
@@ -138,16 +134,6 @@
                     </a>
                 `;
                 list.prepend(li);
-            }
-        }
-
-        // Function to update the dashboard UI dynamically
-        function updateDashboard(data) {
-            document.querySelector(".card.blue .value").textContent = data.total_employees;
-            document.querySelector(".card.green .value").textContent = data.active_today;
-            if (data.employee_number) {
-                // Refresh attendance status for the specific employee
-                window.location.reload();
             }
         }
 
@@ -264,7 +250,23 @@
           { "targets": 0, "type": "date" } // Ensure proper date sorting
         ],
         dom: 'Brtip', // Enables buttons at the top
-        buttons: ['copy', 'csv', 'excel'],
+        buttons: [
+            {
+                extend: 'copy',
+                title: 'Attendance Records',
+                filename: 'attendance_copy' // Used only for Excel/CSV, not copy
+            },
+            {
+                extend: 'csv',
+                title: 'Attendance Logs',
+                filename: '{{ user.employee.full_name }} Attendance Logs'
+            },
+            {
+                extend: 'excel',
+                title: 'Attendance Logs',
+                filename: '{{ user.employee.full_name }} Attendance Logs'
+            }
+        ],
         "language": {
             "emptyTable": "No attendance records available."
         },  

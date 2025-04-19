@@ -9,7 +9,7 @@ from django.contrib.auth.models import User
 from django.contrib.auth.admin import UserAdmin as DefaultUserAdmin
 from django.urls import reverse
 from django.utils.html import format_html
-from django.contrib.admin import SimpleListFilter
+from django.contrib import messages
 from rangefilter.filters import (
     DateRangeFilterBuilder
 )
@@ -70,7 +70,7 @@ class EmployeeAdmin(admin.ModelAdmin):
     # Fieldsets
     fieldsets = (
         ('Account Information', {
-            'fields': ('user', 'profile_image_preview', 'profile_image')
+            'fields': ('profile_image_preview', 'profile_image')
         }),
         ('Personal Info', {
             'fields': ('first_name', 'middle_name', 'last_name', 'gender', 'birth_date'),
@@ -79,41 +79,40 @@ class EmployeeAdmin(admin.ModelAdmin):
             'fields': ('email', 'contact_number'),
         }),
         ('Employment Details', {
-            'fields': ('employee_number', 'hire_date',  'group', 'employment_status', 'hourly_rate'),
+            'fields': ('employee_number', 'hire_date', 'group', 'employment_status', 'hourly_rate'),
         }),
     )
 
     readonly_fields = ('profile_image_preview',)
 
-
     # List of fields displayed in the admin list view
     list_display = [
         "profile_image_display", 
-        "full_name",
-        "group",
+        "full_name", 
+        "group", 
         "total_hours_display",  
-        "average_hours_display"  
+        "average_hours_display"
     ]
     
     list_display_links = ["profile_image_display"]  # Make "profile_image_display" clickable
-
-    # Fields that can be searched in the admin panel
-    search_fields = ["first_name__icontains", "last_name__icontains", "email__icontains"]  # Case-insensitive search
-    # Fields to filter on in the admin panel
-    list_filter = ["user__is_active", "employee_number", "group"]  # Filter by active users or employee number
+    list_editable = ['group']
     
+    # Fields that can be searched in the admin panel
+    search_fields = ["first_name__icontains", "last_name__icontains", "email__icontains", "employee_number__icontains"]
+
+    # Fields to filter on in the admin panel
+    list_filter = ["user__is_active", "employment_status", "group"]
+
     # Pagination settings for list view
     list_per_page = 20  # Limit number of records per page
 
     # Making the profile image clickable for easier access
     def profile_image_display(self, obj):
         if obj.profile_image:
-            # Creating a clickable link that redirects to the change form for the employee
             change_url = reverse('admin:%s_%s_change' % (obj._meta.app_label, obj._meta.model_name), args=[obj.pk])
             return format_html('<a href="{0}"><img src="{1}" width="100" height="100" /></a>', change_url, obj.profile_image.url)
         return "No Image"
-        
-    
+
     profile_image_display.short_description = "Profile Image"
 
     def profile_image_preview(self, obj):
@@ -126,13 +125,13 @@ class EmployeeAdmin(admin.ModelAdmin):
 
     # Displaying the total hours worked by an employee
     def total_hours_display(self, obj):
-        return f"{obj.total_hours_worked():.2f}"  # Formatting to two decimal places
+        return f"{obj.total_hours_worked():.2f}"
 
     total_hours_display.short_description = "Total Hours Worked"
 
     # Displaying the average hours worked by an employee
     def average_hours_display(self, obj):
-        return f"{obj.average_hours_worked():.2f}"  # Formatting to two decimal places
+        return f"{obj.average_hours_worked():.2f}"
 
     average_hours_display.short_description = "Average Hours Worked"
 
@@ -160,6 +159,21 @@ class ShiftRecordsAdmin(admin.ModelAdmin):
         "employee__group",  # Filter by employee group
         "employee__hourly_rate",  # Filter by whether the employee has an hourly rate
     ]
+
+    def save_model(self, request, obj, form, change):
+        from attendance.models import LeaveRequest
+
+        has_approved_leave = LeaveRequest.objects.filter(
+            employee=obj.employee,
+            status='APPROVED',
+            start_date__lte=obj.date,
+            end_date__gte=obj.date
+        ).exists()
+
+        if has_approved_leave:
+            messages.warning(request, f"{obj.employee.full_name()} has an approved leave on this day.")
+
+        super().save_model(request, obj, form, change)
 
     def get_queryset(self, request):
         """
@@ -278,11 +292,16 @@ class EventsAdmin(admin.ModelAdmin):
 # Register the Event model with the custom EventsAdmin 
 admin.site.register(Event, EventsAdmin)
 admin.site.register(Notification)
-
+from django.utils.html import mark_safe
 class CameraAdmin(admin.ModelAdmin):
-    list_display = ("name", "mode", "camera_url", "is_active")
+    list_display = ("name", "mode", "camera_url", "is_active", 'snapshot')
     list_filter = ("mode", "is_active")
     search_fields = ("name", "camera_url")
+
+    def snapshot(self, obj):
+        return mark_safe(f'<img src="/snapshot/{obj.id}/" width="300" height="200" />')
+
+    snapshot.short_description = 'Thumbnail'
 
 admin.site.register(Camera, CameraAdmin)
 
@@ -293,6 +312,25 @@ class LeaveRequestAdmin(admin.ModelAdmin):
     date_hierarchy = "start_date"
     autocomplete_fields = ["employee", "approved_by"]
 
+    # 
+    def save_model(self, request, obj, form, change):
+        """
+        Override the save_model method to ensure that the `approved_by` field is automatically populated
+        with the currently logged-in user's Employee object when the leave request status is set to 'APPROVED'.
+        
+        This is necessary because the Django admin interface does not pass the `request` context to the model's 
+        `save()` method by default, and we need to track who approved the leave request.
+        
+        Parameters:
+            request (HttpRequest): The request object containing the logged-in user.
+            obj (LeaveRequest): The leave request object being saved.
+            form (ModelForm): The form being used to validate the data.
+            change (bool): A boolean indicating whether this is an existing object being updated (True) or a new object (False).
+        """
+        if obj.status == 'APPROVED' and not obj.approved_by:
+            obj.approved_by = request.user.employee
+        obj.save()
+
 admin.site.register(LeaveRequest, LeaveRequestAdmin)
 
 class AnnouncementAdmin(admin.ModelAdmin):
@@ -300,6 +338,30 @@ class AnnouncementAdmin(admin.ModelAdmin):
     list_filter = ("is_active", "created_at")
     search_fields = ("title", "message")
     autocomplete_fields = ["created_by"]
+
+    # Exclude the created_by field from the admin form
+    exclude = ('created_by',)
+
+    def save_model(self, request, obj, form, change):
+        """
+        Override the save_model method to automatically set the `created_by` field 
+        to the currently logged-in user when creating a new announcement.
+
+        This ensures that the `created_by` field is properly populated with the user who created 
+        the announcement, as the Django admin interface doesn't automatically set this field.
+
+        Parameters:
+            request (HttpRequest): The request object containing the logged-in user.
+            obj (Announcement): The announcement object being saved.
+            form (ModelForm): The form being used to validate the data.
+            change (bool): A boolean indicating whether this is an existing object being updated (True) or a new object (False).
+        """
+        if not obj.created_by:
+            # Set the `created_by` field to the currently logged-in user's Employee object
+            obj.created_by = request.user.employee
+        
+        # Save the updated announcement object
+        obj.save()
 
 admin.site.register(Announcement, AnnouncementAdmin)
 

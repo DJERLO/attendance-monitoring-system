@@ -91,7 +91,9 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                    <button type="button" class="btn btn-primary d-none" id="visitEvent">Visit Event</button> <!-- Initially hidden -->
+                    {% if user|has_group:"HR ADMIN" %}
+                        <button type="button" class="btn btn-primary d-none" id="visitEvent">Visit Event</button> <!-- Initially hidden -->
+                    {% endif %}
                 </div>
             </div>
         </div>
@@ -155,6 +157,7 @@
                     info.jsEvent.preventDefault(); // don't let the browser navigate
 
                     // Check if the event has a URL
+                    {% if user|has_group:"HR ADMIN" %}
                     if (info.event.url) {
                         // If the event has a URL, show the button to visit it
                         document.getElementById('visitEvent').classList.remove('d-none');
@@ -165,6 +168,7 @@
                         // Hide the button if no URL is present
                         document.getElementById('visitEvent').classList.add('d-none');
                     }
+                    {% endif %}
                     
                     // Ensure modal is closed before opening a new one
                     var modalEl = document.getElementById('eventModal');

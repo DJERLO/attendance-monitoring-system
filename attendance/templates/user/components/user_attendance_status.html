@@ -1,77 +1,64 @@
 <div id="attendance-card" class="col-md-12 mb-3 text-center align-self-stretch">
-<div class="card w-100 h-100 text-dark d-flex flex-grow-1">
-    <div class="row g-0">
+    <div class="card w-100 h-100 text-dark d-flex flex-grow-1">
+      <div class="row g-0">
         <div class="card-header bg-primary text-white align-items-stretch">
-            <p class="card-title d-flex justify-content-center align-self-center">Today's Attendance Status</p>
+          <p class="card-title d-flex justify-content-center align-self-center">
+            Latest Attendance Summary
+          </p>
         </div>
+  
         <div class="col-md-4 d-flex justify-content-center align-self-center">
-            <img src="{{user.employee.profile_image.url}}" class="img-fluid rounded-start ratio ratio-1x1" alt="...">
+          <img src="{{ user.employee.profile_image.url }}" class="img-fluid rounded-start ratio ratio-1x1" alt="Employee Image">
         </div>
+  
         <div class="col-md-8 d-flex justify-content-center align-self-center">
-            <div class="card-body">
-                <p class="card-text">
-                    <strong>Status:</strong> 
-                    {% if shiftstatus.status is not None %}
-                        <span class="badge 
-                            {% if shiftstatus.status == 'ABSENT' %}bg-danger 
-                            {% elif shiftstatus.status == 'LATE' %}bg-warning 
-                            {% elif shiftstatus.status == 'PRESENT' %}bg-success 
-                            {% else %}bg-secondary{% endif %}">
-                            {{ shiftstatus.status }}
-                        </span>
-                    {% else %}
-                        <span class="badge bg-danger">ABSENT</span>
-                    {% endif %}
-                </p>
-                <p class="card-text">
-                    <strong>Check-In:</strong> 
-                    <span class="check-in-time">
-                        {{ check_in_time|time:"g:i A"|default:"None" }}
-                    </span>
-                </p>
-                <p class="card-text">
-                    <strong>Check-Out:</strong> 
-                    <span class="check-out-time">
-                        {{ check_out_time|time:"g:i A"|default:"None" }}
-                    </span>
-                </p>
-            </div>
+          <div class="card-body">
+            <p class="card-text">
+              <strong>Status:</strong> 
+              {% if shiftstatus %}
+                <span class="badge 
+                  {% if shiftstatus.status == 'ABSENT' %}bg-danger
+                  {% elif shiftstatus.status == 'LATE' %}bg-warning
+                  {% elif shiftstatus.status == 'PRESENT' %}bg-success
+                  {% else %}bg-secondary{% endif %}">
+                  {{ shiftstatus.status }}
+                </span>
+              {% elif active_leave %}
+                <span class="badge bg-info">On Leave</span>
+              {% else %}
+                <span class="badge bg-secondary">No Record</span>
+              {% endif %}
+            </p>
+            <p class="card-text">
+              <strong>Check-In:</strong> {{ shiftstatus.clock_in|time:"g:i A"|default:"--" }}<br>
+              <strong>Check-Out:</strong> {{ shiftstatus.clock_out|time:"g:i A"|default:"--" }}
+            </p>
+          </div>
         </div>
-        <div class="card-footer bg-dark text-center d-flex justify-content-center align-self-center">
-            {% if not employee.is_hourly_employee %}
-            <div class="btn-group" role="group" aria-label="Attendance Actions" style="gap: 10px;">
-                {% if can_check_in %}
-                    {% if can_clock_in %}
-                        <a id="clock-in-{{employee.employee_number}}" href="/check-in/" type="button" class="btn btn-primary {% if not can_check_in %}disabled{% endif %} w-100 h-100">
-                            <i class="bi bi-clock-in"></i> Clock-In
-                        </a>
-                    {% else %}
-                        <div class="text-danger">
-                            "Clock-in is only available from {{opening_time}} to {{closing_time}}. Please return during working hours."
-                        </div>
-                    {% endif %}
-                {% endif %}
-                
-                {% if can_check_out %}
-                    {% if can_clock_in %}
-                    <a id="clock-in-{{employee.employee_number}}" href="/check-out/" class="btn btn-secondary {% if not can_check_out %}disabled{% endif %} w-100 h-100">
-                        <i class="bi bi-clock-out"></i> Clock-Out
-                    </a>
-                    {% else %}
-                        <div class="text-danger">
-                            "Clock-out is only available from {{opening_time}} to {{closing_time}}. Please return during working hours."
-                        </div>
-                    {% endif %}
-                {% endif %}
-            </div>
-                <!-- Alert or info if needed (e.g., for error, disabled button, or reminder) -->
-                {% if not can_check_in and not can_check_out  %}
-                    <div class="text-danger">
-                        "Clock-in is only available from {{opening_time}} to {{closing_time}}. Please return during working hours."
-                    </div>
-                {% endif %}
+  
+        <div class="card-footer bg-light text-center d-flex justify-content-center align-self-center flex-column gap-2">
+          {% if not employee.is_hourly_employee %}
+            <!-- Show clock-in/out buttons only for fixed employees -->
+            {% if can_check_in and not active_leave %}
+              <a href="/check-in/" class="btn btn-primary w-100">Clock In</a>
             {% endif %}
-            </div>
+            {% if can_check_out and not active_leave %}
+              <a href="/check-out/" class="btn btn-secondary w-100">Clock Out</a>
+            {% endif %}
+          {% endif %}
+  
+          <!-- Everyone can see their sheet -->
+          <a href="{% url 'attendance-sheet' %}" class="btn btn-outline-dark w-100">
+            📄 View Full Attendance Sheet
+          </a>
+          <!-- If user already has an active leave(Approved) -->
+          {% if not active_leave %}
+            <a href="{% url 'file-leave' %}" class="btn btn-outline-danger w-100">
+              📄 File a Leave
+            </a>
+          {% endif %}
         </div>
-    </div>     
-</div>
+      </div>
+    </div>
+  </div>
+  

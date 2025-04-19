@@ -1,0 +1,76 @@
+{% extends 'user/base.html' %}
+{% load static %}
+{% load widget_tweaks %}
+{% block head_title %}Mark Attendance for {{ selected_employee.full_name }}{% endblock head_title %}
+{% block page_content %}
+<div class="container mt-4">
+    <h3 class="text-center mb-4">Mark Attendance for {{ selected_employee.full_name }}</h3>
+
+    <div class="row justify-content-center">
+        <div class="col-md-6 col-lg-4">
+            {% if form.non_field_errors %}
+            <script>
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Oops...',
+                    text: "{{ form.non_field_errors.as_text|escapejs}}", // Slice removes "* " from the beginning
+                    confirmButtonColor: '#d33'
+                });
+            </script>
+            {% endif %}
+            <form method="POST" class="needs-validation" novalidate>
+                {% csrf_token %}
+                
+                <!-- Date -->
+                <div class="form-floating mb-3">
+                    {% render_field form.date class="form-control" required="true" %}
+                    <label for="id_date">Date</label>
+                </div>
+                
+                <!-- Clock In -->
+                <div class="form-floating mb-3">
+                    {% render_field form.clock_in_time class="form-control" type="time" required="true" %}
+                    <label for="id_clock_in_time">Clock In</label>
+                    <div class="invalid-feedback">Please provide a clock-in time.</div>
+                    <div class="valid-feedback">Looking Good!</div>
+                </div>
+                
+                <!-- Clock Out -->
+                <div class="form-floating mb-3">
+                    {% render_field form.clock_out_time class="form-control" type="time" required="true" %}
+                    <label for="id_clock_out_time">Clock Out</label>
+                    <div class="invalid-feedback">Please provide a clock-out time.</div>
+                    <div class="valid-feedback">Looking Good!</div>
+                </div>
+                
+                <!-- Submit and Cancel Buttons -->
+                <div class="d-flex justify-content-between">
+                    <button type="submit" class="btn btn-success w-48">Save Attendance</button>
+                    <a href="{% url 'employee-list' %}" class="btn btn-secondary w-48">Cancel</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+<script>
+    // Bootstrap 5 client-side validation
+    (function () {
+            'use strict'
+
+            // Fetch all the forms we want to apply custom Bootstrap validation styles to
+            var forms = document.querySelectorAll('.needs-validation')
+
+            // Loop over them and prevent submission
+            Array.prototype.slice.call(forms)
+                .forEach(function (form) {
+                    form.addEventListener('submit', function (event) {
+                        if (!form.checkValidity()) {
+                            event.preventDefault()
+                            event.stopPropagation()
+                        }
+                        form.classList.add('was-validated')
+                    }, false)
+                })
+        })()
+</script>
+{% endblock %}

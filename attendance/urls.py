@@ -36,7 +36,8 @@ urlpatterns = [
     # Employee URL's
     path('dashboard/', views.dashboard, name='dashboard'),  # Dashboard URL
     path('attendance-sheet/', views.attendance_sheet, name='attendance-sheet'),  # Default page
-    path('attendance-sheet/<int:month>-<int:year>/', views.attendance_sheet_date, name='attendance-sheet-by-date'), #Filter by month and year 
+    path('attendance-sheet/<int:month>-<int:year>/', views.attendance_sheet_date, name='attendance-sheet-by-date'), #Filter by month and year
+    path('attendance-sheet/<str:employee_number>/', views.employee_attendance_sheet_default, name='attendance-sheet-by-employee-default'), #Filter by employee 
     path('attendance-sheet/<str:employee_number>/<int:month>-<int:year>/', views.employee_attendance_sheet, name='attendance-sheet-by-employee'), #Filter by employee
     path('account/', views.profile_view, name='profile'),  # Profile URL
     path('account/change-password/', PasswordChangeView.as_view(), name='account_change_password'),
@@ -48,14 +49,26 @@ urlpatterns = [
     path('file-leave/', views.request_leave_view, name='file-leave'),
     
     #HR/ADMIN URL's
-    path('employees/', views.employee_management, name='employee-list'),  # Employee List URL
-    path('employees/<str:employee_number>/', views.employee_details, name='employee-details'),  # Employee Detail URL
+    path('employee/', views.employee_management, name='employee-list'),  # Employee List URL
+    path('employee/<str:employee_number>/', views.employee_details, name='employee-details'),  # Employee Detail URL
+    path('mark-attendance/<str:employee_num>/', views.mark_attendance, name='mark-attendance'),
+    path('leave-request/', views.leave_request_view, name='leave-request'),
+
+    path('leave/<int:leave_id>/approve/', views.approve_leave, name='approve_leave'),
+    path('leave/<int:leave_id>/reject/', views.reject_leave, name='reject_leave'),
+    path('leave/<int:leave_id>/cancel/', views.cancel_leave, name='cancel_leave'),
+    
+    #Announcement
     path('announcements/', views.announcement_board, name='announcement_board'),
+    path('live-announcements/', views.live_announcements, name='live-announcements'),
 
     # Notifications URL's
     path('notifications/mark-read/<int:id>/', views.mark_notification_read, name='mark_notification_read'),
     path('notifications/mark-all-read/', views.mark_all_notifications_read, name='mark_all_notifications_read'),
     path('notifications/delete/<int:id>/', views.delete_notification, name='delete_notification'),
+
+    #Camera
+    path('snapshot/<int:camera_id>/', views.snapshot_camera, name='snapshot_camera'),
 
 ]
 

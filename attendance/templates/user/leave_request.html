@@ -1,0 +1,171 @@
+{% extends 'user/base.html' %}
+{% load static %}
+{% block head_title %}Leave Applications{% endblock head_title %}
+{% block page_content %}
+<div class="text-center align-self-stretch">
+    <div class="card-header bg-dark text-white text-center">
+        <h4 class="my-2">Employee Leave Requests</h4>
+    </div>
+    <div class="table-responsive card-body form-control shadow p-3 bg-body rounded">
+        <table id="leaveRequestTable" class="table table-bordered table-hover mt-3">
+            <thead class="table-dark">
+                <tr>
+                    <th>Emp No.</th>
+                    <th>Name</th>
+                    <th>Start Date</th>
+                    <th>End Date</th>
+                    <th>Duration</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for leave in leave_requests %}
+                <tr data-leave-id="{{ leave.id }}" class="leave-row" style="cursor: pointer;" data-bs-toggle="modal" data-bs-target="#leaveDetailModal" 
+                    data-emp-no="{{ leave.employee.employee_number }}" 
+                    data-name="{{ leave.employee.full_name }}" 
+                    data-start-date="{{ leave.start_date }}" 
+                    data-end-date="{{ leave.end_date }}" 
+                    data-duration="{{ leave.duration }}" 
+                    data-status="{{ leave.status }}" 
+                    data-reason="{{ leave.reason }}" 
+                    {% if leave.attachment %}
+                        data-attachment="{{ leave.attachment.url }}"
+                    {% else %}
+                        data-attachment=""
+                    {% endif %}>
+                    <td>{{ leave.employee.employee_number }}</td>
+                    <td>{{ leave.employee.full_name }}</td>
+                    <td>{{ leave.start_date }}</td>
+                    <td>{{ leave.end_date }}</td>
+                    <td>{{ leave.duration }}</td>
+                    <td>
+                        <span class="badge bg-{% if leave.status == 'PENDING' %}warning
+                                                {% elif leave.status == 'APPROVED' %}success
+                                                {% elif leave.status == 'REJECTED' %}danger
+                                                {% else %}secondary
+                                                {% endif %}">{{ leave.status }}</span>
+                    </td>
+                    <td>
+                        {% if leave.status == 'PENDING' %}
+                            <form method="post" action="{% url 'approve_leave' leave.id %}" class="d-inline">
+                                {% csrf_token %}
+                                <button class="btn btn-success btn-sm" title="Approve"><i class="fas fa-check"></i></button>
+                            </form>
+                            <form method="post" action="{% url 'reject_leave' leave.id %}" class="d-inline">
+                                {% csrf_token %}
+                                <button class="btn btn-danger btn-sm" title="Reject"><i class="fas fa-times"></i></button>
+                            </form>
+                        {% elif leave.status == 'APPROVED' %}
+                            <form method="post" action="{% url 'cancel_leave' leave.id %}" class="d-inline">
+                                {% csrf_token %}
+                                <button class="btn btn-warning btn-sm" title="Cancel"><i class="fas fa-ban"></i></button>
+                            </form>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Modal for Viewing Leave Request Details -->
+<div class="modal fade" id="leaveDetailModal" tabindex="-1" aria-labelledby="leaveDetailModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="leaveDetailModalLabel">Leave Request Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <strong>Employee Number:</strong> <span id="empNo"></span><br>
+                    <strong>Name:</strong> <span id="name"></span><br>
+                    <strong>Start Date:</strong> <span id="startDate"></span><br>
+                    <strong>End Date:</strong> <span id="endDate"></span><br>
+                    <strong>Duration:</strong> <span id="duration"></span> days<br>
+                    <strong>Status:</strong> <span id="status"></span><br>
+                    <strong>Reason:</strong> <p id="reason"></p>
+                    <strong>Attachment:</strong> <br>
+                    <a href="#" id="attachmentLink" target="_blank">Download Attachment</a>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+
+        // Initialize DataTable
+        let table = new DataTable('#leaveRequestTable', {
+            'info': true,
+            'ordering': false,
+            'paging': true,
+            "stateSave": false,
+            "searching": true,
+            "lengthMenu": [10, 25, 50, 100],
+            "fixedHeader": true,
+            "fixedColumns": true,
+            'responsive': true,
+            "dom": 'Pfrltip',
+            "columnDefs": [
+                { "targets": 5, "searchPanes": { "show": true } },
+                { "targets": '_all', "className": 'text-center', "searchPanes": { "show": false } }
+            ],
+            "searchPanes": {
+                "cascadePanes": true,
+                "viewTotal": true,
+                {% if has_pending %}
+                preSelect: [
+                    {
+                        rows: ['PENDING'],
+                        column: 5
+                    }
+                ],
+                {% endif %}
+                "collapse": true,
+            },
+            "language": {
+                "emptyTable": "No Leave Records available."
+            },
+        });
+
+        document.querySelector('#leaveRequestTable tbody').addEventListener('click', function (event) {
+            const row = event.target.closest('.leave-row');
+            if (row) {
+                const leaveId = row.getAttribute('data-leave-id');
+                const empNo = row.getAttribute('data-emp-no');
+                const name = row.getAttribute('data-name');
+                const startDate = row.getAttribute('data-start-date');
+                const endDate = row.getAttribute('data-end-date');
+                const duration = row.getAttribute('data-duration');
+                const status = row.getAttribute('data-status');
+                const reason = row.getAttribute('data-reason');
+                const attachment = row.getAttribute('data-attachment');
+
+                document.getElementById('empNo').textContent = empNo;
+                document.getElementById('name').textContent = name;
+                document.getElementById('startDate').textContent = startDate;
+                document.getElementById('endDate').textContent = endDate;
+                document.getElementById('duration').textContent = duration;
+                document.getElementById('status').textContent = status;
+                document.getElementById('reason').textContent = reason;
+
+                const attachmentLink = document.getElementById('attachmentLink');
+                if (attachment) {
+                    attachmentLink.setAttribute('href', attachment);
+                    attachmentLink.style.display = 'inline-block';
+                } else {
+                    attachmentLink.style.display = 'none';
+                }
+            }
+        });
+
+    });
+</script>
+{% endblock page_content %}

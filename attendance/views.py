@@ -5,43 +5,33 @@ import logging
 import json
 import io
 import cv2
-import face_recognition
+import requests
 import numpy as np
+import face_recognition
+import pytz
+from django.core.exceptions import ValidationError
 from django.shortcuts import get_object_or_404, render, redirect
 from django.contrib import messages
 from django.contrib.auth import logout, login, authenticate
-from django.http import FileResponse, HttpResponse, JsonResponse
-from django.db.models import Count
-from django.template.loader import get_template
-from django.urls import reverse
+from django.http import HttpResponse, JsonResponse
 from django.conf import settings
 from django.utils import timezone
 from datetime import timedelta, datetime as dt
-from django.db.models import Q, Sum
 from pytz import timezone as pytz_timezone
 from asgiref.sync import sync_to_async
 from django.views.decorators.csrf import csrf_exempt
-from django.contrib.auth.models import Group
 from django.contrib.auth.decorators import login_required
-import requests
-from attendance.forms import EmployeeEmergencyContactForm, EmployeeRegistrationForm, LeaveRequestForm, UserRegistrationForm
-from attendance.models import Announcement, Event, Notification, ShiftRecord, Employee, FaceImage, WorkHours
-from xhtml2pdf import pisa
+from attendance.forms import AttendanceForm, EmployeeEmergencyContactForm, EmployeeRegistrationForm, LeaveRequestForm, UserRegistrationForm
+from attendance.models import Announcement, Event, LeaveRequest, Notification, ShiftRecord, Employee, FaceImage, WorkHours
 from .model_evaluation import detect_face_spoof
 from PIL import Image
-import torch
-from torchvision import models
 from channels.layers import get_channel_layer
 from django.http import HttpResponse
-from upstash_redis import Redis
 from django.core.cache import cache
 from django.core.exceptions import PermissionDenied
-from django.views.decorators.cache import cache_page
+from django.views.decorators.cache import cache_page, never_cache
 from django.utils.timezone import now
-from django.core.paginator import Paginator
 from django.http import JsonResponse
-
-redis = Redis.from_env()
 
 logger = logging.getLogger(__name__)
 
@@ -49,16 +39,12 @@ CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 KNOWN_FACES_DIR = os.path.join(settings.MEDIA_ROOT, 'known_faces')  # Path to the known faces directory
 MODEL_PATH = os.path.join(CURRENT_DIR, 'training.pth')
 
-def counter(request):
-    count = redis.incr('counter')
-    return HttpResponse(f'Page visited {count} times.')
-
 # Check if the user is in the certain group (For Role-Based Access Control)
 def is_Admin(user):
     if user.groups.filter(name='ADMIN').exists():
         return True
     return PermissionError
-def is_hr(user):
+def is_HR(user):
     if user.groups.filter(name='HR ADMIN').exists():
         return True
     return PermissionError
@@ -810,7 +796,8 @@ STATUS_PRIORITY = {
     "EARLY": 1,
     "PRESENT": 2,
     "LATE": 3,
-    "ABSENT": 4
+    "ABSENT": 4,
+    "HOLIDAY": 5
 }
 
 def get_dominant_status(statuses):
@@ -834,9 +821,18 @@ def get_status_summary_per_day(date):
 @login_required
 def dashboard(request):
     user = request.user
+    today_date = dt.now().date()
     try:
         employee = Employee.objects.get(user=user)
         notifications = Notification.objects.filter(employee=employee).order_by('-created_at')[:20]
+        
+        #Check if there is active request of leave
+        active_leave = LeaveRequest.objects.filter( 
+            employee = employee,
+            start_date__lte=today_date,
+            end_date__gte=today_date,
+            status='APPROVED').exists()
+        
         total_employees = Employee.objects.count()
         top_10_employees = get_top_employees()
 
@@ -928,6 +924,7 @@ def dashboard(request):
             'active_today_percentage': active_today_percentage,
             'active_today_trend': active_today_trend,
             'timemode': timemode,
+            'active_leave': active_leave
         })
 
     except Employee.DoesNotExist:
@@ -1005,6 +1002,38 @@ def attendance_sheet_date(request, month, year):
             'all_dates': all_dates,
             'shift_records': shift_records,
             'current_path': request.path,  # Pass request path to the template
+            'notifications': notifications,
+        })
+    
+    except Employee.DoesNotExist:
+        # Redirect to employee registration to continue
+        return redirect('employee-registration')
+
+@login_required
+def employee_attendance_sheet_default(request, employee_number=None):
+    user = request.user  # Get the logged-in user
+    notifications = Notification.objects.filter(employee__user=user).order_by('-created_at')[:20]
+    try:
+        total_employees = Employee.objects.all().count()
+
+        # Determine which employee’s records to fetch
+        if employee_number:
+            try:
+                employee = Employee.objects.get(employee_number=employee_number)
+            except Employee.DoesNotExist:
+                employee = None  # Set to None if not found
+        else:
+            employee = Employee.objects.get(user=user)  # Default to logged-in user
+            
+        shift_records = ShiftRecord.objects.filter(employee=employee)
+        
+        # Pass all the necessary data to the template
+        return render(request, 'user/attendance_sheet.html', { 
+            'user': user, 
+            'employee': employee,
+            'employee_number': employee_number,
+            'total_employees': total_employees,
+            'shift_records': shift_records,
             'notifications': notifications,
         })
     
@@ -1199,12 +1228,12 @@ def profile_view(request):
 def update_profile(request):
     if request.method == "POST":
         user = request.user
-        employee = user.employee  # adjust if your relation is different
+        employee = user.employee
 
         employee.first_name = request.POST.get('first_name', employee.first_name)
         employee.middle_name = request.POST.get('middle_name') or ''
         employee.last_name = request.POST.get('last_name', employee.last_name)
-        employee.birth_date = request.POST.get('birth_date', employee.birth_date)
+        employee.birth_date = request.POST.get('birth_date', employee.birth_date) or ''
         employee.email = request.POST.get('email', employee.email)
         employee.contact_number = request.POST.get('contact_number', employee.contact_number)
         employee.gender = request.POST.get('gender', employee.gender)
@@ -1289,6 +1318,9 @@ def employee_management(request):
         
         employees = Employee.objects.all()
         total_employees = employees.count()
+
+        current_month = dt.now().month
+        current_year = dt.now().year
         
         return render(request, 'user/employee_management.html', {
             'user': user,
@@ -1296,15 +1328,63 @@ def employee_management(request):
             'employees': employees,
             'total_employees': total_employees,
             'notifications': notifications,
-
+            'current_month': current_month,
+            'current_year': current_year,
         })
     
     except Employee.DoesNotExist:
         # Redirect to employee registration to continue
         return redirect('employee-registration')
+
+@login_required
+def mark_attendance(request, employee_num):
+    employee = request.user.employee
+    notifications = Notification.objects.filter(employee__user=request.user).order_by('-created_at')[:20]
+    selected_employee = Employee.objects.get(employee_number=employee_num)
+    
+    if request.method == 'POST':
+        form = AttendanceForm(request.POST)
+        
+        # Set the employee field manually, since the form doesn't automatically bind it
+        form.instance.employee = selected_employee
+        if form.is_valid():
+            manila = pytz.timezone('Asia/Manila')
+
+            # Get form values
+            attendance = form.save(commit=False)
+            attendance.employee = selected_employee
+
+            date = form.cleaned_data['date']
+            clock_in_time = form.cleaned_data.get('clock_in_time')
+            clock_out_time = form.cleaned_data.get('clock_out_time')
+
+            if clock_in_time:
+                dt_in = datetime.combine(date, clock_in_time)
+                attendance.clock_in = manila.localize(dt_in)
+
+            if clock_out_time:
+                dt_out = datetime.combine(date, clock_out_time)
+                attendance.clock_out = manila.localize(dt_out)
+
+            try:
+                attendance.full_clean()
+                attendance.save()
+                return redirect('employee-list')
+            except ValidationError as e:
+                form.add_error(None, e)  # Attach the error to the form's non-field errors
+    else:
+        form = AttendanceForm()
+
+    return render(request, 'user/mark_attendance.html', {
+        'form': form,
+        'selected_employee': selected_employee,
+        'employee': employee,
+        'notifications': notifications,
+    })
     
 #File Request Leave
 def request_leave_view(request):
+    notifications = Notification.objects.filter(employee__user=request.user).order_by('-created_at')[:20]
     employee = request.user.employee
     if request.method == 'POST':
         form = LeaveRequestForm(request.POST, request.FILES)
@@ -1316,7 +1396,36 @@ def request_leave_view(request):
             return redirect('dashboard')  # or wherever you list their requests
     else:
         form = LeaveRequestForm()
-    return render(request, 'user/file_leave.html', {'form': form, 'employee': employee})
+    return render(request, 'user/file_leave.html', {
+        'form': form, 
+        'employee': employee, 
+        'notifications':notifications
+    })
+
+def approve_leave(request, leave_id):
+    leave = get_object_or_404(LeaveRequest, pk=leave_id)
+    if request.method == 'POST':
+        leave.status = 'APPROVED'
+        leave.approved_by = request.user.employee
+        leave.save()
+        messages.success(request, "Leave approved.")
+    return redirect('leave-request')  # change to your page name
+
+def reject_leave(request, leave_id):
+    leave = get_object_or_404(LeaveRequest, pk=leave_id)
+    if request.method == 'POST':
+        leave.status = 'REJECTED'
+        leave.save()
+        messages.warning(request, "Leave rejected.")
+    return redirect('leave-request')
+
+def cancel_leave(request, leave_id):
+    leave = get_object_or_404(LeaveRequest, pk=leave_id)
+    if request.method == 'POST':
+        leave.status = 'CANCELLED'
+        leave.save()
+        messages.error(request, "Leave cancelled.")
+    return redirect('leave-request')
 
 @login_required
 def employee_details(request, employee_number):
@@ -1339,6 +1448,27 @@ def employee_details(request, employee_number):
     except Employee.DoesNotExist:
         # Redirect to employee registration to continue
         return redirect('employee-registration')
+    
+#Leave Request View (Start)
+@login_required
+@never_cache
+def leave_request_view(request):
+    user= request.user  # Get the logged-in user
+    employee = request.user.employee  # Get the logged-in employee
+    notifications = Notification.objects.filter(employee=employee).order_by('-created_at')[:20] #User Notification
+    
+    leave_requests =  LeaveRequest.objects.select_related('employee', 'approved_by').all()
+    has_pending = leave_requests.filter(status='PENDING').exists()  # ✅ Check for pending
+    
+    return render(request, 'user/leave_request.html', {
+        'user': user,
+        'employee': employee,
+        'notifications': notifications,
+        'leave_requests': leave_requests,
+        'has_pending': has_pending
+    })
+
+# Leave Request View (End)
 
 @login_required
 def announcement_board(request):
@@ -1355,3 +1485,36 @@ def announcement_board(request):
     except Employee.DoesNotExist:
         # Redirect to employee registration to continue
         return redirect('employee-registration')
+
+# Use a Javascript Polling for announcements
+@login_required
+def live_announcements(request):
+    announcements = Announcement.objects.filter(is_active=True).order_by('-created_at')
+    data = [
+        {
+            'title': a.title,
+            'message': a.message,
+            'created_by': str(a.created_by),
+            'created_at': a.created_at.strftime('%b %d, %Y %H:%M')
+        }
+        for a in announcements
+    ]
+    return JsonResponse({'announcements': data})
+    
+#Camera
+from django.http import HttpResponse
+import cv2
+
+def snapshot_camera(request, camera_id):
+    from .models import Camera
+    camera = Camera.objects.get(id=camera_id)
+
+    cap = cv2.VideoCapture(camera.camera_url)
+    success, frame = cap.read()
+    cap.release()
+
+    if not success:
+        return HttpResponse('Failed to capture image', status=500)
+
+    _, buffer = cv2.imencode('.jpg', frame)
+    return HttpResponse(buffer.tobytes(), content_type='image/jpeg')

@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/4.2/ref/settings/
 """
 import os
+import redis
 from pathlib import Path
 from django.conf import settings
 from dotenv import load_dotenv
@@ -83,7 +84,7 @@ JAZZMIN_SETTINGS = {
     "site_logo_classes": "img-circle",
 
     # Relative path to a favicon for your site, will default to site_logo if absent (ideally 32x32 px)
-    "site_icon": ' img/logo.png',
+    "site_icon": 'img/logo.png',
 
     # Welcome text on the login screen
     "welcome_sign": "Welcome to the St. Clare College AMS Admin Portal",
@@ -312,8 +313,8 @@ LOGOUT_REDIRECT_URL = '/account/login/'  # Redirect URL after logout
 SOCIALACCOUNT_PROVIDERS = {
     'google': {
         'APP': {
-            'client_id': os.getenv('CLIENT_ID'),
-            'secret': os.getenv('CLIENT_SECRET'),
+            'client_id': os.getenv('GOOGLE_CLIENT_ID'),
+            'secret': os.getenv('GOOGLE_CLIENT_SECRET'),
             'key': ''
         },
         'SCOPE': [
@@ -326,8 +327,8 @@ SOCIALACCOUNT_PROVIDERS = {
     },
     'facebook': {
         'APP': {
-            'client_id': '1206770111029927',  # Replace with your Facebook App ID
-            'secret': 'ceb6925d343d0069591a9f16c01b675b',  # Replace with your Facebook App Secret
+            'client_id': os.getenv('FACEBOOK_CLIENT_SECRET'),  # Replace with your Facebook App ID
+            'secret': os.getenv('FACEBOOK_CLIENT_SECRET'),  # Replace with your Facebook App Secret
             'key': ''
         },
         'METHOD': 'oauth2',  # Set to 'js_sdk' to use the Facebook connect SDK
@@ -399,29 +400,50 @@ DATABASES = {
         'PORT': os.getenv('DB_PORT', default=''),
     }
 }
+#Cache and Channel Configuration
+REDIS_URL = os.environ.get("REDIS_URL", "")
+REDIS_TIMEOUT = 5
 
-CACHES = {
-    "default": {
-        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
-        "LOCATION": "local-cache",
+# Function to check Redis connection
+def test_redis_connection(redis_url):
+    try:
+        # Try connecting to Redis
+        client = redis.StrictRedis.from_url(redis_url, socket_connect_timeout=REDIS_TIMEOUT)
+        client.ping()  # Check if Redis is reachable
+        return True
+    except (redis.ConnectionError, redis.TimeoutError):
+        return False
+
+if REDIS_URL and test_redis_connection(REDIS_URL):
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.redis.RedisCache",
+            "LOCATION": REDIS_URL,
+        }
     }
-}
+else:
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+            "LOCATION": "local-cache",
+        }
+    }
 
-
-#Caches
-# CACHES = {
-#     "default": {
-#         "BACKEND": "django.core.cache.backends.redis.RedisCache",
-#         "LOCATION": "rediss://:AYn5AAIjcDE3MjcxMjk4MTc0Zjc0NGJmYTgzZjUwM2RiZjFjOWYxYnAxMA@proven-alpaca-35321.upstash.io:6379",
-#     }
-# }
-
-# Redis
-CHANNEL_LAYERS = {
-    "default": {
-        "BACKEND": "channels.layers.InMemoryChannelLayer",  # Use Redis for production
-    },
-}
+if REDIS_URL and test_redis_connection(REDIS_URL):
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels_redis.core.RedisChannelLayer",
+            "CONFIG": {
+                "hosts": [REDIS_URL],
+            },
+        }
+    }
+else:
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels.layers.InMemoryChannelLayer",
+        }
+    }
 
 
 # Password validation
