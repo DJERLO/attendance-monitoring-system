@@ -8,6 +8,8 @@ import os
 from django.conf import settings  # Import settings to access MEDIA_ROOT
 from django.core.cache import cache
 
+from attendance.models import FaceImage
+
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 KNOWN_FACES_DIR = os.path.join(settings.MEDIA_ROOT, 'known_faces')  # Path to the known faces directory
 TOLERANCE = 0.5
@@ -24,7 +26,7 @@ known_face_encodings = []
 known_face_names = []
 employee_numbers = []  # List to store employee IDs
 
-def load_known_faces(KNOWN_FACES_DIR):
+def load_known_faces_dataset(KNOWN_FACES_DIR):
     global known_face_encodings, known_face_names, employee_numbers
 
     # Try to get cached face encodings
@@ -67,6 +69,37 @@ def load_known_faces(KNOWN_FACES_DIR):
     cache.set("known_faces", (known_face_encodings, known_face_names, employee_numbers), timeout=1800)
     print("Faces cached successfully!")
 
+# This function is called to load known faces from the database
+def load_known_faces():
+    global known_face_encodings, known_face_names, employee_numbers
+
+    # Try to get cached face encodings
+    cached_faces = cache.get("known_faces")
+
+    if cached_faces:
+        known_face_encodings, known_face_names, employee_numbers = cached_faces
+        print("Loaded faces from cache!")
+        return
+
+    print("Cache expired or not found. Loading faces from the database...")
+
+    known_face_encodings, known_face_names, employee_numbers = [], [], []
+
+    # Fetch all the face images from the database
+    face_images = FaceImage.objects.all()
+
+    for face_image in face_images:
+        # Retrieve the encoding for each face image
+        encoding = face_image.get_encoding()
+        if encoding is not None:
+            known_face_encodings.append(encoding)
+            known_face_names.append(face_image.employee.full_name())  # Assuming Employee has a 'name' field
+            employee_numbers.append(face_image.employee.employee_number)  # Assuming Employee has 'employee_number'
+
+    # Cache the known faces for 30 minutes
+    cache.set("known_faces", (known_face_encodings, known_face_names, employee_numbers), timeout=60*30)
+    print("Faces cached successfully!")
+
 def recognize_faces_from_image(image_data):
     try:
         # List to store results for each face
@@ -107,5 +140,7 @@ def recognize_faces_from_image(image_data):
 
     except Exception as e:
         print(f"Error during recognition: {e}")
-        load_known_faces(KNOWN_FACES_DIR)  # Reload known faces
+        load_known_faces()  # Reload known faces
         return []
+    
+load_known_faces()

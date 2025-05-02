@@ -1,3 +1,4 @@
+import json
 import os
 from django.core.exceptions import ValidationError
 from django.conf import settings
@@ -9,6 +10,8 @@ from django.utils.timezone import localtime, now
 from django.db.models.signals import post_migrate
 from django.dispatch import receiver
 from PIL import Image
+import face_recognition
+import numpy as np
 import requests
 
 # Model to store the work hours of the company
@@ -60,7 +63,7 @@ class Employee(models.Model):
     contact_number = models.CharField(max_length=15, verbose_name="Contact Number")
     group = models.ForeignKey(Group, related_name='employees', on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Department")
     employment_status = models.CharField(max_length=20, choices=EMPLOYMENT_STATUS_CHOICES, default='full_time', verbose_name="Employee Status")
-    profile_image = models.ImageField(upload_to='profiles/', blank=True, null=True, default='profiles/default_avatar.webp', verbose_name="Profile Image")
+    profile_image = models.ImageField(upload_to='profiles/', blank=True, null=True, max_length=512, default='profiles/default_avatar.webp', verbose_name="Profile Image")
     hourly_rate  = models.BooleanField(default=False, verbose_name="Hourly Rate Employee")
     
     class Meta:
@@ -93,9 +96,13 @@ class Employee(models.Model):
         else:
             # If no group is assigned, remove all permissions
             self.hourly_rate = False
-            self.user.is_staff = False
             self.user.groups.clear()
             self.user.user_permissions.clear()
+
+            if self.user.is_superuser:
+                self.user.is_staff = True
+            else:
+                self.user.is_staff = False
 
         # Save the user model first (after setting is_staff and permissions)
         self.user.save()
@@ -204,9 +211,32 @@ class Employee(models.Model):
 # Model to store multiple face images for facial recognition
 class FaceImage(models.Model):
     employee = models.ForeignKey(Employee, related_name='face_images', on_delete=models.CASCADE)
-    image = models.ImageField(upload_to='known_faces/')
+    image = models.ImageField(upload_to='known_faces/', max_length=512)
     uploaded_at = models.DateTimeField(default=timezone.now)
+    face_encoding = models.TextField(blank=True, null=True)  # Store face encoding as a JSON string
 
+    def save(self, *args, **kwargs):
+        """Override save method to store face encoding"""
+        if not self.face_encoding:
+            # If encoding doesn't exist, generate it from the image
+            image_path = self.image.path
+            image = face_recognition.load_image_file(image_path)
+            encoding = face_recognition.face_encodings(image)
+
+            if encoding:
+                self.face_encoding = json.dumps(encoding[0].tolist())  # Convert array to list and store as JSON
+            else:
+                self.face_encoding = None
+
+        super().save(*args, **kwargs)
+
+    def get_encoding(self):
+        """Returns the decoded face encoding"""
+        if self.face_encoding:
+            return np.array(json.loads(self.face_encoding))  # Decode the JSON into a numpy array
+        return None
+
+    # This method is used to delete the image file when the instance is deleted
     def delete(self, *args, **kwargs):
         """Delete the image file when the instance is deleted."""
         if self.image:
@@ -275,6 +305,7 @@ class ShiftRecord(models.Model):
         """Override the clean method to enforce validation rules."""
         today = timezone.localdate()
 
+        # Check if the current employee has an approved leave on the current date/day
         has_approved_leave = LeaveRequest.objects.filter(
             employee=self.employee,
             status='APPROVED',
@@ -282,6 +313,14 @@ class ShiftRecord(models.Model):
             end_date__gte=self.date
         ).exists()
 
+        # Check if employee is hourly and if they have multiple attendance entries
+        if not self.employee.is_hourly_employee:
+            # For non-hourly employees, ensure they only have one record per day
+            existing_records = ShiftRecord.objects.filter(employee=self.employee, date=self.date)
+            if existing_records.exists():
+                raise ValidationError(f"{self.employee.full_name()} already has attendance recorded for {self.date}. Only one entry is allowed per day.")
+
+        # Check if the current employee has an approved leave on the current date/day don't allow them to clock-in/out
         if has_approved_leave:
             raise ValidationError(f"{self.employee.full_name()} has an approved leave on {self.date}.")
 
@@ -441,7 +480,7 @@ class LeaveRequest(models.Model):
     end_date = models.DateField(verbose_name="End Date")
     reason = models.TextField(verbose_name="Reason for Leave")
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='PENDING', verbose_name="Leave Status")
-    attachment = models.FileField(upload_to='leave_attachments/', null=True, blank=True)
+    attachment = models.FileField(upload_to='leave_attachments/', null=True, blank=True, max_length=512)
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Request Created At")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="Last Updated At")
     approved_by = models.ForeignKey(Employee, on_delete=models.SET_NULL, null=True, blank=True, related_name='approved_leaves', verbose_name="Approved By")

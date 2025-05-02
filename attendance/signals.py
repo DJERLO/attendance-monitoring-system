@@ -7,7 +7,7 @@ from django.dispatch import receiver
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync, sync_to_async
 from django.utils.timezone import localtime
-
+from django.core.cache import cache
 from attendance.recognize_faces import load_known_faces
 from .models import Announcement, Employee, FaceImage, LeaveRequest, ShiftRecord, Notification
 
@@ -20,7 +20,8 @@ KNOWN_FACES_DIR = os.path.join(settings.MEDIA_ROOT, 'known_faces')
 def update_face_cache(sender, instance, **kwargs):
     """Reload face encodings whenever an employee is added or removed"""
     print("Employee face data changed. Reloading known faces...")
-    load_known_faces(KNOWN_FACES_DIR)  # Reload faces
+    cache.delete('known_faces')
+    load_known_faces()  # Reload faces
 
 # Signal receiver to send real-time notifications
 # when a new Notification instance is created

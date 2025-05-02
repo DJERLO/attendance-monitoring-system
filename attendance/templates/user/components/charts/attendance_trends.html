@@ -36,23 +36,5 @@
                 }
             }
         });
-        // Establish the SSE connection
-        const eventSource = new EventSource('/attendance-updates/');
-
-        // Listen for incoming events and update the chart
-        eventSource.onmessage = function(event) {
-            const updatedAttendanceData = JSON.parse(event.data);
-
-            // Update the chart's data values
-            attendanceBarChart.data.datasets[0].data = [
-                updatedAttendanceData.EARLY,
-                updatedAttendanceData.PRESENT,
-                updatedAttendanceData.LATE,
-                updatedAttendanceData.ABSENT
-            ];
-
-            // Re-render the chart to reflect new data
-            attendanceBarChart.update();
-        };
     });
 </script>

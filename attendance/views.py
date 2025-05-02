@@ -90,9 +90,9 @@ def get_employee_by_id(employee_number):
 @sync_to_async
 def check_in(employee_number):
     """Checking-In The Employee"""
-    today = timezone.now()  # Get today's date
+    today = timezone.localdate()  # Get today's date
     employee = get_object_or_404(Employee, employee_number=employee_number)  # Get employee
-    return ShiftRecord.objects.filter(employee=employee, clock_in__date=today).exists()  # Check if already checked in
+    return ShiftRecord.objects.filter(employee=employee, date=today, clock_in__date=today).exists()  # Check if already checked in
 
 # Clocking-In Employee's Time
 async def clock_in(employee_number):
@@ -113,9 +113,9 @@ async def clock_in(employee_number):
 @sync_to_async
 def check_out(employee_number):
     """Checking-Out The Employee"""
-    today = timezone.now() # Get today's date
+    today = timezone.localdate() # Get today's date
     employee = get_object_or_404(Employee, employee_number=employee_number)  # Get employee
-    return ShiftRecord.objects.filter(employee=employee, clock_out__date=today).exists()  # Check if already checked out
+    return ShiftRecord.objects.filter(employee=employee, date=today, clock_out__date=today).exists()  # Check if already checked out
 
 async def clock_out(employee_number):
     """Clocking-Out Employee's Time-Out"""
@@ -136,7 +136,7 @@ async def clock_out(employee_number):
 @cache_page(60 * 5)
 def check_in_attendance(request):
     """Renders the attendance page."""
-    load_known_faces(KNOWN_FACES_DIR) # Loads all the employee's faces in our dataset
+    load_known_faces() # Loads all the employee's faces in our dataset
     # Set your timezone to Asia/Manila
     manila_tz = pytz_timezone('Asia/Manila')
     current_time = timezone.now().astimezone(manila_tz)  # Convert to Manila timezone
@@ -215,12 +215,30 @@ async def checking_in(request):
 
                                 return JsonResponse({
                                     "result": [{
-                                        "name": employee_data.get('name'),
+                                        "name": str(employee.full_name()),
                                         "employee_number": employee_number,
                                         "profile_image_url": profile_image_url,
-                                        "message": f"{employee_data.get('name')} has checked in today's morning shift.",
+                                        "message": f"{employee.full_name()} has checked in today's morning shift.",
                                     }]
                                 }, status=200)
+                            
+                            except ValidationError as e:
+                                logger.warning("Validation error recording attendance: %s", e)
+                                # Clean up the message
+                                error_messages = []
+
+                                if hasattr(e, 'message_dict'):
+                                    # If it's a dict like {'__all__': [...]} → flatten the list
+                                    for field_errors in e.message_dict.values():
+                                        error_messages.extend(field_errors)
+                                else:
+                                    # Otherwise just get the message normally
+                                    error_messages.append(str(e))
+
+                                return JsonResponse({
+                                    "message": error_messages
+                                }, status=400)
+
                             except Exception as e:
                                 logger.error("Error recording attendance: %s", e)
                                 return JsonResponse({
@@ -232,10 +250,10 @@ async def checking_in(request):
                         else:
                             return JsonResponse({
                                 "result": [{
-                                    "name": employee_data.get('name'),
+                                    "name": str(employee.full_name()),
                                     "employee_number": employee_number,
                                     "profile_image_url": profile_image_url,
-                                    "message": f"{employee_data.get('name')} has already checked in for today's morning shift.",
+                                    "message": f"{employee.full_name()} has already checked in for today's morning shift.",
                                 }]
                             }, status=400)
 
@@ -339,10 +357,10 @@ async def checking_out(request):
 
                                 return JsonResponse({
                                     "result": [{
-                                        "name": employee_data.get('name'),
+                                        "name": str(employee.full_name()),
                                         "employee_number": employee_number,
                                         "profile_image_url": profile_image_url,
-                                        "message": f"{employee_data.get('name')} has checked out today!",
+                                        "message": f"{employee.full_name()} has checked out today!",
                                     }]
                                 }, status=200)
                             except Exception as e:
@@ -357,10 +375,10 @@ async def checking_out(request):
                         elif checkin_exists and checkout_exists:
                             return JsonResponse({
                                     "result": [{
-                                        "name": employee_data.get('name'),
+                                        "name": str(employee.full_name()),
                                         "employee_number": employee_number,
                                         "profile_image_url": profile_image_url,
-                                        "message": f"{employee_data.get('name')} has already checked out for today!",
+                                        "message": f"{employee.full_name()} has already checked out for today!",
                                     }]
                                 }, status=409)
                         

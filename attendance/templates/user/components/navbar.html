@@ -125,6 +125,7 @@
                         {% else %}
                         bg-white text-dark
                         {% endif %}"
+                        data-status="{% if not notif.is_read %}unread{% else %}read{% endif %}"
                         onclick="markAsRead({{ notif.id }}, this)">
                         {{ notif.message }}
                         <br><small class="text-muted">{{ notif.created_at|date:"M d, Y H:i A" }}</small>

@@ -15,6 +15,8 @@ from pathlib import Path
 from django.conf import settings
 from dotenv import load_dotenv
 from datetime import timedelta
+import pymysql
+pymysql.install_as_MySQLdb()
 # Load environment variables from .env file
 load_dotenv()
 
@@ -519,16 +521,21 @@ LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
     'handlers': {
-        'file': {
+        'debug_file': {
             'level': 'DEBUG',
             'class': 'logging.FileHandler',
             'filename': 'django_debug.log',
         },
+        'error_file': {
+            'level': 'ERROR',
+            'class': 'logging.FileHandler',
+            'filename': 'django_error.log',
+        },
     },
     'loggers': {
         'django': {
-            'handlers': ['file'],
-            'level': 'DEBUG',
+            'handlers': ['debug_file', 'error_file'],
+            'level': 'DEBUG',  # capture everything, but routing to correct files
             'propagate': True,
         },
     },
