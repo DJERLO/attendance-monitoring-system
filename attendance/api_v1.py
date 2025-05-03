@@ -5,13 +5,15 @@ import os
 import cv2
 import numpy as np
 from ninja import NinjaAPI, Query, Form, File
+from ninja.pagination import paginate
 from ninja_jwt.authentication import JWTAuth
-from ninja_jwt.tokens import RefreshToken
+from ninja_jwt.tokens import RefreshToken, UntypedToken
+from ninja_jwt.token_blacklist.models import BlacklistedToken
 from django.contrib.auth.models import User
 from django.http import JsonResponse
 from ninja_jwt.exceptions import TokenError
 from venv import logger
-from datetime import date, datetime
+from datetime import datetime
 from django.conf import settings
 from django.http import JsonResponse
 from ninja.files import UploadedFile
@@ -22,9 +24,9 @@ from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from attendance.model_evaluation import detect_face_spoof
 from attendance.models import Employee, FaceImage, ShiftRecord
-from attendance.schema import AlreadyCheckedInResponse, AttendanceEmployeeFilterSchema, EmployeeCheckInResponse, EmployeeFacialRegistration, EmployeeNotFound, EmployeeRegistrationResponse, EmployeeRegistrationSchema, ErrorAtDecodingImage, ErrorAtFaceRegistration, ErrorResponse, ImageSchema, InvalidImageFormat, NotFoundResponse, ShiftRecordSchema, SpoofingDetectedResponse, SuccessAntiFaceSpoofing, SuccessFaceRegistration, Unauthorized, UserNotFound, UserRegisterResponse, UserRegisterSchema
+from attendance.schema import AlreadyCheckedInResponse, AttendanceEmployeeFilterSchema, BlacklistTokenSchema, EmployeeCheckInResponse, EmployeeFacialRegistration, EmployeeNotFound, EmployeeRegistrationResponse, EmployeeRegistrationSchema, ErrorAtDecodingImage, ErrorAtFaceRegistration, ErrorResponse, GenerateTokenSchema, ImageSchema, InternalServerErrorSchema, InvalidImageFormat, NotFoundResponse, RefreshTokenSchema, ShiftRecordSchema, SpoofingDetectedResponse, SuccessAntiFaceSpoofing, SuccessFaceRegistration, Unauthorized, UserNotFound, UserRegisterResponse, UserRegisterSchema, VerifyTokenSchema
 from attendance.views import async_detect_fake_face, async_recognize_faces, check_in, check_out, clock_in, clock_out,  get_employee_by_id
-from pydantic import BaseModel
+from pydantic import SecretStr
 from typing import List
 from PIL import Image
 
@@ -32,53 +34,116 @@ from PIL import Image
 # Initialize API with JWT authentication
 api = NinjaAPI(
     title="Attendance Monitoring System",
-    version="1.0.0",
+    version="1.2.8",
     description="The Facial Recognition Attendance Monitoring System includes a set of APIs that facilitate communication between the frontend user interface and the backend services. These APIs are designed to handle user interactions, data processing, and system responses efficiently. Below are the specifications for each API endpoint.",
 )
 
 # Custom Token Generation API
-@api.post("/token", tags=['Auth'])
-def generate_token(request, username: str, password: str):
+@api.post("/token", tags=['Authentication'])
+def generate_token(request, username: str, password: SecretStr):
+    password = password.get_secret_value()
     user = User.objects.filter(username=username).first()
     if user and user.check_password(password):
         refresh = RefreshToken.for_user(user)
         return {
-            "access": str(refresh.access_token),
-            "refresh": str(refresh),
+            "access_token": str(refresh.access_token),
+            "refresh_token": str(refresh),
             "user": {
+                "user_id": user.id,
                 "first_name": user.first_name,
-                "email": user.email
+                "last_name": user.last_name,
+                "email": user.email,
+                "is_authenticated": True,
             }
         }
     return JsonResponse({"error": "Invalid credentials"}, status=400)
 
 # Custom Refresh Token API
-@api.post("/token/refresh/", tags=['Auth'])
+@api.post("/token/refresh/", tags=['Authentication'], response={
+    200: RefreshTokenSchema,
+    401: Unauthorized,
+    500: InternalServerErrorSchema})
 def refresh_access_token(request, refresh_token: str):
     """
-    Takes a valid refresh token and returns a new access token.
+    Takes a valid refresh token, returns a new access token, and rotates the refresh token.
     """
     try:
-        refresh = RefreshToken(refresh_token)  # Validate refresh token
-        new_access_token = str(refresh.access_token)  # Generate new access token
-        return {"access": new_access_token}
-    except TokenError:  # Catch invalid or expired token
-        return JsonResponse({"error": "Invalid or expired refresh token"}, status=401)
-    except Exception as e:  # Catch unexpected errors
+        # Validate old refresh token
+        old_refresh = RefreshToken(refresh_token)
+
+          # Check if this is a refresh token and is blacklisted
+        if old_refresh.get("token_type") == "refresh":
+            refresh = RefreshToken(refresh_token)
+            jti = refresh.get("jti")
+
+            if BlacklistedToken.objects.filter(token__jti=jti).exists():
+                return JsonResponse({"error": "Token has been blacklisted"}, status=401)
+
+        # Get the user ID from the token payload
+        user_id = old_refresh["user_id"]
+        user = User.objects.get(id=user_id)
+
+        # Create a NEW refresh token (forces rotation)
+        new_refresh = RefreshToken.for_user(user)
+        new_access = new_refresh.access_token
+
+        return {
+            "old_refresh_token": refresh_token,
+            "new_refresh_token": str(new_refresh),
+            "new_access_token": str(new_access),
+        }
+
+    except TokenError:
+        return JsonResponse({"error": "Invalid or expired token"}, status=401)
+    except User.DoesNotExist:
+        return JsonResponse({"error": "User not found"}, status=404)
+    except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
 
 # Override the verify token response
-@api.post("/token/verify/", tags=['Auth'])
-def verify_token(request, token: str):
-    from ninja_jwt.tokens import UntypedToken
-
+@api.post("/token/verify/", tags=['Authentication'], response={
+    200: VerifyTokenSchema,
+    401: Unauthorized})
+def verify_token(request, refresh_token: str):
     try:
-        UntypedToken(token)  # This checks if the token is valid
-        return {"message": "Token is valid"}
-    except TokenError:  # Catch JWT errors properly
+        # Step 1: Decode the token
+        decoded_token = UntypedToken(refresh_token)
+
+         # Check if this is a refresh token and is blacklisted
+        if decoded_token.get("token_type") == "refresh":
+            refresh = RefreshToken(refresh_token)
+            jti = refresh.get("jti")
+
+            if BlacklistedToken.objects.filter(token__jti=jti).exists():
+                return JsonResponse({"error": "Token has been blacklisted"}, status=400)
+
+        # Step 3: Retrieve user
+        user_id = decoded_token.get("user_id")
+        user = User.objects.filter(id=user_id).first()
+
+        if user:
+            return {
+                "message": "Token is valid",
+                "user": {
+                    "user_id": user.id,
+                    "first_name": user.first_name,
+                    "last_name": user.last_name,
+                    "email": user.email,
+                    "is_authenticated": True,
+                }
+            }
+        else:
+            return JsonResponse({"error": "User not found"}, status=404)
+
+    except TokenError:
         return JsonResponse({"error": "Invalid or expired token"}, status=401)
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
     
-@api.post("/token/blacklist/", tags=['Auth'])
+@api.post("/token/blacklist/", tags=['Authentication'], response={
+    200: BlacklistTokenSchema,
+    401: Unauthorized,
+    500: InternalServerErrorSchema})
 def blacklist_token(request, refresh_token: str):
     try:
         refresh = RefreshToken(refresh_token)  # Validate refresh token
@@ -126,6 +191,9 @@ def register_employee(request,  payload: Form[EmployeeRegistrationSchema], profi
         if hasattr(user, 'employee'): 
             return JsonResponse({"error": "An employee record already exists for this user"}, status=409)
 
+        # Validate the profile image
+        if not profile_image.content_type.startswith("image/"):
+            return JsonResponse({"error": "Uploaded file must be an image"}, status=400)
 
         # Create the Employee model
         employee = Employee.objects.create(
@@ -229,6 +297,7 @@ def user_face_registration(request, payload: EmployeeFacialRegistration):
 #Start (Attendance Logging) Endpoints
 
 @api.get('/attendance', summary="Retrieve all attendance shift records or filter by employee number to fetch specific shift records.", tags=["Attendance Logging"], response=List[ShiftRecordSchema], auth=JWTAuth())
+@paginate
 def get_attendance(request, filters: AttendanceEmployeeFilterSchema = Query(...)):
      # Fetch attendance records and include related employee details
     attendance = ShiftRecord.objects.select_related('employee').all()
