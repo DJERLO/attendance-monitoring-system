@@ -142,5 +142,3 @@ def recognize_faces_from_image(image_data):
         print(f"Error during recognition: {e}")
         load_known_faces()  # Reload known faces
         return []
-    
-load_known_faces()
