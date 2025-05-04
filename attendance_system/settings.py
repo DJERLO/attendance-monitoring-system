@@ -329,7 +329,7 @@ SOCIALACCOUNT_PROVIDERS = {
     },
     'facebook': {
         'APP': {
-            'client_id': os.getenv('FACEBOOK_CLIENT_SECRET'),  # Replace with your Facebook App ID
+            'client_id': os.getenv('FACEBOOK_CLIENT_ID'),  # Replace with your Facebook App ID
             'secret': os.getenv('FACEBOOK_CLIENT_SECRET'),  # Replace with your Facebook App Secret
             'key': ''
         },
