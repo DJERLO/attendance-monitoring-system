@@ -383,10 +383,10 @@ async def checking_in(request, payload: ImageSchema):
                             submit = await clock_in(employee_number)
                             return JsonResponse({
                                 "result": [{
-                                    "name": employee_data.get('name'),
+                                    "name": employee.full_name(),
                                     "employee_number": employee_number,
                                     "profile_image_url": profile_image_url,
-                                    "message": f"{employee_data.get('name')} has checked in today.",
+                                    "message": f"{employee.full_name()} has checked in today.",
                                 }]
                             }, status=200)
                         except Exception as e:
@@ -400,7 +400,7 @@ async def checking_in(request, payload: ImageSchema):
                     else:
                         return JsonResponse({
                             "result": [{
-                                "name": employee_data.get('name'),
+                                "name": employee.full_name(),
                                 "employee_number": employee_number,
                                 "profile_image_url": profile_image_url,
                                 "message": f"{employee_data.get('name')} has already checked in today.",
@@ -482,10 +482,10 @@ async def checking_out(request, payload: ImageSchema):
                                 submit = await clock_out(employee_number)
                                 return JsonResponse({
                                     "result": [{
-                                        "name": employee_data.get('name'),
+                                        "name": employee.full_name(),
                                         "employee_number": employee_number,
                                         "profile_image_url": profile_image_url,
-                                        "message": f"{employee_data.get('name')} has checked out today.",
+                                        "message": f"{employee.full_name()} has checked out today.",
                                     }]
                                 }, status=200)
                             except Exception as e:
@@ -500,10 +500,10 @@ async def checking_out(request, payload: ImageSchema):
                         elif checkin_exists and checkout_exists:
                             return JsonResponse({
                                     "result": [{
-                                        "name": employee_data.get('name'),
+                                        "name": employee.full_name(),
                                         "employee_number": employee_number,
                                         "profile_image_url": profile_image_url,
-                                        "message": f"{employee_data.get('name')} has checked out today.",
+                                        "message": f"{employee.full_name()} has checked out today.",
                                     }]
                                 }, status=409)
                         
@@ -511,10 +511,10 @@ async def checking_out(request, payload: ImageSchema):
                         else:
                             return JsonResponse({
                                 "result": [{
-                                    "name": employee_data.get('name'),
+                                    "name": employee.full_name(),
                                     "employee_number": employee_number,
                                     "profile_image_url": profile_image_url,
-                                    "message": f"{employee_data.get('name')} hasn't checked in yet!",
+                                    "message": f"{employee.full_name()} hasn't checked in yet!",
                                 }]
                             }, status=400)
 
