@@ -65,16 +65,16 @@ model.eval()  # Set the model to evaluation mode
 if torch.cuda.is_available():
     num_gpus = torch.cuda.device_count()
     device_name = torch.cuda.get_device_name(0)
-    print(f"✅ CUDA is available! Running on GPU: {device_name} ({num_gpus} GPU(s) detected)")
+    print(f"CUDA is available! Running on GPU: {device_name} ({num_gpus} GPU(s) detected)")
 else:
-    print("⚠️ CUDA is NOT available. Running on CPU.")
+    print("CUDA is NOT available. Running on CPU.")
 
 
 # Verify DLIB CUDA usage
 if dlib.cuda.get_num_devices() > 0 and dlib.DLIB_USE_CUDA:
-    print(f"✅ DLIB is using CUDA for acceleration. ({dlib.cuda.get_num_devices()} GPU(s) detected)")
+    print(f"DLIB is using CUDA for acceleration. ({dlib.cuda.get_num_devices()} GPU(s) detected)")
 else:
-    print("⚠️ DLIB is NOT using CUDA. Running on CPU.")
+    print("DLIB is NOT using CUDA. Running on CPU.")
 
 # Move model to the appropriate device
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
