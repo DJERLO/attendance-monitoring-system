@@ -7,57 +7,6 @@ on:
     branches: [ "main" ]
 
 jobs:
-  linux-test:
-    runs-on: ubuntu-latest
-    strategy:
-      max-parallel: 4
-      matrix:
-        python-version: [3.10.0, 3.11.0, 3.12.0]
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v3
-        with:
-          python-version: ${{ matrix.python-version }}
-
-      - name: Check Python version
-        run: |
-          python --version
-
-      - name: Install Dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-
-      - name: Check for Unapplied Migrations
-        run: |
-          python manage.py makemigrations --check --dry-run
-        env:
-          SECRET_KEY: dummy-key-for-ci
-
-      - name: Run Django Tests (Linux)
-        env:
-          DJANGO_SETTINGS_MODULE: attendance_system.settings
-          SECRET_KEY: dummy-key-for-ci
-          DB_ENGINE: ${{ secrets.DB_ENGINE }}
-          DB_NAME: ${{ secrets.DB_NAME }}
-          DB_USER: ${{ secrets.DB_USER }}
-          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
-          DB_HOST: ${{ secrets.DB_HOST }}
-          DB_PORT: ${{ secrets.DB_PORT }}
-          REDIS_URL: ${{ secrets.REDIS_URL }}
-          CLOUDINARY_CLOUD_NAME: ${{ secrets.CLOUDINARY_CLOUD_NAME }}
-          CLOUDINARY_API_KEY: ${{ secrets.CLOUDINARY_API_KEY }}
-          CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
-          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
-          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
-          FACEBOOK_CLIENT_ID: ${{ secrets.FACEBOOK_CLIENT_ID }}
-          FACEBOOK_CLIENT_SECRET: ${{ secrets.FACEBOOK_CLIENT_SECRET }}
-        run: |
-          python manage.py test
-
   windows-test:
     runs-on: windows-latest
     strategy:
