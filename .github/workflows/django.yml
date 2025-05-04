@@ -40,7 +40,7 @@ jobs:
       - name: Run Django Tests (Linux)
         env:
           DJANGO_SETTINGS_MODULE: attendance_system.settings
-          SECRET_KEY: ${{ secrets.SECRET_KEY }}
+          SECRET_KEY: dummy-key-for-ci
           DB_ENGINE: ${{ secrets.DB_ENGINE }}
           DB_NAME: ${{ secrets.DB_NAME }}
           DB_USER: ${{ secrets.DB_USER }}
@@ -91,7 +91,7 @@ jobs:
       - name: Run Django Tests (Windows)
         env:
           DJANGO_SETTINGS_MODULE: attendance_system.settings
-          SECRET_KEY: ${{ secrets.SECRET_KEY }}
+          SECRET_KEY: dummy-key-for-ci
           DB_ENGINE: ${{ secrets.DB_ENGINE }}
           DB_NAME: ${{ secrets.DB_NAME }}
           DB_USER: ${{ secrets.DB_USER }}
