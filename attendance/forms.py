@@ -72,9 +72,14 @@ class AttendanceForm(forms.ModelForm):
         label="Clock Out Time"
     )
 
+    is_half_day = forms.BooleanField(
+        required=False,
+        label="Half Day"
+    )
+
     class Meta:
         model = ShiftRecord
-        fields = ['date']  # Only show the date from the model
+        fields = ['date', 'is_half_day']  # Only show the date from the model
         widgets = {
             'date': forms.DateInput(attrs={'type': 'date'})
         }

@@ -265,8 +265,7 @@ class ShiftRecord(models.Model):
 
     # Attendance status
     status = models.CharField(max_length=10, choices=ATTENDANCE_STATUSES, default='ABSENT')
-    # approved = models.BooleanField(default=False)  # For admin approval
-    # approved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='approved_attendance')
+    is_half_day = models.BooleanField(default=False, help_text="If checked, system will record as half-day with actual hours worked.")
 
     def __str__(self):
         return f"{self.employee.full_name()} Attendance on {self.date}"
@@ -316,7 +315,13 @@ class ShiftRecord(models.Model):
         # Check if employee is hourly and if they have multiple attendance entries
         if not self.employee.is_hourly_employee:
             # For non-hourly employees, ensure they only have one record per day
+            # Exclude self from the query to allow updating the same record
             existing_records = ShiftRecord.objects.filter(employee=self.employee, date=self.date)
+            
+            # Exclude self from the query to allow updating the same record
+            if self.pk:
+                existing_records = existing_records.exclude(pk=self.pk)
+
             if existing_records.exists():
                 raise ValidationError(f"{self.employee.full_name()} already has attendance recorded for {self.date}. Only one entry is allowed per day.")
 
@@ -376,17 +381,25 @@ class ShiftRecord(models.Model):
                 
             # 🛠️ NEW: Only apply auto clock-out if employee is NOT hourly
             if not self.employee.hourly_rate:
-                auto_clock_out = self.clock_in + timedelta(hours=7)
+                # If Half-day is checked count only 4 hours else 8 hours
+                if not self.is_half_day:
+                    auto_clock_out = self.clock_in + timedelta(hours=7)
 
+                if self.is_half_day:
+                    auto_clock_out = self.clock_in + timedelta(hours=4)
+
+                # Check if clock_in is within the allowed range
                 if early_threshold <= self.clock_in < opening_time:
                     self.status = 'EARLY'
                 elif opening_time <= self.clock_in <= grace_period:
                     self.status = 'PRESENT'
                 elif self.clock_in > grace_period:
                     self.status = 'LATE'
+                else:
+                    self.status = 'ABSENT'
 
                 # Add lunch break if applicable
-                if self.clock_in < lunch_start and auto_clock_out >= lunch_start:
+                if not self.is_half_day and self.clock_in < lunch_start and auto_clock_out >= lunch_start:
                     auto_clock_out += timedelta(hours=1)
 
                 # Limit to closing time

@@ -3,7 +3,7 @@
 {% load widget_tweaks %}
 {% block head_title %}Mark Attendance for {{ selected_employee.full_name }}{% endblock head_title %}
 {% block page_content %}
-<div class="container mt-4">
+<div class="container my-4">
     <h3 class="text-center mb-4">Mark Attendance for {{ selected_employee.full_name }}</h3>
 
     <div class="row justify-content-center">
@@ -24,7 +24,7 @@
                 <!-- Date -->
                 <div class="form-floating mb-3">
                     {% render_field form.date class="form-control" required="true" %}
-                    <label for="id_date">Date</label>
+                    <label for="id_date">Date(dd/mm/yyyy)</label>
                 </div>
                 
                 <!-- Clock In -->
@@ -42,6 +42,14 @@
                     <div class="invalid-feedback">Please provide a clock-out time.</div>
                     <div class="valid-feedback">Looking Good!</div>
                 </div>
+
+                <!-- If employee is fixed salary allow them to have Half Day-->
+                {% if not selected_employee.hourly_rate %}
+                    <div class="form-check mb-3">
+                        {% render_field form.is_half_day class="form-check-input" id="id_is_half_day" %}
+                        <label class="form-check-label" for="id_is_half_day">Half Day?</label>
+                    </div>
+                {% endif %}
                 
                 <!-- Submit and Cancel Buttons -->
                 <div class="d-flex justify-content-between">
@@ -72,5 +80,49 @@
                     }, false)
                 })
         })()
+
+        document.addEventListener('DOMContentLoaded', function () {
+            const clockInInput = document.getElementById('id_clock_in_time');
+            const clockOutInput = document.getElementById('id_clock_out_time');
+            const halfDayCheckbox = document.getElementById('id_is_half_day');
+
+            {% if not selected_employee.hourly_rate %}
+            // Only for fixed employees
+            clockInInput.addEventListener('change', function () {
+                const clockInValue = this.value;
+                if (clockInValue) {
+                    // Parse the time
+                    const [hours, minutes] = clockInValue.split(':').map(Number);
+                    const date = new Date();
+                    date.setHours(hours);
+                    date.setMinutes(minutes);
+                    date.setSeconds(0);
+
+                    // Default is 8 hours for full day, 4 hours for half day if checkbox is checked
+                    let hoursToAdd = halfDayCheckbox.checked ? 4 : 8;
+
+                    // Add the appropriate hours based on Half Day checkbox
+                    date.setHours(date.getHours() + hoursToAdd);
+
+                    // Format back to HH:MM
+                    const hh = String(date.getHours()).padStart(2, '0');
+                    const mm = String(date.getMinutes()).padStart(2, '0');
+
+                    // Set clock out value
+                    clockOutInput.value = `${hh}:${mm}`;
+                }
+            });
+
+            // Optionally, update clock-out time if Half Day checkbox is toggled
+            halfDayCheckbox.addEventListener('change', function () {
+                const clockInValue = clockInInput.value;
+                if (clockInValue) {
+                    // Same logic when checkbox state changes
+                    clockInInput.dispatchEvent(new Event('change'));
+                }
+            });
+            {% endif %}
+        });
+
 </script>
 {% endblock %}

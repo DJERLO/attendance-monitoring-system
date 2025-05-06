@@ -1377,11 +1377,11 @@ def mark_attendance(request, employee_num):
             clock_out_time = form.cleaned_data.get('clock_out_time')
 
             if clock_in_time:
-                dt_in = datetime.combine(date, clock_in_time)
+                dt_in = dt.combine(date, clock_in_time)
                 attendance.clock_in = manila.localize(dt_in)
 
             if clock_out_time:
-                dt_out = datetime.combine(date, clock_out_time)
+                dt_out = dt.combine(date, clock_out_time)
                 attendance.clock_out = manila.localize(dt_out)
 
             try:

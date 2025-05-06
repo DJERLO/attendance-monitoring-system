@@ -51,7 +51,7 @@ urlpatterns = [
     #HR/ADMIN URL's
     path('employee/', views.employee_management, name='employee-list'),  # Employee List URL
     path('employee/<str:employee_number>/', views.employee_details, name='employee-details'),  # Employee Detail URL
-    path('mark-attendance/<str:employee_num>/', views.mark_attendance, name='mark-attendance'),
+    path('employee/<str:employee_num>/mark-attendance', views.mark_attendance, name='mark-attendance'),
     path('leave-request/', views.leave_request_view, name='leave-request'),
 
     path('leave/<int:leave_id>/approve/', views.approve_leave, name='approve_leave'),
