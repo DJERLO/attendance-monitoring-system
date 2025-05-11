@@ -43,13 +43,16 @@
         <!-- Sidebar -->
         {% include 'user/components/sidebar.html' %}
         <!-- Main content area -->
-        <section class="home-section overflow-hidden">
+        <section class="home-section">
             <!-- Toast Container -->
             <nav class="w-100 h-100 me-2 sticky-top">
                 {% include 'user/components/navbar.html' %}
             </nav>
-            {% include 'user/components/breadcrumb.html' %}
-            <div class="row d-flex align-content-center w-100 h-100 mx-auto">
+            <nav class="w-100 h-100 me-2">
+                {% include 'user/components/breadcrumb.html' %}
+            </nav>
+            
+            <div class="row d-flex align-content-center w-100 h-100 me-4">
             {% block page_content %}
                 <!-- Contents appear here dynamically -->
             {% endblock page_content %}

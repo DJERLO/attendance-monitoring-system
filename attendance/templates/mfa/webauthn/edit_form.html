@@ -4,14 +4,13 @@
 {% load allauth %}
 {% load widget_tweaks %}
 {% block head_title %}
-    {% trans "Add Security Key" %}
+    {% trans "Edit Security Key" %}
 {% endblock head_title %}
 {% block page_content %}
-<div class="container py-4">
-    <h1 class="mb-4">{% trans "Add Security Key" %}</h1>
+    <h1 class="mb-4">{% trans "Edit Security Key" %}</h1>
 
-    {% url 'mfa_add_webauthn' as action_url %}
-    <form method="post" action="{{ action_url }}" class="needs-validation" novalidate>
+    {% url 'mfa_edit_webauthn' as action_url %}
+    <form method="post" action="{{ action_url }}">
         {% csrf_token %}
 
         {% for field in form %}
@@ -46,23 +45,10 @@
             {% endif %}
         {% endfor %}
 
-        <button id="mfa_webauthn_add" type="button" class="btn btn-primary">
-            {% trans "Add" %}
-        </button>
+        <div class="d-grid">
+            <button id="mfa_webauthn_edit" type="submit" class="btn btn-primary">
+                {% trans "Save" %}
+            </button>
+        </div>
     </form>
-
-    {% include "mfa/webauthn/snippets/scripts.html" %}
-    {{ js_data|json_script:"js_data" }}
-
-    <script>
-        allauth.webauthn.forms.addForm({
-            ids: {
-                add: "mfa_webauthn_add",
-                passwordless: "{{ form.passwordless.auto_id }}",
-                credential: "{{ form.credential.auto_id }}"
-            },
-            data: JSON.parse(document.getElementById('js_data').textContent)
-        });
-    </script>
-</div>
 {% endblock %}

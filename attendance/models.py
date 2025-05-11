@@ -29,6 +29,10 @@ class WorkHours(models.Model):
     open_time = models.TimeField(default="08:00:00", verbose_name="Opening Time")  # Default opening time
     close_time = models.TimeField(default="17:00:00", verbose_name="Closing Time")  # Default closing time
 
+    class Meta:
+        verbose_name = "Work Hours"
+        verbose_name_plural = "Work Hours"
+
     def can_clock_in(self):
         """Returns True if employees are allowed to clock in, False otherwise."""
         current_time = localtime(now()).time()  # Get current local time
@@ -213,7 +217,11 @@ class FaceImage(models.Model):
     employee = models.ForeignKey(Employee, related_name='face_images', on_delete=models.CASCADE)
     image = models.ImageField(upload_to='known_faces/', max_length=512)
     uploaded_at = models.DateTimeField(default=timezone.now)
-    face_encoding = models.TextField(blank=True, null=True)  # Store face encoding as a JSON string
+    face_encoding = models.TextField(blank=True, null=True)
+    
+    class Meta:
+        verbose_name = "Face Image"
+        verbose_name_plural = "Face Images"
 
     def save(self, *args, **kwargs):
         """Override save method to store face encoding"""
@@ -266,6 +274,10 @@ class ShiftRecord(models.Model):
     # Attendance status
     status = models.CharField(max_length=10, choices=ATTENDANCE_STATUSES, default='ABSENT')
     is_half_day = models.BooleanField(default=False, help_text="If checked, system will record as half-day with actual hours worked.")
+
+    class Meta:
+        verbose_name = "Attendance"
+        verbose_name_plural = "Attendances"
 
     def __str__(self):
         return f"{self.employee.full_name()} Attendance on {self.date}"
@@ -475,6 +487,10 @@ class Camera(models.Model):
     mode = models.CharField(max_length=50, choices=MODE_CHOICES, default='CHECK_IN')
     is_active = models.BooleanField(default=True)
 
+    class Meta:
+        verbose_name = "Camera"
+        verbose_name_plural = "Cameras"
+
     def __str__(self):
         return self.name
     
@@ -546,6 +562,10 @@ class Announcement(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     created_by = models.ForeignKey(Employee, on_delete=models.SET_NULL, null=True, related_name='announcements')
     is_active = models.BooleanField(default=True)  # Optional: for soft deleting/hiding
+
+    class Meta:
+        verbose_name = "Announcement"
+        verbose_name_plural = "Announcements"
 
     def __str__(self):
         return self.title

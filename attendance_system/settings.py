@@ -33,7 +33,14 @@ SECRET_KEY = os.getenv('SECRET_KEY')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', '[::1]', 'https://attendance-monitoring-system-0b887d5c14d0.herokuapp.com/']
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', '[::1]', 'attendance-stclarecollege.com']
+
+# SECURE_SSL_REDIRECT = True  # Redirect all HTTP requests to HTTPS
+# SECURE_HSTS_SECONDS = 3600  # Enable HTTP Strict Transport Security (HSTS) for 1 hour
+# SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+# CSRF_TRUSTED_ORIGINS = [
+#     'https://attendance-stclarecollege.work',
+# ]
 
 # Application definition
 
@@ -46,6 +53,7 @@ INSTALLED_APPS = [
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.sites',
+    'django.contrib.humanize',
     'rangefilter',
     'allauth',
     'allauth.account',

@@ -8,7 +8,7 @@
       <!-- Icon and logo name -->
       <!-- <i class='bx bxl-c-plus-plus icon'></i> -->
       <img class="icon me-2" src="{% static 'img/logo.png' %}" alt="">
-      <div class="logo_name">AMS</div>
+      <div class="logo_name">AMSuite</div>
       <i class='bx bx-menu' id="btn"></i> <!-- Menu button to toggle sidebar -->
     </div>
     <ul class="navigation-list overflow-hidden">
@@ -20,7 +20,7 @@
       </li> -->
       <!-- List of navigation items -->
       <li>
-        <a href="{% url 'dashboard' %}" class="{% if request.path == '/dashboard/' %}active{% endif %}" title="Dashboard">
+        <a href="{% url 'dashboard' %}" class="{% if request.path == '/dashboard/' %}active{% endif %}" data-bs-toggle="tooltip" data-bs-placement="right" title="Dashboard">
           <i class='bx bx-grid-alt'></i>
           <span class="links_name">Dashboard</span>
         </a>
@@ -28,7 +28,7 @@
       </li>
       <!-- Additional navigation items -->
       <li>
-        <a href="{% url 'profile' %}" class="{% if request.path == '/profile/' %}active{% endif %}" title="Profile">
+        <a href="{% url 'profile' %}" class="{% if request.path == '/account/' %}active{% endif %}" data-bs-toggle="tooltip" data-bs-placement="right" title="Profile">
           <i class='bx bx-user' ></i>
           <span class="links_name">Profile</span>
         </a>
@@ -36,7 +36,7 @@
       </li>
       {% if not user|has_group:"HR ADMIN" %}
       <li>
-        <a href="{% url 'attendance-sheet-by-date' month=current_month_year|slice:":-5" year=current_month_year|slice:"-4:" %}"
+        <a href="{% url 'attendance-sheet-by-date' month=current_month_year|slice:":-5" year=current_month_year|slice:"-4:" %}" data-bs-toggle="tooltip" data-bs-placement="right" title="Attendance Sheet"
           class="{% if current_path %}active{% endif %}"
           title="Attendance Sheet">
           <i class='bx bxs-spreadsheet'></i>
@@ -46,7 +46,7 @@
       </li>
       {% endif %}
       <li>
-        <a href="{% url 'event-calendar' %}" class="{% if request.path == '/calendar' %}active{% endif %}" title="Calendar">
+        <a href="{% url 'event-calendar' %}" class="{% if request.path == '/calendar' %}active{% endif %}" data-bs-toggle="tooltip" data-bs-placement="right" title="Calendar">
           <i class='bx bxs-calendar' ></i>
           <span class="links_name">Calendar</span>
         </a>
@@ -54,7 +54,7 @@
       </li>
       {% if user|has_group:"HR ADMIN" %}
       <li>
-        <a href="{% url 'employee-list' %}" title="Employees">
+        <a href="{% url 'employee-list' %}" class="{% if request.path == '/employee/' %}active{% endif %}" data-bs-toggle="tooltip" data-bs-placement="right" title="Employees">
           <i class="fa-solid fa-users"></i>
           <span class="links_name">Employees</span>
         </a>
@@ -63,7 +63,7 @@
       {% endif %}
       {% if user|has_group:"HR ADMIN" %}
       <li>
-        <a href="{% url 'leave-request' %}" title="Leave Applications">
+        <a href="{% url 'leave-request' %}" class="{% if request.path == '/leave-request/' %}active{% endif %}" data-bs-toggle="tooltip" data-bs-placement="right" title="Leave Applications">
           <i class='bx bxs-file'></i>
           <span class="links_name">Leave Applications</span>
         </a>
@@ -71,7 +71,7 @@
       </li>
       {% endif %}
       <li>
-        <a href="{% url 'announcement_board' %}" title="Announcements">
+        <a href="{% url 'announcement_board' %}" class="{% if request.path == '/announcements/' %}active{% endif %}" data-bs-toggle="tooltip" data-bs-placement="right" title="Announcements">
           <i class='bx bxs-megaphone'></i>
           <span class="links_name">Announcements</span>
         </a>
@@ -79,7 +79,7 @@
       </li>
       {% if user.is_staff %}
       <li>
-        <a target="_blank" href="/admin/" title="Admin Panel">
+        <a target="_blank" href="/admin/" data-bs-toggle="tooltip" data-bs-placement="right" title="Admin Panel">
           <i class='bx bxs-book-content'></i>
           <span class="links_name">Admin Panel</span>
         </a>
@@ -89,7 +89,7 @@
       <!-- Profile section -->
       <li class="profile">
         <div class="profile-details">
-          <!--<img src="profile.jpg" alt="profileImg">-->
+          <img class="icon" src="{% static 'img/logo.png' %}" alt="">
           <div class="name_job">
             <div class="name">St. Clare College</div>
             <div class="job">@stclarecollege</div>
@@ -99,3 +99,9 @@
       </li>
     </ul>
   </div>
+  <script>
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+      return new bootstrap.Tooltip(tooltipTriggerEl)
+    })
+  </script>

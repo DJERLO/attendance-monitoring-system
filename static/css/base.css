@@ -315,6 +315,9 @@ img.icon{
   width: 50px; /* Shrinks logout button */
   background: none;
 }
+.sidebar.open .profile #log_out:hover {
+  background: #e60633;
+}
 .sidebar.open ~ .home-section {
   left: 250px; /* Adjusts home section to sidebar width */
   width: calc(100% - 250px);

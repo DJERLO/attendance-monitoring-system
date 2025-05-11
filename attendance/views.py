@@ -1356,9 +1356,13 @@ def employee_management(request):
 
 @login_required
 def mark_attendance(request, employee_num):
+    user = request.user  # Get the logged-in user
     employee = request.user.employee
     notifications = Notification.objects.filter(employee__user=request.user).order_by('-created_at')[:20]
     selected_employee = Employee.objects.get(employee_number=employee_num)
+
+    if not user.groups.filter(name='HR ADMIN').exists():
+        raise PermissionDenied  # Ensures a 403 Forbidden response
     
     if request.method == 'POST':
         form = AttendanceForm(request.POST)
@@ -1402,8 +1406,13 @@ def mark_attendance(request, employee_num):
     
 #File Request Leave
 def request_leave_view(request):
+    user = request.user  # Get the logged-in user
     notifications = Notification.objects.filter(employee__user=request.user).order_by('-created_at')[:20]
     employee = request.user.employee
+
+    if not user.groups.filter(name='HR ADMIN').exists():
+        raise PermissionDenied  # Ensures a 403 Forbidden response
+
     if request.method == 'POST':
         form = LeaveRequestForm(request.POST, request.FILES)
         if form.is_valid():

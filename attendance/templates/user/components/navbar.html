@@ -1,12 +1,12 @@
 {% load i18n %}
 {% load static %}
+{% load humanize %}
 <style>
     .profile {
         overflow: hidden; /* Prevents overflow */
         display: inline-flex;
         flex-direction: column;
         flex-wrap: nowrap;
-        align-items: center;
         justify-content: center;
         border-radius: 5px; /* Optional: rounded corners */
     }
@@ -51,7 +51,7 @@
 </style>
 
 <!-- Navbar with Real-Time Clock -->
-<nav class="navbar position-sticky sticky-top navbar-expand-lg navbar-dark bg-dark mb-4 top-nav d-block">
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4 top-nav d-block">
     <div class="container-fluid">
         <div class="row w-100 h-100">
             <div class="row dropdown d-inline-flex text-wrap flex-row flex-nowrap align-self-stretch mx-3">
@@ -65,7 +65,7 @@
                 <div class="col-8 flex-grow-1">
                     <div class="col-5 flex-grow-1" style="flex: 0 0 75%;">
                         <div class="me-4 align-self-center">
-                            <a class="nav_title navbar-brand me-auto text-truncate" href="#">{% trans "Welcome" %} {{ user.username }}!</a>
+                            <a class="nav_title navbar-brand me-auto text-truncate" href="{% url 'profile'%}">{% trans "Welcome" %} {{ user.username }}!</a>
                         </div>
                         <div class="col-5 flex-grow-1 align-self-center">
                             <span id="currentTime" class="text-nowrap text-white text-end">
@@ -128,7 +128,7 @@
                         data-status="{% if not notif.is_read %}unread{% else %}read{% endif %}"
                         onclick="markAsRead({{ notif.id }}, this)">
                         {{ notif.message }}
-                        <br><small class="text-muted">{{ notif.created_at|date:"M d, Y H:i A" }}</small>
+                        <br><small class="text-muted">{{ notif.created_at|naturaltime }}</small>
                         <button class="btn btn-sm btn-danger justify-content-end" onclick="deleteNotification({{ notif.id }}, this)">
                             <i class="bi bi-trash"></i>
                         </button>
