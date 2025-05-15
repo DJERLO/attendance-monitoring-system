@@ -90,8 +90,10 @@ class Employee(models.Model):
             else:
                 self.user.is_staff = False
 
-            if "TEACHING" in self.group.name.upper():
+            if "TEACHING" in self.group.name.upper() and not "NON-TEACHING" in self.group.name.upper():
                 self.hourly_rate = True
+            else:
+                self.hourly_rate = False
                 
             # Sync User's Groups and Permissions
             self.user.groups.set([self.group])  # Ensure user is assigned to the correct group
@@ -355,73 +357,82 @@ class ShiftRecord(models.Model):
         
         today = timezone.localdate()
 
-        # Check if the date is a holiday
-        if self.is_holiday(self.date):
-            self.status = 'HOLIDAY'
-            self.clock_in = None
-            self.clock_out = None
-            super().save(*args, **kwargs)
-            
-        # Get work hours from DB or use fallback defaults
-        work_hours = WorkHours.objects.first()
-        if not work_hours:
-            opening_time = timezone.datetime.combine(today, time(8, 0))
-            lunch_start = timezone.datetime.combine(today, time(12, 0))
-            lunch_end = timezone.datetime.combine(today, time(13, 0))
-            closing_time = timezone.datetime.combine(today, time(18, 0))  # 6:00 PM
+        # Check if this is a old record needed to be updated
+        if ShiftRecord.objects.filter(pk=self.pk).exists():
+            # If the record already exists, update the clock_in and clock_out times
+            existing_record = ShiftRecord.objects.get(pk=self.pk)
+            existing_record.clock_in = self.clock_in
+            existing_record.clock_out = self.clock_out
+        
+        # If the record is new continue with the rest of the logic
         else:
-            opening_time = timezone.datetime.combine(today, work_hours.open_time)
-            lunch_start = timezone.datetime.combine(today, time(12, 0))
-            lunch_end = timezone.datetime.combine(today, time(13, 0))
-            closing_time = timezone.datetime.combine(today, work_hours.close_time)
-
-        # Ensure time is timezone-aware
-        opening_time = timezone.make_aware(opening_time, timezone.get_current_timezone())
-        lunch_start = timezone.make_aware(lunch_start, timezone.get_current_timezone())
-        lunch_end = timezone.make_aware(lunch_end, timezone.get_current_timezone())
-        closing_time = timezone.make_aware(closing_time, timezone.get_current_timezone())
-
-        # Define early and grace period thresholds
-        early_threshold = opening_time - timedelta(hours=2)  # Can clock in up to 2 hours early
-        grace_period = opening_time + timedelta(minutes=5)  # 5-minute grace period for "Present"
-
-        if self.clock_in:
-            # Ensure clock_in is timezone-aware
-            if timezone.is_naive(self.clock_in):
-                self.clock_in = timezone.make_aware(self.clock_in)
-
+            # Check if the date is a holiday
+            if self.is_holiday(self.date):
+                self.status = 'HOLIDAY'
+                self.clock_in = None
+                self.clock_out = None
+                super().save(*args, **kwargs)
                 
-            # 🛠️ NEW: Only apply auto clock-out if employee is NOT hourly
-            if not self.employee.hourly_rate:
-                # If Half-day is checked count only 4 hours else 8 hours
-                if not self.is_half_day:
-                    auto_clock_out = self.clock_in + timedelta(hours=7)
+            # Get work hours from DB or use fallback defaults
+            work_hours = WorkHours.objects.first()
+            if not work_hours:
+                opening_time = timezone.datetime.combine(today, time(8, 0))
+                lunch_start = timezone.datetime.combine(today, time(12, 0))
+                lunch_end = timezone.datetime.combine(today, time(13, 0))
+                closing_time = timezone.datetime.combine(today, time(18, 0))  # 6:00 PM
+            else:
+                opening_time = timezone.datetime.combine(today, work_hours.open_time)
+                lunch_start = timezone.datetime.combine(today, time(12, 0))
+                lunch_end = timezone.datetime.combine(today, time(13, 0))
+                closing_time = timezone.datetime.combine(today, work_hours.close_time)
 
-                if self.is_half_day:
-                    auto_clock_out = self.clock_in + timedelta(hours=4)
+            # Ensure time is timezone-aware
+            opening_time = timezone.make_aware(opening_time, timezone.get_current_timezone())
+            lunch_start = timezone.make_aware(lunch_start, timezone.get_current_timezone())
+            lunch_end = timezone.make_aware(lunch_end, timezone.get_current_timezone())
+            closing_time = timezone.make_aware(closing_time, timezone.get_current_timezone())
 
-                # Check if clock_in is within the allowed range
-                if early_threshold <= self.clock_in < opening_time:
-                    self.status = 'EARLY'
-                elif opening_time <= self.clock_in <= grace_period:
-                    self.status = 'PRESENT'
-                elif self.clock_in > grace_period:
-                    self.status = 'LATE'
-                else:
-                    self.status = 'ABSENT'
+            # Define early and grace period thresholds
+            early_threshold = opening_time - timedelta(hours=2)  # Can clock in up to 2 hours early
+            grace_period = opening_time + timedelta(minutes=5)  # 5-minute grace period for "Present"
 
-                # Add lunch break if applicable
-                if not self.is_half_day and self.clock_in < lunch_start and auto_clock_out >= lunch_start:
-                    auto_clock_out += timedelta(hours=1)
+            if self.clock_in:
+                # Ensure clock_in is timezone-aware
+                if timezone.is_naive(self.clock_in):
+                    self.clock_in = timezone.make_aware(self.clock_in)
 
-                # Limit to closing time
-                self.clock_out = min(auto_clock_out, closing_time)
-            
-            # Allow manual clock_out for hourly employees
-            if self.employee.hourly_rate:
-                # ✅ Hourly: HR input for status and allow manual clock_out if given
-                self.status = self.status or 'PRESENT'  # Default fallback if HR forgets
-                self.clock_out = self.clock_out or None  # Optional, in case auto is undesired
+                    
+                # 🛠️ NEW: Only apply auto clock-out if employee is NOT hourly
+                if not self.employee.hourly_rate:
+                    # If Half-day is checked count only 4 hours else 8 hours
+                    if not self.is_half_day:
+                        auto_clock_out = self.clock_in + timedelta(hours=7)
+
+                    if self.is_half_day:
+                        auto_clock_out = self.clock_in + timedelta(hours=4)
+
+                    # Check if clock_in is within the allowed range
+                    if early_threshold <= self.clock_in < opening_time:
+                        self.status = 'EARLY'
+                    elif opening_time <= self.clock_in <= grace_period:
+                        self.status = 'PRESENT'
+                    elif self.clock_in > grace_period:
+                        self.status = 'LATE'
+                    else:
+                        self.status = 'ABSENT'
+
+                    # Add lunch break if applicable
+                    if not self.is_half_day and self.clock_in < lunch_start and auto_clock_out >= lunch_start:
+                        auto_clock_out += timedelta(hours=1)
+
+                    # Limit to closing time
+                    self.clock_out = min(auto_clock_out, closing_time)
+                
+                # Allow manual clock_out for hourly employees
+                if self.employee.hourly_rate:
+                    # ✅ Hourly: HR input for status and allow manual clock_out if given
+                    self.status = self.status or 'PRESENT'  # Default fallback if HR forgets
+                    self.clock_out = self.clock_out or None  # Optional, in case auto is undesired
 
 
         super().save(*args, **kwargs)
@@ -552,7 +563,9 @@ class Notification(models.Model):
     is_read = models.BooleanField(default=False)
 
     def __str__(self):
-        return f"Notification for {self.employee.full_name()} - {self.created_at}"
+        truncated = (self.message[:30] + '...') if len(self.message) > 30 else self.message
+        timestamp = self.created_at.strftime('%b %d, %Y %I:%M %p')
+        return f"{self.employee.full_name()} • {truncated} • {timestamp}"
 
 # Model to store announcements for employees (HR/Admin)
 # This model is used to store announcements for employees  

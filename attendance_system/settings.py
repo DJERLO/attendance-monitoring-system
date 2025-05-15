@@ -33,14 +33,12 @@ SECRET_KEY = os.getenv('SECRET_KEY')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', '[::1]', 'attendance-stclarecollege.com']
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', '[::1]', 'attendance-stclarecollege.work']
 
-# SECURE_SSL_REDIRECT = True  # Redirect all HTTP requests to HTTPS
-# SECURE_HSTS_SECONDS = 3600  # Enable HTTP Strict Transport Security (HSTS) for 1 hour
-# SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
-# CSRF_TRUSTED_ORIGINS = [
-#     'https://attendance-stclarecollege.work',
-# ]
+
+CSRF_TRUSTED_ORIGINS = [
+    'https://attendance-stclarecollege.work',
+]
 
 # Application definition
 
@@ -100,7 +98,6 @@ JAZZMIN_SETTINGS = {
     "welcome_sign": "Welcome to the St. Clare College AMS Admin Portal",
 
     # Copyright on the footer
-    "copyright": "BSCS 4D",
 
     # List of model admins to search from the search bar, search bar omitted if excluded
     # If you want to use a single search field you dont need to use a list, you can use a simple string 
@@ -513,7 +510,7 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')  # Absolute path to the media direc
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Email Server
-EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True

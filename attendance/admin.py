@@ -5,14 +5,12 @@ from django.http import HttpResponse
 from django.utils.html import mark_safe
 from django.db.models import Value, CharField
 from django.db.models.functions import Concat
-from django.contrib.auth.models import User
+from django.contrib.auth.models import User, Group, Permission
 from django.contrib.auth.admin import UserAdmin as DefaultUserAdmin
 from django.urls import reverse
 from django.utils.html import format_html
 from django.contrib import messages
-from rangefilter.filters import (
-    DateRangeFilterBuilder
-)
+from rangefilter.filters import (DateRangeFilterBuilder)
 
 from .models import Announcement, Camera, EmergencyContact, Employee, FaceImage, LeaveRequest, Notification, ShiftRecord, WorkHours, Event
 
@@ -31,7 +29,16 @@ class WorkHoursAdmin(admin.ModelAdmin):
     def has_add_permission(self, request):
         """Prevents adding a new WorkHours instance if one already exists."""
         return not WorkHours.objects.exists()  # Disable "Add" if record exists
-    
+
+class UserInline(admin.StackedInline):  # or TabularInline for table layout
+    model = User
+    extra = 0  # Don't show extra blank forms
+    can_delete = False  # Prevent removing it
+    verbose_name_plural = "User Account Info"
+    fields = (
+        'username', 'password', 'first_name', 'last_name',
+        'email', 'is_active', 'is_superuser', 'is_staff',
+    )
 
 # Inline Emergency Contact model
 class EmergencyContactInline(admin.StackedInline):  # or TabularInline for table layout
@@ -54,7 +61,6 @@ class EmployeeInline(admin.StackedInline):
         'email', 'contact_number', 'group',
         'employment_status', 'hourly_rate', 'profile_image', 'profile_image_preview'
     )
-    inlines = [EmergencyContactInline]
 
     def profile_image_preview(self, obj):
         if obj.profile_image:
@@ -64,8 +70,51 @@ class EmployeeInline(admin.StackedInline):
         return "No image uploaded"
     profile_image_preview.short_description = "Profile Preview"
 
+    # Dynamically include or exclude the 'group' field based on the user’s group
+    def get_fields(self, request, obj=None):
+        fields = list(super().get_fields(request, obj))  # Get the default fields
+        if not request.user.groups.filter(name='ADMIN').exists():
+            if 'group' in fields:
+                fields.remove('group')  # Remove the 'group' field for non-admin users
+        return fields
+
 class EmployeeAdmin(admin.ModelAdmin):
     inlines = [EmergencyContactInline]
+     # Fields that can be searched in the admin panel
+    search_fields = ["first_name__icontains", "last_name__icontains", "email__icontains", "employee_number__icontains"]
+
+    # Fields to filter on in the admin panel
+    list_filter = ["user__is_active", "employee_number", "employment_status", "group"]
+
+    # Pagination settings for list view
+    list_per_page = 20  # Limit number of records per page
+
+    readonly_fields = ('profile_image_preview',)
+
+    # List of fields displayed in the admin list view
+    list_display = [
+        "profile_image_display", 
+        "full_name", 
+        "group",
+        'employment_status', 
+        "total_hours_display",  
+        "average_hours_display"
+    ]
+
+    list_display_links = ["profile_image_display"]  # Make "profile_image_display" clickable
+
+    # Restrict Non-Admin users from editing the group field in the list view
+    def get_list_editable(self, request):
+        if request.user.groups.filter(name='ADMIN').exists():
+            return ['group', 'employment_status']
+        if request.user.groups.filter(name__icontains='HR').exists():
+            return ['employment_status']
+        return []
+
+    # Override the changelist_view to dynamically set list_editable
+    def changelist_view(self, request, extra_context=None):
+        self.list_editable = self.get_list_editable(request)
+        return super().changelist_view(request, extra_context)
 
     # Fieldsets
     fieldsets = (
@@ -83,28 +132,21 @@ class EmployeeAdmin(admin.ModelAdmin):
         }),
     )
 
-    readonly_fields = ('profile_image_preview',)
-
-    # List of fields displayed in the admin list view
-    list_display = [
-        "profile_image_display", 
-        "full_name", 
-        "group", 
-        "total_hours_display",  
-        "average_hours_display"
-    ]
     
-    list_display_links = ["profile_image_display"]  # Make "profile_image_display" clickable
-    list_editable = ['group']
+    # Restrict Group Field in the Edit Form, Only ADMIN can edit
+    def get_readonly_fields(self, request, obj=None):
+        readonly = list(super().get_readonly_fields(request, obj))
+        if not request.user.groups.filter(name='ADMIN').exists():
+            readonly.append('group')
+        return readonly
     
-    # Fields that can be searched in the admin panel
-    search_fields = ["first_name__icontains", "last_name__icontains", "email__icontains", "employee_number__icontains"]
-
-    # Fields to filter on in the admin panel
-    list_filter = ["user__is_active", "employment_status", "group"]
-
-    # Pagination settings for list view
-    list_per_page = 20  # Limit number of records per page
+    # Restrict HR users from adding employees directly in the Employee Admin
+    def has_add_permission(self, request):
+        # HR ADMIN and ADMIN users cannot add employees directly in the EmployeeAdmin
+        if request.user.groups.filter(name__icontains='ADMIN').exists():
+            return False
+        return super().has_add_permission(request)
+    
 
     # Making the profile image clickable for easier access
     def profile_image_display(self, obj):
@@ -297,6 +339,7 @@ class CameraAdmin(admin.ModelAdmin):
     list_display = ("name", "mode", "camera_url", "is_active", 'snapshot')
     list_filter = ("mode", "is_active")
     search_fields = ("name", "camera_url")
+    list_editable = ['mode' , 'is_active']
 
     def snapshot(self, obj):
         return mark_safe(f'<img src="/snapshot/{obj.id}/" width="300" height="200" />')
@@ -311,8 +354,36 @@ class LeaveRequestAdmin(admin.ModelAdmin):
     search_fields = ("employee__first_name", "employee__last_name", "employee__employee_number")
     date_hierarchy = "start_date"
     autocomplete_fields = ["employee", "approved_by"]
+    list_editable = ['status']
+    readonly_fields = ("created_at", "updated_at")
 
-    # 
+    def get_fieldsets(self, request, obj=None):
+        fieldsets = [
+            ("Leave Details", {
+                "fields": ("employee", "start_date", "end_date", "reason", "attachment")
+            }),
+            ("Status Information", {
+                "fields": ("status",),
+            }),
+            ("Timestamps", {
+                "fields": ("created_at", "updated_at"),
+                "classes": ("collapse",),
+            }),
+        ]
+
+        # Only show 'approved_by' to superusers
+        if request.user.is_superuser:
+            fieldsets[1][1]["fields"] += ("approved_by",)
+        return fieldsets
+
+    def get_readonly_fields(self, request, obj=None):
+        readonly = list(super().get_readonly_fields(request, obj))
+        # Non-superusers should not be able to edit 'approved_by'
+        if not request.user.is_superuser:
+            readonly.append('approved_by')
+        return readonly
+   
+
     def save_model(self, request, obj, form, change):
         """
         Override the save_model method to ensure that the `approved_by` field is automatically populated
@@ -372,3 +443,79 @@ admin.site.unregister(User)
 @admin.register(User)
 class CustomUserAdmin(DefaultUserAdmin):
     inlines = [EmployeeInline]
+
+    # Exclude superusers from the list view
+    def get_queryset(self, request):
+        queryset = super().get_queryset(request)
+        if not request.user.is_superuser:
+            # Exclude superusers for non-superusers
+            queryset = queryset.exclude(is_superuser=True)
+        return queryset
+
+    # Make 'is_superuser' read-only for non-superusers
+    def get_readonly_fields(self, request, obj=None):
+        readonly_fields = super().get_readonly_fields(request, obj)
+        if obj and not obj.is_superuser:
+            # If the user is not a superuser, make 'is_superuser' read-only
+            readonly_fields = readonly_fields + ('is_superuser',)
+        return readonly_fields
+
+    # Optionally, if you want to prevent them from changing their own user details (like the 'is_superuser' field):
+    def has_change_permission(self, request, obj=None):
+        if obj and obj.is_superuser:
+            return False  # Prevent superusers from editing their own details
+        return super().has_change_permission(request, obj)
+
+    # Optionally, if you want to restrict the 'is_superuser' field from being changed at all:
+    def formfield_for_dbfield(self, db_field, request, **kwargs):
+        if db_field.name == "is_superuser":
+            if request.user.is_superuser:
+                kwargs['disabled'] = True  # Disable the is_superuser field
+        return super().formfield_for_dbfield(db_field, request, **kwargs)
+    
+    # Exclude specific fields from the admin form
+    fieldsets = (
+        (None, {
+            'fields': (
+                'username', 
+                'first_name', 
+                'last_name', 
+                'email', 
+                'password', 
+                # Add any other fields you want to keep here
+            ),
+        }),
+        ('Status', {
+            'fields': (
+                'is_active', 
+                'is_superuser',  # Optional: Leave it as readonly if you want it visible but non-editable
+            ),
+        }),
+    )
+    
+    # Exclude 'is_staff', 'groups', and 'user_permissions' for non-superusers
+    def get_fieldsets(self, request, obj=None):
+        fieldsets = super().get_fieldsets(request, obj)
+        
+        # If the user is a superuser, include the excluded fields in the form
+        if request.user.is_superuser:
+            # Add 'is_staff', 'groups', and 'user_permissions' back for superusers
+            fieldsets = list(fieldsets)
+            fieldsets.append(('Permissions', {
+                'fields': ('is_staff', 'groups', 'user_permissions')
+            }))
+        
+        return fieldsets
+    
+class GroupAdmin(admin.ModelAdmin):
+    list_display = ['name']
+    search_fields = ('name', 'permissions__name')
+    list_filter = ('permissions',)
+    filter_horizontal = ('permissions',)
+    ordering = ('name',)
+
+# Unregister the default Group admin
+admin.site.unregister(Group)
+
+# Register the new customized Group admin
+admin.site.register(Group, GroupAdmin)

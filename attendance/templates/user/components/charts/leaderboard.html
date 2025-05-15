@@ -1,4 +1,5 @@
 {% load humanize %}
+{% load group_filter %}
 <div class="card">
     <div class="card-header text-center text-dark">
         <p class="card-title">🏆 Top 10 Employees - This Month</p>
@@ -15,7 +16,7 @@
             </thead>
             <tbody>
                 {% for employee in top_employees %}
-                <tr onclick="window.location=`{% url 'employee-details' employee.employee_number %}`">
+                <tr {% if user|has_group:"HR ADMIN"  %} onclick="window.location=`{% url 'employee-details' employee.employee_number %}`"{% endif %}>
                     <td>{{ forloop.counter|ordinal }}</td>
                     <td class="ratio ratio-1x1" style="width: 50px; height: 50px;"><img src="{{employee.profile_image.url}}"></td>
                     <td>{{ employee.full_name }}</td>

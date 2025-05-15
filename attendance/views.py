@@ -919,6 +919,109 @@ def dashboard(request):
             "LATE": today_summary["LATE"],
             "ABSENT": absent_count,
         }
+        #For Calendar
+        current_year = timezone.now().year
+        url = f"https://date.nager.at/api/v3/PublicHolidays/{current_year}/PH"
+
+        try:
+            response = requests.get(url, timeout=5)  # Added timeout to prevent hanging requests
+            response.raise_for_status()  # Raises an error for HTTP codes 4xx/5xx
+            holidays = response.json()
+            
+        except requests.RequestException as e:
+            holidays = []  # If API fails, return an empty list
+            print(f"Error fetching holidays: {e}")  # Log error for debugging
+            
+        
+        # Get all events from the database
+        events = Event.objects.all()
+        all_events = []
+
+        # Define color mapping for each type of holiday
+        holiday_type_colors = {
+            'Public': 'blue',
+            'Bank': 'green',
+            'School': 'yellow',
+            'Authorities': 'orange',
+            'Optional': 'purple',
+            'Observance': 'gray',
+        }
+
+        # Convert holidays to FullCalendar format (blue color)
+        for holiday in holidays:
+
+            holiday_type = holiday.get("types", [])  # Get types (may be empty)
+            # Set the color based on the first type (if available)
+            color = holiday_type_colors.get(holiday_type[0], 'blue') if holiday_type else 'blue'
+
+            all_events.append({
+                "title": holiday["localName"],  # Holiday name
+                "start": holiday["date"],  # YYYY-MM-DD
+                "description": holiday["name"],
+                'startEditable': False,
+                "allDay": True,
+                "color": color,  # Holidays are blue
+                "extendedProps": {
+                    "holidayType": holiday_type[0] if holiday_type else "Unknown",  # Add holiday type
+                }
+            })
+        
+
+        # Convert user-created events
+        for event in events:
+            # Check if the event has a recurring pattern (days_of_week)
+            if event.days_of_week:
+                if event.url is not None:
+                    all_events.append({
+                        "id": event.id,
+                        "daysOfWeek": event.days_of_week,  # List of days the event occurs
+                        "title": event.title,
+                        'startEditable': False,
+                        "startRecur": event.start.isoformat(),
+                        "endRecur": event.end.isoformat(),
+                        "description": event.description,
+                        "url": event.url,
+                        "allDay": event.all_day,
+                        "color": "red",  # User events are red
+                    })
+                else:
+                    all_events.append({
+                        "id": event.id,
+                        "daysOfWeek": event.days_of_week,  # List of days the event occurs
+                        "title": event.title,
+                        'startEditable': False,
+                        "startRecur": event.start.isoformat(),
+                        "endRecur": event.end.isoformat(),
+                        "description": event.description,
+                        "allDay": event.all_day,
+                        "color": "red",  # User events are red
+                    })
+                
+            if not event.days_of_week:
+                if event.url is not None:
+                    all_events.append({
+                        "id": event.id,
+                        "title": event.title,
+                        'startEditable': False,
+                        "start": event.start.isoformat(),
+                        "end": event.end.isoformat(),
+                        "description": event.description,
+                        "url": event.url,
+                        "allDay": event.all_day,
+                        "color": "red",  # User events are red
+                    })
+                else:
+                    all_events.append({
+                        "id": event.id,
+                        "title": event.title,
+                        'startEditable': False,
+                        "start": event.start.isoformat(),
+                        "end": event.end.isoformat(),
+                        "description": event.description,
+                        "allDay": event.all_day,
+                        "color": "red",  # User events are red
+                    })
+
 
         return render(request, 'user/dashboard.html', {
             'user': user,
@@ -942,7 +1045,8 @@ def dashboard(request):
             'active_today_percentage': active_today_percentage,
             'active_today_trend': active_today_trend,
             'timemode': timemode,
-            'active_leave': active_leave
+            'active_leave': active_leave,
+            'events': json.dumps(all_events)
         })
 
     except Employee.DoesNotExist:
@@ -1410,9 +1514,6 @@ def request_leave_view(request):
     notifications = Notification.objects.filter(employee__user=request.user).order_by('-created_at')[:20]
     employee = request.user.employee
 
-    if not user.groups.filter(name='HR ADMIN').exists():
-        raise PermissionDenied  # Ensures a 403 Forbidden response
-
     if request.method == 'POST':
         form = LeaveRequestForm(request.POST, request.FILES)
         if form.is_valid():
@@ -1464,12 +1565,17 @@ def employee_details(request, employee_number):
         employee_profile = get_object_or_404(Employee, employee_number=employee_number)  # Get the employee profile by employee_number
         attendance_records = ShiftRecord.objects.filter(employee=employee_profile).order_by('-date')
 
+        current_month = dt.now().month
+        current_year = dt.now().year
+
         return render(request, 'user/employee_profile.html', {
             'user': user,
             'employee': employee,
             'employee_profile': employee_profile,
             'attendance_records': attendance_records,
             'notifications': notifications,
+            'current_month': current_month,
+            'current_year': current_year,
         })
     
     except Employee.DoesNotExist:

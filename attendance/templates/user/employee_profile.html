@@ -15,6 +15,7 @@
                 <div class="card-body text-center">
                     <h4 class="card-title">{{ employee_profile.first_name }} {% if employee_profile.middle_name %}{{ employee_profile.middle_name }}{% endif %} {{ employee_profile.last_name }}</h4>
                     <p class="card-text">{{ employee_profile.employee_number }}</p>
+                    <a class="btn btn-primary" href="{% url 'attendance-sheet-by-employee' employee_profile.employee_number current_month current_year  %}">View Attendance Sheet</a>
                 </div>
             </div>
         </div>

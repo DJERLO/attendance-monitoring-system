@@ -60,3 +60,5 @@ attendance/known_faces/*
 dlib/
 
 erd.dot
+web.config
+.well-known

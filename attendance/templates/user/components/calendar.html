@@ -71,10 +71,10 @@
         }
     </style>
 </head>
-<body>
-    <div class="container-fluid">
-        <div id="calendar"></div>
-    </div>
+<section class="container-fluid d-flex flex-column flex-shrink-1 w-100">
+
+    <div class="w-100" id="calendar"></div>
+
 
     <!-- Modal for Event Details -->
     <div class="modal fade" id="eventModal" tabindex="-2">
@@ -121,11 +121,15 @@
             var calendar = new FullCalendar.Calendar(calendarEl, {
                 themeSystem: 'bootstrap5',
                 initialView: 'dayGridMonth', // Month view
+                nowIndicator: true, // Show current date indicator
                 // Toolbar configuration
                 headerToolbar: {
-                    left: 'prev timeGridDay timeGridWeek dayGridMonth',        // Navigation buttons
-                    center: 'title',                                            // Title in the center
-                    right: 'today listWeek listYear next'                       // List Buttons
+                    left: 'prev listWeek',                          // Previous buttons
+                    center: 'title',     // Title in the center
+                    right: 'listYear next'                          // Next Buttons
+                },
+                footerToolbar: {       
+                    center: 'today timeGridDay timeGridWeek dayGridMonth',                                            // Title in the center
                 },
                 views: {
                     // Default views
@@ -142,13 +146,12 @@
                         buttonText: 'Day'
                     },
                     listWeek: {
-                        buttonText: 'ListWeek'
+                        buttonText: 'WeekList'
                     },
 
                     listYear: {
                         type: 'list',
-                        duration: { days: 365 },
-                        buttonText: 'ListYear'
+                        buttonText: 'YearList'
                     }
                 },
                 selectable: {% if user|has_group:"HR ADMIN" %} true {% else %} false {% endif %}, // Allow selection of dates for non-staff users
@@ -318,5 +321,5 @@
             calendar.render();
         });
     </script>
-</body>
+</section>
 {% endblock %}

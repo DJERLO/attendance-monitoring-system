@@ -92,3 +92,6 @@ class AttendanceForm(forms.ModelForm):
             self.fields['clock_in_time'].initial = self.instance.clock_in.time()
         if self.instance and self.instance.clock_out:
             self.fields['clock_out_time'].initial = self.instance.clock_out.time()
+        
+        # Add status attribute (not a form field)
+        self.status = "PRESENT"

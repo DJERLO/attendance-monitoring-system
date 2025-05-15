@@ -7,6 +7,7 @@ from django.dispatch import receiver
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync, sync_to_async
 from django.utils.timezone import localtime
+from django.utils import timezone
 from django.core.cache import cache
 from attendance.recognize_faces import load_known_faces
 from .models import Announcement, Employee, FaceImage, LeaveRequest, ShiftRecord, Notification
@@ -52,16 +53,18 @@ def create_clockin_notification(sender, instance, created, **kwargs):
     
     if created and instance.clock_in:
         # Save the notification
+        local_clock_in = timezone.localtime(instance.clock_in)
         notification = Notification.objects.create(
             employee=instance.employee,
-            message=f"You have clocked in at {instance.clock_in.strftime('%I:%M %p on %B %d, %Y')}."
+            message=f"You have clocked in at {local_clock_in.strftime('%I:%M %p on %B %d, %Y')}."
         )
     
     if created and instance.clock_out:
         # Save the notification
+        local_clock_out = timezone.localtime(instance.clock_out)
         notification = Notification.objects.create(
             employee=instance.employee,
-            message=f"You have clocked out at {instance.clock_out.strftime('%I:%M %p on %B %d, %Y')}."
+            message=f"You have clocked out at {local_clock_out.strftime('%I:%M %p on %B %d, %Y')}."
         )
 
 # Store original status before update
