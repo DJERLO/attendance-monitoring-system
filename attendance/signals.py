@@ -51,20 +51,13 @@ def send_notification_realtime(sender, instance, created, **kwargs):
 @receiver(post_save, sender=ShiftRecord)
 def create_clockin_notification(sender, instance, created, **kwargs):
     
-    if created and instance.clock_in:
-        # Save the notification
+    if created and instance.clock_in and instance.clock_out:
+        # Send notification to that employee when attendance is completed
         local_clock_in = timezone.localtime(instance.clock_in)
-        notification = Notification.objects.create(
-            employee=instance.employee,
-            message=f"You have clocked in at {local_clock_in.strftime('%I:%M %p on %B %d, %Y')}."
-        )
-    
-    if created and instance.clock_out:
-        # Save the notification
         local_clock_out = timezone.localtime(instance.clock_out)
         notification = Notification.objects.create(
             employee=instance.employee,
-            message=f"You have clocked out at {local_clock_out.strftime('%I:%M %p on %B %d, %Y')}."
+            message=f"Your attendance for {local_clock_in.strftime('%b %d, %Y %I:%M %p')} to {local_clock_out.strftime('%b %d, %Y %I:%M %p')} is recorded.",
         )
 
 # Store original status before update

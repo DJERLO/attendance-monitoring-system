@@ -11,27 +11,32 @@
     
     <title>Face Registration | {{user.full_name}}</title>
 </head>
+<style>
+    #video, #canvas, #canvas2 {
+        width: 100%; /* Make both video and canvas take up the full width of the container */
+        height: auto; /* Adjust the height automatically to maintain aspect ratio */
+    }
+</style>
 
 <body>
-    <main class="container text-center mt-4">
-        <div class="container text-center mt-4">
+    <main class="container text-center my-4">
+        
             <h2>Capture Your Face for Registration</h2>
             <div class="row justify-content-center align-items-center g-4">
-                <div class="col-md-12 d-block" id="video-container">
+                <div class="col-md-12 d-block mx-auto" id="video-container">
                     <video id="video" autoplay muted></video>
                     <button class="btn btn-primary mt-3" id="capture-btn">Capture Image</button>
                     <button class="btn btn-primary mt-3" id="check-btn">Check your Face</button>
-                    <canvas id="canvas" class="d-none"></canvas>
+                    <canvas id="canvas" class="d-none mx-auto"></canvas>
                 </div>
                 <div class="col-md-12 d-none" id="preview-container">
                     <h3>Preview</h3>
-                    <img class="d-flex" id="captured-image" src="" alt="Your captured image will appear here.">
+                    <img class="d-block mx-auto" id="captured-image" src="" alt="Your captured image will appear here.">
                     <button class="btn btn-success mt-3" id="proceed-btn">Upload</button>
                     <button class="btn btn-danger mt-3" id="cancel-btn">Try Again</button>
                 </div>
-                <p>Captured Faces: <span id="captureCountDisplay">0</span> / 5</p>
+                <p>Captured Faces: <span id="captureCountDisplay">0</span> / 1</p>
             </div>
-        </div>
 
         <!-- Toast Container -->
         <div aria-live="polite" aria-atomic="true" style="position: relative; min-height: 200px;">
@@ -66,7 +71,7 @@
             let photoTaken = false; // Flag to prevent multiple captures
             
             let CAPTURE_COUNT = 0; // Track the number of captured faces
-            const MAX_CAPTURE_COUNT = 5; // Limit before verification
+            const MAX_CAPTURE_COUNT = 1; // Limit before verification
             const capturecountdisplay = document.getElementById("captureCountDisplay");
 
             //Load Models
@@ -226,14 +231,14 @@
                             
                             Swal.fire({
                                 title: "Face Registration Complete!",
-                                text: "You have successfully registered your face. You will now be logged out and redirected to face verification.",
+                                text: "You have successfully registered your face!",
                                 icon: "success",
-                                confirmButtonText: "Logout & Verify",
+                                confirmButtonText: "Okay!",
                                 allowOutsideClick: false,
                                 allowEscapeKey: false
                             }).then((result) => {
                                 if (result.isConfirmed) {
-                                    window.location.href = "/face-verification/";
+                                    window.location.href = "/dashboard";
                                 }
                             });
 
@@ -305,25 +310,41 @@
 
             Swal.fire({
                 title: "Face Registration Notice",
-                imageUrl: "https://static.vecteezy.com/system/resources/previews/054/228/144/non_2x/face-recognition-technology-icon-vector.jpg",
-                imageWidth:'100%',
-                imageHeight: '100%',
+                grow: 'row',
                 imageAlt: "Face Registration Notice",
                 html: `
-                    <p>Hello {{user.first_name}}! Before proceeding, please follow these guidelines:</p>
-                    <ul style="text-align: left;">
-                        <li>Ensure your face is well-lit and clearly visible.</li>
-                        <li>Remove any face coverings (hats, masks, sunglasses).</li>
-                        <li>Position your face within the camera frame.</li>
-                        <li>Face detection will capture a maximum of 5 images before verification.</li>
-                    </ul>
-                    <p>Click "Proceed" to start the face recognition process.</p>
+                    <div class="container">
+                        <div class="row justify-content-center">
+                            <div class="col-12 col-md-8">
+                                <div class="card shadow-sm">
+                                    <div class="card-body text-center">
+                                        <!-- Logo at the top -->
+                                        <img src="https://static.vecteezy.com/system/resources/previews/054/228/144/non_2x/face-recognition-technology-icon-vector.jpg" 
+                                            alt="Face Recognition Icon" class="img-fluid mb-3" style="max-width: 190px;">
+                                        <p class="lead font-weight-bold mb-4">Hello {{user.first_name}}! Before proceeding, please follow these guidelines:</p>
+                                        <ul class="list-group list-group-flush">
+                                            <li class="list-group-item">Ensure your face is well-lit and clearly visible.</li>
+                                            <li class="list-group-item">Remove any face coverings (hats, masks, sunglasses).</li>
+                                            <li class="list-group-item">Position your face within the camera frame.</li>
+                                            <li class="list-group-item">Face detection will capture a maximum of 5 images before verification.</li>
+                                        </ul>
+                                        <p class="mt-4">Click "Proceed" to start the face recognition process.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 `,
                 confirmButtonText: "Proceed",
                 allowOutsideClick: false,
                 allowEscapeKey: false,
                 padding: '0 0 1.25em',
                 heightAuto: false,
+                customClass: {
+                    popup: 'bg-light',  // Set the background color to light for better visibility
+                    title: 'font-weight-bold text-primary',  // Title style
+                    confirmButton: 'btn btn-primary btn-lg',  // Make the button larger and styled with Bootstrap classes
+                }
             }).then((result) => {
                 if (result.isConfirmed) {
                     getCameraStream(); // Start the camera and detection after the user click start

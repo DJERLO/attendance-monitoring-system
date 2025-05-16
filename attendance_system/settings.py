@@ -421,7 +421,7 @@ def test_redis_connection(redis_url):
     except (redis.ConnectionError, redis.TimeoutError):
         return False
 
-if REDIS_URL and test_redis_connection(REDIS_URL):
+if REDIS_URL and test_redis_connection(REDIS_URL) and not DEBUG:
     CACHES = {
         "default": {
             "BACKEND": "django.core.cache.backends.redis.RedisCache",

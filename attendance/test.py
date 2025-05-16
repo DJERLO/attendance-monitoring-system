@@ -256,15 +256,16 @@ def process_camera(camera):
             # ✅ You can now log attendance here
             if employee_number:
                 print(f"🔔 Log attendance for employee ID: {employee_number}")
-
+            
+            name = "CCTV FEED"
             # Show with unique window name
-            cv2.imshow("CCTV FEED", processed_frame)
+            cv2.imshow(name, processed_frame)
 
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
 
         cap.release()
-        cv2.destroyWindow(f"{camera.name} - {camera.mode}")
+        cv2.destroyWindow(name)
 
     if not DEBUG:
         current_mode = camera.mode  # Track the initial mode

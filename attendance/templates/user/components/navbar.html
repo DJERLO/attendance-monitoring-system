@@ -156,8 +156,13 @@
     const sockeNotificationUrl = `${protocol}://${window.location.host}/ws/notifications/`;
     const notifSocket = new WebSocket(sockeNotificationUrl);
     const placeholder = document.getElementById('noNotificationsPlaceholder');
-
     let unreadCount = 0;
+
+    // Play notification sound when a new notification is received
+    const notificationSound = new Audio('{% static "sound/notification.wav" %}'); // Replace with your sound file path
+    function playNotificationSound() {
+        notificationSound.play();
+    }
 
     // Initialize the notification count based on existing notifications
     function updateBellIcon() {
@@ -170,11 +175,13 @@
             notificationCountElement.innerText = unreadCount;
             bellIcon.classList.remove('bi-bell'); // Remove the empty bell class
             bellIcon.classList.add('bi-bell-fill'); // Add the filled bell class
+            
         } else {
             notificationCountElement.style.display = "none";
             bellIcon.classList.remove('bi-bell-fill'); // Remove the filled bell class
             bellIcon.classList.add('bi-bell'); // Add the empty bell class
         }
+        
     }
 
 
@@ -190,6 +197,7 @@
         // Check if unread and increment counter
         if (!data.is_read) {
             unreadCount++;
+            playNotificationSound(); // Play sound if there are unread notifications
         }
 
         // Update bell icon and notification count

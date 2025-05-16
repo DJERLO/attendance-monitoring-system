@@ -7,6 +7,7 @@ from django.utils import timezone
 from datetime import time, timedelta
 from django.contrib.auth.models import User, Group
 from django.utils.timezone import localtime, now
+from django.db.models import Max
 from django.db.models.signals import post_migrate
 from django.dispatch import receiver
 from PIL import Image
@@ -56,13 +57,13 @@ EMPLOYMENT_STATUS_CHOICES = [
 
 class Employee(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, verbose_name="User Account")
-    employee_number = models.CharField(max_length=50, unique=True, verbose_name="Employee Number")
+    employee_number = models.CharField(max_length=8, unique=True, verbose_name="Employee Number")
     first_name = models.CharField(max_length=50, verbose_name="First Name")
     middle_name = models.CharField(max_length=50, blank=True, null=True, verbose_name="Middle Name")
     last_name = models.CharField(max_length=50, verbose_name="Last Name")
     gender = models.CharField(max_length=10, choices=[('male', 'Male'), ('female', 'Female'), ('other', 'Other')], verbose_name="Gender")
     birth_date = models.DateField(verbose_name="Date of Birth", null=True, blank=True)  # Optional field for date of birth
-    hire_date = models.DateField(verbose_name="Hire Date", null=True, blank=True)  # Date when the employee was hired
+    hire_date = models.DateField(default=timezone.now, verbose_name="Hire Date")  # Date when the employee was hired
     email = models.EmailField(unique=True, verbose_name="Email Address")
     contact_number = models.CharField(max_length=15, verbose_name="Contact Number")
     group = models.ForeignKey(Group, related_name='employees', on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Department")
@@ -76,6 +77,34 @@ class Employee(models.Model):
 
     def save(self, *args, **kwargs):
         """ Automatically update is_staff and sync permissions if the user belongs to the Admin group """
+
+        # Generate Employee Number if not already set (e.g. 2025000)
+        # Only generate employee number if it doesn't already exist
+        # Ensure hire_date is set
+        if not self.hire_date:
+            self.hire_date = timezone.now()
+
+        # Generate Employee Number if not set
+        if not getattr(self, "employee_number", None):
+            
+            if not Employee.objects.filter(employee_number=self.employee_number).exists():
+                year_joined = self.hire_date.year
+
+                # Find the max employee_num for that year
+                last_employee = Employee.objects.filter(
+                    employee_number__startswith=str(year_joined)
+                ).aggregate(Max('employee_number'))['employee_number__max']
+
+                if last_employee:
+                    last_seq = int(last_employee[4:])  # Extract the ####
+                else:
+                    last_seq = 0  # First employee of that year
+
+                # Generate new number
+                self.employee_number = f"{year_joined}{last_seq + 1:04d}"
+            
+            if Employee.objects.filter(employee_number=self.employee_number).exists():
+                pass
 
         # Check employment status and update is_active flag
         if self.employment_status in ['resigned', 'terminated', 'retired']:
@@ -451,7 +480,6 @@ class ShiftRecord(models.Model):
 # This model is used to store events with recurrence rules
 from multiselectfield import MultiSelectField   
 class Event(models.Model):
-
     DAY_CHOICES = [
         ('0', 'Sunday'),
         ('1', 'Monday'),
@@ -462,13 +490,38 @@ class Event(models.Model):
         ('6', 'Saturday'),
     ]
 
-    title = models.CharField(max_length=200)
-    description = models.TextField()
-    url = models.URLField(blank=True, null=True)  # Optional URL for more info or meeeting link
-    start = models.DateTimeField()
-    end = models.DateTimeField()
-    days_of_week = MultiSelectField(choices=DAY_CHOICES, null=True, blank=True)  # Multiple choices of days
-    all_day = models.BooleanField(default=False)
+    title = models.CharField(
+        max_length=200,
+        help_text="Enter a short title for the event (e.g., 'Team Meeting')."
+    )
+    description = models.TextField(
+        help_text="Provide a detailed description of the event, including any important notes or agenda."
+    )
+    url = models.URLField(
+        blank=True,
+        null=True,
+        help_text="Optional: Include a link for more information or an online meeting URL (e.g., Zoom or Google Meet)."
+    )
+    start = models.DateTimeField(
+        help_text="Select the starting date and time of the event. Format: YYYY-MM-DD HH:MM."
+    )
+    end = models.DateTimeField(
+        help_text="Select the ending date and time of the event. Format: YYYY-MM-DD HH:MM."
+    )
+    days_of_week = MultiSelectField(
+        choices=DAY_CHOICES,
+        blank=True,
+        null=True,
+        help_text=(
+            "Optional: Select the days of the week this event should repeat on. "
+            "Use this only if the event is recurring (e.g., every Monday and Wednesday). "
+            "Leave blank for one-time events."
+        )
+    )
+    all_day = models.BooleanField(
+        default=False,
+        help_text="Check this if the event lasts all day without a specific start or end time."
+    )
 
     def __str__(self):
         return self.title

@@ -188,10 +188,26 @@
         'buttons': [
                 'copy',       // Copy to clipboard
                 'excel',      // Export to Excel
-                'csv',        // Export to CSV 
+                'csv',
+                {
+                    extend: 'pdf',
+                    orientation: 'portrait',  // Landscape layout for wider tables
+                    pageSize: 'A4',            // A4 size for printing
+                    exportOptions: {
+                        columns: [0, 1, 2, 3, 4], // Specify which columns to include in the PDF
+                    },
+                    customize: function (doc) {
+                        doc.content[1].table.widths = ['*', '*', '*', '*', '*']; // Set column widths
+                        doc.styles.tableHeader.fontSize = 10; // Font size for table header
+                        doc.styles.tableHeader.fillColor = '#f8f8f8'; // Header background color
+                        doc.styles.tableHeader.color = '#333'; // Header text color
+                        doc.styles.tableHeader.fontWeight = 'bold'; // Header font weight
+                        doc.content[1].margin = [0, 0, 0, 0]; // Remove margins around the table
+                    }
+                },        
             ],
         "columnDefs": [
-            { "targets": 0, "type": "date", "searchPanes": { "show": false } },
+            { "targets": 0, "type": "date", "searchPanes": { "show": true } },
             { "targets": 1, "searchPanes": { "show": false } },
             { "targets": 2, "searchPanes": { "show": false } },
             { "targets": 3, "searchPanes": { "show": false } },  // Total Hours column

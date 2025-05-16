@@ -3,13 +3,14 @@ from django.contrib import admin
 from django.db.models import Q
 from django.http import HttpResponse
 from django.utils.html import mark_safe
-from django.db.models import Value, CharField
+from django.db.models import Value, CharField, Max
 from django.db.models.functions import Concat
 from django.contrib.auth.models import User, Group, Permission
 from django.contrib.auth.admin import UserAdmin as DefaultUserAdmin
 from django.urls import reverse
 from django.utils.html import format_html
 from django.contrib import messages
+from django.utils import timezone
 from rangefilter.filters import (DateRangeFilterBuilder)
 
 from .models import Announcement, Camera, EmergencyContact, Employee, FaceImage, LeaveRequest, Notification, ShiftRecord, WorkHours, Event
@@ -56,14 +57,15 @@ class EmployeeInline(admin.StackedInline):
     readonly_fields = ['profile_image_preview']
     verbose_name_plural = "Employee Information"
     fields = (
-        'employee_number', 'first_name', 'middle_name', 'last_name',
+        'profile_image',
+        'first_name', 'middle_name', 'last_name',
         'gender', 'birth_date', 'hire_date',
         'email', 'contact_number', 'group',
-        'employment_status', 'hourly_rate', 'profile_image', 'profile_image_preview'
+        'employment_status', 'hourly_rate', 
     )
 
     def profile_image_preview(self, obj):
-        if obj.profile_image:
+        if obj and obj.profile_image:
             return mark_safe(
                 f'<img src="{obj.profile_image.url}" width="100" height="100" style="object-fit: cover; border-radius: 8px;" />'
             )
@@ -89,7 +91,7 @@ class EmployeeAdmin(admin.ModelAdmin):
     # Pagination settings for list view
     list_per_page = 20  # Limit number of records per page
 
-    readonly_fields = ('profile_image_preview',)
+    readonly_fields = ('profile_image_preview',  'hire_date', 'employee_number',)
 
     # List of fields displayed in the admin list view
     list_display = [
@@ -102,14 +104,24 @@ class EmployeeAdmin(admin.ModelAdmin):
     ]
 
     list_display_links = ["profile_image_display"]  # Make "profile_image_display" clickable
-
+    list_editable = ['group', 'employment_status']  # Fields that can be edited directly in the list view
+    
     # Restrict Non-Admin users from editing the group field in the list view
     def get_list_editable(self, request):
-        if request.user.groups.filter(name='ADMIN').exists():
+        user_groups = [group.name for group in request.user.groups.all()]
+
+        # Check if the user is a superuser (Pass all permissions)
+        if request.user.is_superuser:
             return ['group', 'employment_status']
-        if request.user.groups.filter(name__icontains='HR').exists():
+
+        # Check if the user belongs to either 'ADMIN' or 'HR ADMIN'
+        if 'ADMIN' in user_groups:
+            return ['group', 'employment_status']
+        
+        if 'HR ADMIN' in user_groups:
             return ['employment_status']
-        return []
+        
+        return []  # No edit permission for other users
 
     # Override the changelist_view to dynamically set list_editable
     def changelist_view(self, request, extra_context=None):
@@ -132,6 +144,37 @@ class EmployeeAdmin(admin.ModelAdmin):
         }),
     )
 
+    def save_model(self, request, obj, form, change):
+        if obj.group:
+            # If assigned to Admin, set is_staff and assign permissions
+            if obj.group.name.upper() == "ADMIN" or obj.group.name.upper() == "HR ADMIN":
+                obj.user.is_staff = True
+            else:
+                obj.user.is_staff = False
+
+            if "TEACHING" in obj.group.name.upper() and not "NON-TEACHING" in obj.group.name.upper():
+                obj.hourly_rate = True
+            else:
+                obj.hourly_rate = False
+                
+            # Sync User's Groups and Permissions
+            obj.user.groups.set([obj.group])  # Ensure user is assigned to the correct group
+            obj.user.user_permissions.set(obj.group.permissions.all())  # Apply group permissions
+
+        else:
+            # If no group is assigned, remove all permissions
+            obj.hourly_rate = False
+            obj.user.groups.clear()
+            obj.user.user_permissions.clear()
+
+            if obj.user.is_superuser:
+                obj.user.is_staff = True
+            else:
+                obj.user.is_staff = False
+
+        # Save the user model first (after setting is_staff and permissions)
+        obj.user.save()
+        super().save_model(request, obj, form, change)
     
     # Restrict Group Field in the Edit Form, Only ADMIN can edit
     def get_readonly_fields(self, request, obj=None):
@@ -299,13 +342,46 @@ class FaceImageAdmin(admin.ModelAdmin):
     search_fields = ('employee__name', 'employee__employee_id')
     list_filter = ('uploaded_at',)
 
+    # Disallow adding new images
+    def has_add_permission(self, request):
+        return False
+
+    # Disallow deleting from admin (optional if you want to keep images safe)
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    def get_readonly_fields(self, request, obj=None):
+        # Return all field names to make them fully read-only
+        if obj:
+            return [field.name for field in obj._meta.fields] + ['image_preview']
+        return []
+
+    # Optional: prevent editing too
+    def has_change_permission(self, request, obj=None):
+        return True if obj else False  # Allow viewing, but not creating new
+    
     def image_preview(self, obj):
         """Displays an image preview in Django Admin."""
-        if obj.image:
+        if obj.image and hasattr(obj.image, 'url'):
             return format_html('<img src="{}" width="100" style="border-radius: 5px;">', obj.image.url)
         return "(No Image)"
 
     image_preview.short_description = "Face Preview"
+
+    def get_fields(self, request, obj=None):
+        # Only show preview, no file input
+        return ('employee', 'image_preview', 'uploaded_at')
+
+
+    def delete_model(self, request, obj):
+        """Delete the model instance and also delete the associated image file."""
+        obj.delete()  # Calls the delete method on the model, which will delete the image as well
+
+    # Optionally, you can override the delete_queryset method if you want to handle bulk deletes
+    def delete_queryset(self, request, queryset):
+        """Delete multiple instances and their associated image files."""
+        for obj in queryset:
+            obj.delete()
 
 class EventsAdmin(admin.ModelAdmin):
     list_display = ('title', 'get_days_of_week', 'start', 'end')

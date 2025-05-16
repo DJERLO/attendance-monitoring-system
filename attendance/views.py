@@ -32,6 +32,7 @@ from django.core.exceptions import PermissionDenied
 from django.views.decorators.cache import cache_page, never_cache
 from django.utils.timezone import now
 from django.http import JsonResponse
+from django.db.models import Max
 
 logger = logging.getLogger(__name__)
 
@@ -410,6 +411,20 @@ async def checking_out(request):
 
     return JsonResponse({"result":[{"status": "No Content"}]}, status=200)
 
+def generate_employee_number():
+    """Generate a unique employee number based on the current year and sequence."""
+    year = dt.now().year
+    last_employee = Employee.objects.filter(
+        employee_number__startswith=str(year)
+    ).aggregate(Max('employee_number'))['employee_number__max']
+
+    if last_employee:
+        last_seq = int(last_employee[4:])
+    else:
+        last_seq = 1  # no one yet
+
+    return f"{year}{last_seq + 1:04d}"
+
 # Register New Employee
 from allauth.socialaccount.models import SocialAccount
 @login_required
@@ -457,6 +472,7 @@ def user_registration(request):
                 employee.first_name = user.first_name  # Set first name from user
                 employee.last_name = user.last_name    # Set last name from user
                 employee.email = user.email            # Set email from user
+
                 employee.save()  # Save employee instance
 
                 #For Emergency Contact of Employee
@@ -493,6 +509,7 @@ def user_registration(request):
                 employee.first_name = user.first_name  # Set first name from user
                 employee.last_name = user.last_name    # Set last name from user
                 employee.email = user.email            # Set email from user
+
                 employee.save()  # Save employee instance
 
                 #For Emergency Contact of Employee
@@ -500,7 +517,6 @@ def user_registration(request):
                 emergency_contact.employee = employee  # link to employee
                 emergency_contact.save()
 
-                messages.success(request, "Employee registered successfully! Please proceed to facial registration.")
                 return redirect('facial-registration', employee_number=employee.employee_number)  # Redirect to a face registration page to capture their face for face recognition
 
         else:
