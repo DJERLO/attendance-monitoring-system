@@ -78,5 +78,6 @@ from django.views.static import serve
 # Automatically serve media files only when using `runserver`
 if settings.MEDIA_ROOT:
     urlpatterns += [
+        re_path(r'^static/(?P<path>.*)$', serve, {'document_root': settings.STATIC_ROOT}),
         re_path(r'^media/(?P<path>.*)$', serve, {'document_root': settings.MEDIA_ROOT}),
     ]

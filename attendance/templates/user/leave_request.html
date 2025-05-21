@@ -168,4 +168,51 @@
 
     });
 </script>
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const driver = window.driver.js.driver;
+        const tour = driver({
+            prevBtnText: 'Previous',
+            nextBtnText: 'Next',
+            doneBtnText: 'Finish',
+            overlayColor: 'black',
+            showProgress: true,
+            allowClose: false,
+            allowKeyboardControl: false,
+            steps: [
+                { popover: { title: 'Welcome to the Leave Request Page', description: 'Manage employee leave requests and stay updated with important announcements.' } },
+                { popover: { title: 'Manage Leave Requests', description: 'View and respond to all pending and processed leave requests from this section.' } },
+                { element: '#leaveRequestTable', popover: { title: 'Requests Table', description: 'This table shows all submitted leave requests along with dates, status, and employee details.' }, disableActiveInteraction: true },
+                { element: '#leaveRequestTable tbody tr td:nth-child(7)', popover: { title: 'Take Action', description: 'Approve, reject, or cancel leave requests directly from this table for quick processing.' }, disableActiveInteraction: true },
+                { element: '#leaveRequestTable tbody tr:first-child', popover: { title: 'View Full Details', description: 'Click this row to open and review detailed information about this leave request.', disableButtons:['next', 'previous', 'close'] } },
+                { element: '.modal-content', popover: { title: 'Leave Request Details', description: 'As you can see. This modal displays all the details of the selected leave request.' } },
+                { popover: { title: 'Download Attachment', description: 'If the employee has attached any documents, you can download them here too' } },
+                { element: '.modal-content .btn-close', popover: { title: 'Close Modal', description: 'Click here to close the modal and return to the leave requests table.', disableButtons:['next', 'previous', 'close']  } },
+                { popover: { title: 'Tour Complete', description: 'You’re now ready to handle leave requests efficiently!' } }
+            ]
+        });
+
+        // Start the tour when the button is clicked
+        document.getElementById('help-tour-btn').addEventListener('click', function () {
+            tour.drive();
+        });
+
+        // Event listener for table row click (view modal)
+        document.querySelector('#leaveRequestTable tbody tr:first-child').addEventListener('click', function (event) {
+            const highlight = tour.isActive()
+            if (highlight) {
+                 tour.moveTo(5); // Move to the step for viewing details
+            }
+        });
+
+        // Event listener when user clicks the btn close to get to next step
+        document.querySelector('.modal-content .btn-close').addEventListener('click', function (event) {
+            const highlight = tour.isActive()
+            if (highlight) {
+                 tour.moveTo(8); // Move to the step for viewing details
+            }
+        });
+
+    });
+</script>
 {% endblock page_content %}

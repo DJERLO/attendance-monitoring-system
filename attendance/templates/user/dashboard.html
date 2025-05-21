@@ -6,7 +6,7 @@
 {% load group_filter %}
 {% block head_title %}Dashboard{% endblock head_title %}
 {% block page_content %}
-<div class="container">
+<div id="content" class="container">
     <div class="row ms-3">
         <div class="col-md-6 justify-content-center align-content-stretch">
             <div class="col-md-12">{% include 'user/components/cards.html' %}</div>
@@ -30,4 +30,35 @@
         </div>
     </div>
 </div>
+<script> 
+    document.addEventListener("DOMContentLoaded", function () {
+        const driver = window.driver.js.driver;
+        const tour = driver({
+            prevBtnText: 'Previous', 
+            nextBtnText: 'Next',
+            doneBtnText: 'Finish',
+            overlayColor: 'black',
+            showProgress: true,
+            allowClose: false,
+            allowKeyboardControl: false,
+            disableActiveInteraction: true,
+            steps: [
+                { popover: { title: 'Welcome to the Dashboard', description: 'This is your dashboard where you can see your attendance and other information.' } },
+                { element: '#navbar', popover: { title: 'Navbar', description: 'This is your navigation bar. It shows your profile, current time, and notification' } },
+                { element: '#notificationButton', popover: { title: 'Notifications', description: 'This area displays system alerts, unread/read notifications, or reminders for your attention.' } },
+                { element: '#breadcrumb', popover: { title: 'Breadcrumb Navigation', description: 'This helps you see your current location in the app and easily navigate back to previous pages.' } },
+                { element: '#sidebar', popover: { title: 'Sidebar', description: 'Use the sidebar to access various features and pages of the application quickly.' } },
+                { element: '#content', popover: { title: 'Page Content', description: 'This area displays all the main content related to the page you are viewing.' } },
+                { element: '#help-tour-btn', popover: { title: 'Help/Tour Button', description: 'Click this button anytime to restart the guided tour and get familiar with the page.' } },
+                { popover: { title: 'You\'re All Set!', description: 'Thank you for taking the tour. Enjoy exploring the page and making the most out of your experience!' } }
+            ]
+        })
+
+        // Start tour on button click
+        document.getElementById('help-tour-btn').addEventListener('click', function () {
+            tour.drive();
+        });
+        
+    });
+</script>
 {% endblock page_content %}

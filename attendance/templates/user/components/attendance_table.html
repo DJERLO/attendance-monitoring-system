@@ -329,3 +329,33 @@
     window.onload = setDefaultMonth;
 
 </script>
+<script> 
+    document.addEventListener("DOMContentLoaded", function () {
+        const driver = window.driver.js.driver;
+        const tour = driver({
+            prevBtnText: 'Previous', 
+            nextBtnText: 'Next',
+            doneBtnText: 'Finish',
+            overlayColor: 'black',
+            showProgress: true,
+            allowClose: false,
+            allowKeyboardControl: false,
+            disableActiveInteraction: true,
+            steps: [
+                { popover: { title: 'Welcome to the Attendance Sheet', description: 'Track your daily attendance status, total hours, and exportable logs from here.' } },
+                { element: '#attendanceRecords', popover: { title: 'Attendance Records', description: 'This table displays your daily attendance logs for the selected month.' } },
+                { element: '#filter', popover: { title: 'Month Filter', description: 'Select a specific month to view and analyze your attendance records.' } },
+                { element: '.dtsp-panes', popover: { title: 'Date and Status Filters', description: 'Use these filters to narrow down records by specific dates or statuses (e.g., Present, Absent).' } },
+                { element: '.dt-buttons', popover: { title: 'Export Options', description: 'Export your attendance data as Excel, CSV, or PDF for documentation or reporting purposes.' } },
+                { element: '#totalHoursSum', popover: { title: 'Total Hours Summary', description: 'This section displays the total hours you’ve worked for the currently selected period.' } },
+                { popover: { title: 'End of Tour', description: 'You have completed the attendance sheet tour. Keep tracking your performance!' } }
+            ]
+        })
+
+        // Start tour on button click
+        document.getElementById('help-tour-btn').addEventListener('click', function () {
+            tour.drive();
+        });
+        
+    });
+</script>

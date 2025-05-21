@@ -63,4 +63,35 @@
         </div>
     </div>
 </div>
+<script> 
+    document.addEventListener("DOMContentLoaded", function () {
+        const driver = window.driver.js.driver;
+        const tour = driver({
+            prevBtnText: 'Previous', 
+            nextBtnText: 'Next',
+            doneBtnText: 'Finish',
+            overlayColor: 'black',
+            showProgress: true,
+            allowClose: false,
+            allowKeyboardControl: false,
+            disableActiveInteraction: true,
+            steps: [
+                { popover: { title: 'Welcome to Face Management', description: 'Upload and manage your face images for reliable attendance verification.' } },
+                { element: '.btn.btn-primary', popover: { title: 'Upload Images', description: 'Click here to upload a new set of face images for registration.' } },
+                { element: '#faceImageCarousel', popover: { title: 'Image Carousel', description: 'Browse through your uploaded face images in this carousel display.' } },
+                { element: '#faceImageCarousel .carousel-item:first-child', popover: { title: 'Current Image', description: 'This card shows the first image in your gallery along with upload date.' } },
+                { element: '.carousel-control-prev', popover: { title: 'Previous Image', description: 'Use this arrow to view the previous face image.' } },
+                { element: '.carousel-control-next', popover: { title: 'Next Image', description: 'Use this arrow to view the next face image.' } },
+                { element: '#faceImageCarousel .btn-danger', popover: { title: 'Delete Image', description: 'Click this button to remove an unwanted face image from your profile.' } },
+                { popover: { title: 'Tour Complete', description: 'You’re all set! Keep your face data up to date for seamless attendance.' } }
+            ]
+        })
+
+        // Start tour on button click
+        document.getElementById('help-tour-btn').addEventListener('click', function () {
+            tour.drive();
+        });
+        
+    });
+</script>
 {% endblock %}

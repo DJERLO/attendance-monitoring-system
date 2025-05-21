@@ -51,7 +51,7 @@
 </style>
 
 <!-- Navbar with Real-Time Clock -->
-<nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4 top-nav d-block">
+<nav id="navbar" class="navbar navbar-expand-lg navbar-dark bg-dark mb-4 top-nav d-block">
     <div class="container-fluid">
         <div class="row w-100 h-100">
             <div class="row dropdown d-inline-flex text-wrap flex-row flex-nowrap align-self-stretch mx-3">
@@ -91,7 +91,7 @@
 </nav>
 
 <!-- Toggleable Notification List -->
-<div class="notification-list shadow-sm" id="notificationList" style="max-height: 400px; overflow-x: hidden; overflow-y: auto;">
+<div class="notification-list shadow-sm" id="notificationList" style="max-height: 400px; overflow-x: hidden; overflow-y: auto; z-index: 23;">
     <div class="bg-primary text-white sticky-top p-2">
         <div class="text-center fw-bold mb-2">
             Notifications
@@ -140,6 +140,12 @@
 </div>
 
 <script>
+    // Notification Permission Request
+    if ("Notification" in window && Notification.permission !== "granted") {
+        Notification.requestPermission().then(function (permission) {
+            console.log("Permission:", permission);
+        });
+    }
 
     // Initialize unreadCount from rendered notifications(if exist)
     document.addEventListener("DOMContentLoaded", function () {
@@ -224,6 +230,15 @@
 
         // Add to top of list
         notifList.prepend(newNotif);
+
+        // Show native push notification
+        if ("Notification" in window && Notification.permission === "granted") {
+            new Notification("New Notification", {
+                body: data.message,
+                icon: "{% static 'img/logo.png' %}" // optional
+            });
+        }
+
     };
 
     notifSocket.onclose = function(e) {
@@ -289,7 +304,7 @@
                 document.querySelectorAll('.list-group-item.bg-info').forEach(btn => {
                     btn.classList.remove('bg-info', 'text-dark');
                     btn.classList.add('bg-white', 'text-dark');
-                    element.setAttribute('data-status', 'read');
+                    btn.setAttribute('data-status', 'read');
                     btn.disabled = true;
                 });
 

@@ -12,10 +12,17 @@
                 <div class="card-header bg-primary text-white text-center">
                     <img src="{{ employee_profile.profile_image.url }}" alt="Profile Image" class="img-fluid rounded-circle shadow" width="180">
                 </div>
-                <div class="card-body text-center">
-                    <h4 class="card-title">{{ employee_profile.first_name }} {% if employee_profile.middle_name %}{{ employee_profile.middle_name }}{% endif %} {{ employee_profile.last_name }}</h4>
+                <div class="card-body text-center d-grid gap-1">
+                    <h4 class="card-title">
+                        {{ employee_profile.first_name }} 
+                        {% if employee_profile.middle_name %}{{ employee_profile.middle_name }}{% endif %} 
+                        {{ employee_profile.last_name }}
+                    </h4>
                     <p class="card-text">{{ employee_profile.employee_number }}</p>
-                    <a class="btn btn-primary" href="{% url 'attendance-sheet-by-employee' employee_profile.employee_number current_month current_year  %}">View Attendance Sheet</a>
+                    <a class="btn btn-outline-primary w-100" href=""><i class="bi bi-pencil-square me-1"></i> Edit Employee</a>
+                    <a class="btn btn-primary w-100" href="{% url 'attendance-sheet-by-employee' employee_profile.employee_number current_month current_year %}">
+                        <i class="bi bi-calendar-check me-1"></i> View Attendance
+                    </a>
                 </div>
             </div>
         </div>

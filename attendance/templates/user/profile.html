@@ -8,7 +8,7 @@
 <div class="container-fluid">
     <div class="row ms-3 p-3">
         <div class="col-md-6">
-            <div class="card shadow-lg flex-fill h-100">
+            <div id="profile-card" class="card shadow-lg flex-fill h-100">
                 <div class="card-header text-center bg-primary text-white">
                     <img class="img-fluid mb-3" src="{{ employee.profile_image.url }}" alt="" width="80" height="80">
                     <h3>{{ employee.full_name }}</h3>
@@ -17,27 +17,27 @@
                 <div class="card-body">
                     <div class="row gy-3">
                         <div class="col-md-12">
-                            <a href="{% url 'account_change_password' %}" class="btn btn-dark text-white w-100">
+                            <a id="change-password-btn" href="{% url 'account_change_password' %}" class="btn btn-dark text-white w-100">
                                 <i class="bi bi-lock"></i> Change Password
                             </a>
                         </div>
                         <div class="col-md-12">
-                            <a href="{% url 'account_email' %}" class="btn btn-dark text-white w-100">
+                            <a id="email-management-btn" href="{% url 'account_email' %}" class="btn btn-dark text-white w-100">
                                 <i class="bi bi-envelope"></i> Update Email Address
                             </a>
                         </div>
                         <div class="col-md-12">
-                            <a href="{% url 'socialaccount_connections' %}" class="btn btn-dark text-white w-100">
+                            <a id="connect-third-party-btn" href="{% url 'socialaccount_connections' %}" class="btn btn-dark text-white w-100">
                                 <i class="bi bi-link"></i> Manage Linked Accounts
                             </a>
                         </div>
                         <div class="col-md-12">
-                            <a href="{% url 'Manage-Face' %}" class="btn btn-dark text-white w-100">
+                            <a id="face-management-btn" href="{% url 'Manage-Face' %}" class="btn btn-dark text-white w-100">
                                 <i class="bi bi-person-bounding-box"></i> Manage Your Face Data
                             </a>
                         </div>
                         <div class="col-md-12">
-                            <a href="{% url 'mfa_index' %}" class="btn btn-dark text-white w-100">
+                            <a id="mfa-btn" href="{% url 'mfa_index' %}" class="btn btn-dark text-white w-100">
                                 <i class="bi bi-shield-lock"></i> Set/Manage MFA
                             </a>
                         </div>
@@ -53,11 +53,11 @@
             </div>
         </div>
         <div class="col-md-6">
-            <div class="card shadow-lg flex-fill h-100">
+            <div id="employee-details" class="card shadow-lg flex-fill h-100">
                 <div class="card-header text-center bg-primary text-white">
                     <h3>Employee Details</h3>
                 </div>
-                <div class="card-body text-dark" id="employee-details">
+                <div class="card-body text-dark">
                     <div class="row">
                         <div class="col-6 mb-3">
                             <strong>First Name:</strong><br>
@@ -223,6 +223,38 @@
                     alert("Failed to save. Try again.");
                 }
             });
+        });
+    </script>
+    <script> 
+        document.addEventListener("DOMContentLoaded", function () {
+            const driver = window.driver.js.driver;
+            const tour = driver({
+                prevBtnText: 'Previous', 
+                nextBtnText: 'Next',
+                doneBtnText: 'Finish',
+                overlayColor: 'black',
+                showProgress: true,
+                allowKeyboardControl: false,
+                disableActiveInteraction: true,
+                steps: [
+                    { popover: { title: 'Welcome to Your Account Page', description: 'Let’s walk through how to manage and update your account details.' } },
+                    { element: '#profile-card', popover: { title: 'Profile Card', description: 'This is your profile card.' } },
+                    { element: '#change-password-btn', popover: {title: 'Change Password', description: 'Click here to update your current password for better account security.'}},
+                    { element: '#email-management-btn', popover: {title: 'Update Email Address', description: 'Manage your email addresses linked to this account.'}},
+                    { element: '#connect-third-party-btn', popover: {title: 'Manage Linked Accounts', description: 'View or disconnect third-party accounts (e.g., Google, Facebook) linked to your profile.'}},
+                    { element: '#face-management-btn', popover: {title: 'Manage Your Face Data', description: 'Add or remove facial data for authentication purposes.'}},
+                    { element: '#mfa-btn', popover: {title: 'Multi-Factor Authentication (MFA)', description: 'Set up or manage MFA options to add an extra layer of account security.'}},
+                    { element: '#employee-details', popover: { title: 'Employee Details', description: 'This section contains your personal details.' } },
+                    { element: '#edit-btn', popover: { title: 'Edit Button', description: 'Click here to edit your details.' } },
+                    { popover: { title: 'Save Button', description: 'After editing your information, Click Save' } },
+                ]
+            })
+
+            // Start tour on button click
+            document.getElementById('help-tour-btn').addEventListener('click', function () {
+                tour.drive();
+            });
+            
         });
     </script>
 {% endblock page_content %}

@@ -322,4 +322,75 @@
         });
     </script>
 </section>
+<script> 
+    document.addEventListener("DOMContentLoaded", function () {
+        const driver = window.driver.js.driver;
+        const tour = driver({
+            prevBtnText: 'Previous', 
+            nextBtnText: 'Next',
+            doneBtnText: 'Finish',
+            overlayColor: 'black',
+            showProgress: true,
+            allowClose: false,
+            allowKeyboardControl: false,
+            disableActiveInteraction: true,
+            steps: [
+                    {
+                        popover: {
+                            title: 'Welcome to the Calendar',
+                            description: 'This calendar shows school events, public holidays in various views.'
+                        }
+                    },
+                    {
+                        element: '#calendar',
+                        popover: {
+                            title: 'Interactive Calendar',
+                            description: 'View your monthly events here. Click any event to see more details.'
+                        }
+                    },
+                    {
+                        element: '.fc-toolbar-chunk:first-child', // left toolbar chunk: prev / listWeek
+                        popover: {
+                            title: 'Navigation Controls',
+                            description: 'Use these buttons to navigate to the previous period or switch to "Week List" view.'
+                        }
+                    },
+                    {
+                        element: '.fc-toolbar-title', // center toolbar title
+                        popover: {
+                            title: 'Current View Title',
+                            description: 'Displays the currently visible date range (e.g., current month).'
+                        }
+                    },
+                    {
+                        element: '.fc-toolbar-chunk:last-child', // right toolbar chunk: listYear / next
+                        popover: {
+                            title: 'More Views and Forward Navigation',
+                            description: 'Switch to yearly list view or go forward in time using these buttons.'
+                        }
+                    },
+                    {
+                        element: '.fc-footer-toolbar',
+                        popover: {
+                            title: 'View Switcher',
+                            description: 'Switch between day, week, month, and today\'s view for more control over how you see your events.'
+                        }
+                    },
+                    {
+                        popover: {
+                            title: 'End of Calendar Tour',
+                            description: 'That’s it! Start managing and reviewing your schedule effectively with the calendar.'
+                        }
+                    }
+                ]
+
+        })
+
+        // Start tour on button click
+        document.getElementById('help-tour-btn').addEventListener('click', function () {
+            tour.drive();
+        });
+        
+    });
+</script>
 {% endblock %}

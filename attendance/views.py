@@ -1624,11 +1624,13 @@ def announcement_board(request):
     try:
         user = request.user
         employee = Employee.objects.get(user=user)
+        notifications = Notification.objects.filter(employee=employee).order_by('-created_at')[:20]
         announcements = Announcement.objects.filter(is_active=True).order_by('-created_at')
         return render(request, 'user/announcement.html', {
             'user': user,
             'employee': employee,
-            'announcements': announcements
+            'announcements': announcements,
+            'notifications': notifications,
         })
     
     except Employee.DoesNotExist:
