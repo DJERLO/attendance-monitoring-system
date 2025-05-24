@@ -202,17 +202,6 @@ async def checking_in(request):
                             try:
                                 #Clock-in that employee
                                 submit =  await clock_in(employee_number)
-                                
-                                # Send WebSocket notification
-                                # **SEND TO WEBSOCKET**
-                                channel_layer = get_channel_layer()
-                                await (channel_layer.group_send)(
-                                    "attendance_group",
-                                    {
-                                        "type": "send_message",
-                                        "message": f"✅ {employee_data.get('name')} has checked in for today's morning shift."
-                                    }
-                                )
 
                                 return JsonResponse({
                                     "result": [{
@@ -345,16 +334,6 @@ async def checking_out(request):
                             try:
                                 # Clock-Out that employee
                                 submit = await clock_out(employee_number)
-                                
-                                # WebScoket
-                                channel_layer = get_channel_layer()
-                                await (channel_layer.group_send)(
-                                    "attendance_group",
-                                    {
-                                        "type": "send_message",
-                                        "message": f"✅ {employee_data.get('name')} has checked-out!"
-                                    }
-                                )
 
                                 return JsonResponse({
                                     "result": [{
@@ -633,7 +612,7 @@ def user_face_registration(request, employee_number):
 def face_verification(request):
     # Ensure faces are loaded only once
     if not cache.get("known_faces"):
-        load_known_faces(KNOWN_FACES_DIR)
+        load_known_faces()
     return render(request, 'attendance/face-verification.html')
 
 async def face_recognition_test(request):
@@ -881,7 +860,7 @@ def dashboard(request):
             return JsonResponse({"message": "Work hours not set."}, status=400)
 
         shiftstatus = ShiftRecord.objects.filter(employee=employee, date=today).last()
-        shiftlogs = ShiftRecord.objects.filter(employee=employee).order_by('-date')
+        shiftlogs = ShiftRecord.objects.all().order_by('-date')
         check_in_time = shiftstatus.clock_in if shiftstatus else None
         check_out_time = shiftstatus.clock_out if shiftstatus else None
 
@@ -891,9 +870,11 @@ def dashboard(request):
         # Date range for current month
         first_day_of_month = today.replace(day=1)
         last_day_of_month = (first_day_of_month + timedelta(days=31)).replace(day=1) - timedelta(days=1)
+
+        # Generate all dates in the current month
         all_dates = [first_day_of_month + timedelta(days=i) for i in range((last_day_of_month - first_day_of_month).days + 1)]
 
-        # Generate monthly attendance data
+        # Generate monthly attendance data based on all dates
         attendance_data = {
             "labels": [date.strftime("%Y-%m-%d") for date in all_dates],
             "EARLY": [],
