@@ -71,10 +71,9 @@
         }
     </style>
 </head>
-<section class="container-fluid d-flex flex-column flex-shrink-1 w-100">
+<section class="container-fluid p-0">
 
-    <div class="w-100" id="calendar"></div>
-
+    <div id="calendar"></div>
 
     <!-- Modal for Event Details -->
     <div class="modal fade" id="eventModal" tabindex="-2">
@@ -115,7 +114,7 @@
 
             var events = {{ events|safe }};  // Events include holidays (blue) and user events (red)
 
-            console.table(events); // Log the events to check their structure
+            //console.table(events); // Log the events to check their structure
 
             // Initialize the calendar
             var calendar = new FullCalendar.Calendar(calendarEl, {

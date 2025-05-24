@@ -83,12 +83,20 @@
         </section>
         <!-- Question Mark Help Button -->
         <a id="help-tour-btn" 
-        href="javascript:void(0)" 
+        href="javascript:void(0)"
+        data-bs-toggle="tooltip" 
+        data-bs-placement="top" 
         title="Need help?" 
         class="help-circle">
             <i class="bi bi-question-circle-fill"></i>
         </a>
     </body>
+    <script>
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl)
+        })
+    </script>
     {% endblock content %}
 {% block scripts %}
 <script src="{% static 'js/base.js' %}"></script>
@@ -105,207 +113,5 @@
 <script src="https://cdn.datatables.net/datetime/1.5.5/js/dataTables.dateTime.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/driver.js@latest/dist/driver.js.iife.js"></script>
-<script>
-    // Set up WebSocket connection
-    // Use the same protocol as the current page (ws or wss)
-    const wsScheme = window.location.protocol === "https:" ? "wss" : "ws";
-    const socketUrl = `${wsScheme}://${window.location.host}/ws/attendance/`;
-    let socket;
-
-    // Connect to WebSocket server
-    function connectWebSocket() {
-        // Create a new WebSocket instance
-        socket = new WebSocket(socketUrl);
-
-        // Set up event handlers for the WebSocket connection
-        socket.onopen = function () {
-            console.log("✅ WebSocket Connected!");
-        };
-
-        // Listen for messages from the server
-        socket.onmessage = function (event) {
-            try {
-                const data = JSON.parse(event.data);
-                console.table(data);
-
-                // Check if the data contains a message or dashboard update
-                if (data.message) {
-                    // Handle notification messages
-                    showToast(data.message);
-                } else if (data.notification) {
-                    // 📥 Handle individual notification for the logged-in employee
-                    renderNotification(data.notification);
-                } else {
-                    console.warn("Received unknown WebSocket data:", data);
-                }
-                
-            } catch (error) {
-                console.error("Error processing WebSocket message:", error);
-            }
-        };
-
-        function renderNotification(notification) {
-            const message = notification.message;
-            showToast(message);
-
-            // You can also mark it visually as unread or update a bell icon
-            // Example: increase badge count
-            const badge = document.getElementById("notification-badge");
-            if (badge) {
-                let count = parseInt(badge.textContent) || 0;
-                badge.textContent = count + 1;
-                badge.classList.remove("d-none");
-            }
-
-            // Optional: append to dropdown list
-            const list = document.getElementById("notification-list");
-            if (list) {
-                const li = document.createElement("li");
-                li.innerHTML = `
-                    <a class="dropdown-item" href="#">
-                        <strong>New Notification:</strong> ${message}<br>
-                        <small class="text-muted">${new Date(notification.created_at).toLocaleString()}</small>
-                    </a>
-                `;
-                list.prepend(li);
-            }
-        }
-
-        socket.onclose = function () {
-            console.log("❌ WebSocket Disconnected. Reconnecting in 5s...");
-            setTimeout(connectWebSocket, 5000);
-        };
-
-        socket.onerror = function (error) {
-            console.error("⚠️ WebSocket Error:", error);
-        };
-  }
-    // Function to show/hide the clock-in button based on time
-    function showToast(message) {
-        const timestamp = new Date().toLocaleTimeString();
-        const toastId = 'toast-' + Date.now();
-
-        const toastHTML = `
-            <div id="${toastId}" class="toast show align-items-center text-white bg-dark border-0" role="alert" aria-live="assertive" aria-atomic="true">
-                <div class="d-flex">
-                    <div class="toast-body">
-                        <strong>${timestamp}</strong><br>${message}
-                    </div>
-                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
-                </div>
-            </div>
-        `;
-
-        document.getElementById("toast-container").insertAdjacentHTML("beforeend", toastHTML);
-        const toastElement = document.getElementById(toastId);
-        new bootstrap.Toast(toastElement).show();
-
-        toastElement.addEventListener('hidden.bs.toast', () => toastElement.remove());
-
-        if (document.getElementById("toast-container").children.length > 5) {
-            document.getElementById("toast-container").removeChild(document.getElementById("toast-container").firstChild);
-        }
-
-        // 🔔 Send a browser notification
-        sendBrowserNotification(message);
-
-    }
-
-  // 🔔 Function to send browser notification
-  function sendBrowserNotification(message) {
-      if ("Notification" in window) {
-          if (Notification.permission === "granted") {
-              new Notification("Attendance Alert", {
-                  body: message,
-                  icon: "{% static 'img/logo.png' %}", // Change this to your logo
-                  silent: false
-              });
-          } else if (Notification.permission !== "denied") {
-              Notification.requestPermission().then(permission => {
-                  if (permission === "granted") {
-                      new Notification("Attendance Alert", {
-                          body: message,
-                          icon: "{% static 'img/logo.png' %}", // Change this to your logo
-                      });
-                  }
-              });
-          }
-      } else {
-          console.warn("This browser does not support notifications.");
-      }
-  }
-
-  // Start WebSocket connection
-  connectWebSocket();
-</script>
-<script>
- document.addEventListener("DOMContentLoaded", function () {
-      let minDate = new Date();
-      let maxDate = new Date();
-
-      // Custom filtering function which will search data in column 0 (first column)
-      DataTable.ext.search.push(function (settings, data, dataIndex) {
-        let min = minDate.val() ? new Date(minDate.val()) : null;  // Convert to Date object
-        let max = maxDate.val() ? new Date(maxDate.val()) : null;
-        let date = new Date(data[0]); // Adjust column index if needed
-
-        if (!date || isNaN(date)) return true; // If date is invalid, don't filter
-
-        if ((min === null && max === null) ||
-            (min === null && date <= max) ||
-            (min <= date && max === null) ||
-            (min <= date && date <= max)) {
-            return true;
-        }
-        return false;
-      });
-
-      // Create DateTime picker instances
-      minDate = new DateTime(document.getElementById('minDate'), {
-          format: 'YYYY-MM-DD'
-      });
-      maxDate = new DateTime(document.getElementById('maxDate'), {
-          format: 'YYYY-MM-DD'
-      });
-
-      // Initialize DataTable
-      let table = new DataTable('#attendanceLog', {
-        "order": [[0, "desc"]],
-        "lengthMenu": [10, 25, 50, 100], // Allows selection of page size
-        responsive: true,
-        "columnDefs": [
-          { "targets": 0, "type": "date" } // Ensure proper date sorting
-        ],
-        dom: 'Brtip', // Enables buttons at the top
-        buttons: [
-            {
-                extend: 'copy',
-                title: 'Attendance Records',
-                filename: 'attendance_copy' // Used only for Excel/CSV, not copy
-            },
-            {
-                extend: 'csv',
-                title: 'Attendance Logs',
-                filename: '{{ user.employee.full_name }} Attendance Logs'
-            },
-            {
-                extend: 'excel',
-                title: 'Attendance Logs',
-                filename: '{{ user.employee.full_name }} Attendance Logs'
-            }
-        ],
-        "language": {
-            "emptyTable": "No attendance records available."
-        },  
-      });
-
-      table.buttons().container().appendTo('#dt-buttons');
-
-      document.querySelectorAll('#minDate, #maxDate').forEach((el) => {
-          el.addEventListener('change', () => table.draw());
-      });
-
-  });
-</script>
 {% endblock scripts %}
 </html>

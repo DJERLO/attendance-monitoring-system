@@ -11,6 +11,7 @@
             <thead class="table-dark">
                 <tr>
                     <th>Date</th>
+                    <th>Name</th>
                     <th>Clock In</th>
                     <th>Clock-Out</th>
                     <th>Total Hours</th>
@@ -22,6 +23,7 @@
                     {% for log in shiftlogs %}
                         <tr>
                             <td>{{ log.date|date:"Y-m-d" }}</td>
+                            <td>{{ log.employee.full_name }}</td>
                             <td>{{ log.clock_in|time:"g:i A"|default:"0:00" }}</td>
                             <td>{{ log.clock_out|time:"g:i A"|default:"0:00" }}</td>
                             <td>{{ log.total_hours|floatformat:2|default:0 }}</td>
