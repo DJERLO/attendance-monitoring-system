@@ -1,5 +1,6 @@
 import csv
 from django.contrib import admin
+from django.contrib.admin.models import LogEntry
 from django.db.models import Q
 from django.http import HttpResponse
 from django.utils.html import mark_safe
@@ -19,6 +20,22 @@ from .models import Announcement, Camera, EmergencyContact, Employee, FaceImage,
 admin.site.site_header = "Attendance Management System Admin Portal"  # For example, "Attendance System Admin"
 admin.site.site_title = "St. Clare College Attendance Management System"    # Appears on the browser tab
 admin.site.index_title = "Attendance Monitoring System Admin Portal"  # Appears on the main admin page
+
+@admin.register(LogEntry)
+class LogEntryAdmin(admin.ModelAdmin):
+    list_display = ['action_time', 'user', 'content_type', 'object_repr', 'action_flag', 'change_message']
+    list_filter = ['user', 'content_type', 'action_flag']
+    search_fields = ['object_repr', 'change_message']
+    readonly_fields = [f.name for f in LogEntry._meta.fields]
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 class WorkHoursAdmin(admin.ModelAdmin):
     list_display = ["open_time", "close_time", "id"]  # Add a non-editable field first
