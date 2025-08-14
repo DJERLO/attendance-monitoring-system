@@ -30,6 +30,7 @@ SECRET_KEY = os.getenv('SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
+PROD = False    # Set True if using in prod enviroment
 
 ALLOWED_HOSTS = ['localhost', '127.0.0.1', '[::1]', 'https://attendance-monitoring-system-0b887d5c14d0.herokuapp.com/']
 
@@ -389,17 +390,41 @@ ASGI_APPLICATION = 'attendance_system.asgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
+import pymysql
 
-DATABASES = {
-    'default': {
-        'ENGINE': os.getenv('DB_ENGINE', default='django.db.backends.sqlite3'),
-        'NAME': os.getenv('DB_NAME', default=str(BASE_DIR / 'db.sqlite3')),  # Ensure BASE_DIR is a string
-        'USER': os.getenv('DB_USER', default=''),
-        'PASSWORD': os.getenv('DB_PASSWORD', default=''),
-        'HOST': os.getenv('DB_HOST', default='localhost'),
-        'PORT': os.getenv('DB_PORT', default=''),
+# Use PyMySQL as MySQLdb (which is normally used by mysqlclient)
+pymysql.install_as_MySQLdb()
+
+# Database configuration based on PROD value
+if PROD:
+    # If PROD is True, use the production database configuration
+    # The following settings assume you're using environment variables for security
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.mysql',  # Database engine (e.g., 'django.db.backends.mysql')
+            'NAME': os.getenv('DB_NAME'),  # The name of your production database
+            'USER': os.getenv('DB_USER'),  # Username for connecting to the database
+            'PASSWORD': os.getenv('DB_PASSWORD'),  # Password for the database user
+            'HOST': os.getenv('DB_HOST'),  # The host where the production database is located
+            'PORT': os.getenv('DB_PORT'),
+            'OPTIONS': {
+                'ssl': {
+                    'ca': r'C:\Users\Cresent\Desktop\attendance-monitoring-system\ca.pem',  # Path to your CA certificate
+                }
+            }, 
+        }
     }
-}
+
+if not PROD:
+    # If PROD is False, use the development database configuration (SQLite)
+    # SQLite is simple, self-contained, and great for development/testing
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',  # Use SQLite database for local development
+            'NAME': str(BASE_DIR / 'db.sqlite3'),  # Path to the local SQLite database file
+        }
+    }
+
 #Cache and Channel Configuration
 REDIS_URL = os.environ.get("REDIS_URL", "")
 REDIS_TIMEOUT = 5
@@ -414,7 +439,7 @@ def test_redis_connection(redis_url):
     except (redis.ConnectionError, redis.TimeoutError):
         return False
 
-if REDIS_URL and test_redis_connection(REDIS_URL):
+if PROD and REDIS_URL and test_redis_connection(REDIS_URL):
     CACHES = {
         "default": {
             "BACKEND": "django.core.cache.backends.redis.RedisCache",
