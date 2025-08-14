@@ -37,7 +37,7 @@
                 <h3 class="text-center">User Information</h3>
 
                 <div class="mb-1 d-flex justify-content-center align-self-stretch">
-                    <img class="img-fluid border border-dark border-2 rounded-circle" id="image-preview" src="{% static 'img/blank_profile.webp' %}" width="100px" height="100px">
+                    <img class="border border-dark border-2 rounded-circle" id="image-preview" src="{% static 'img/blank_profile.webp' %}" width="100px" height="100px" style="object-fit: cover;">
                 </div>
 
                 <div class="mb-1">
@@ -71,13 +71,6 @@
             <div class="order-2 col-md-4 p-4 justify-content-center align-self-stretch border border-3 border-dark">
 
                 <h3 class="text-center">Employee Information</h3>
-
-                <div class="mb-1">
-                    <label for="{{ employee_form.employee_number.id_for_label }}">Employee ID</label>
-                    {% render_field employee_form.employee_number class="form-control" %}
-                    <div class="invalid-feedback">Please provide a valid Employee ID.</div>
-                    <div class="valid-feedback">Looking Good!</div>
-                </div>
 
                 <div class="row">
                     <div class="col-6 mb-1">

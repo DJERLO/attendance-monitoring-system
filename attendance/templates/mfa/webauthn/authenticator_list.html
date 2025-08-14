@@ -1,0 +1,77 @@
+{% extends "user/base.html" %}
+{% load i18n %}
+{% load static %}
+{% load allauth %}
+{% load humanize %}
+{% block head_title %}
+    {% trans "Security Keys" %}
+{% endblock head_title %}
+{% block page_content %}
+<div class="container py-4">
+    <h1 class="mb-4">{% trans "Security Keys" %}</h1>
+
+    {% if authenticators|length == 0 %}
+        <p class="text-muted">{% blocktranslate %}No security keys have been added.{% endblocktranslate %}</p>
+    {% else %}
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>{% translate "Key" %}</th>
+                        <th>{% translate "Usage" %}</th>
+                        <th class="text-end">{% translate "Actions" %}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for authenticator in authenticators %}
+                    <tr>
+                        <td>
+                            <strong>{{ authenticator }}</strong><br>
+                            {% if authenticator.wrap.is_passwordless is True %}
+                                <span class="badge bg-primary">{% translate "Passkey" %}</span>
+                            {% elif authenticator.wrap.is_passwordless is False %}
+                                <span class="badge bg-secondary">{% translate "Security key" %}</span>
+                            {% else %}
+                                <span class="badge bg-warning text-dark" title="{% translate 'This key does not indicate whether it is a passkey.' %}">
+                                    {% translate "Unspecified" %}
+                                </span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% blocktranslate with created_at=authenticator.created_at|date:"SHORT_DATE_FORMAT" %}
+                                Added on {{ created_at }}
+                            {% endblocktranslate %}.
+                            {% if authenticator.last_used_at %}
+                                <br>
+                                {% blocktranslate with last_used=authenticator.last_used_at|naturaltime %}
+                                    Last used {{ last_used }}
+                                {% endblocktranslate %}
+                            {% else %}
+                                <br><span class="text-muted">{% translate "Not used." %}</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end">
+                            {% url 'mfa_edit_webauthn' pk=authenticator.pk as edit_url %}
+                            <a href="{{ edit_url }}" class="btn btn-outline-primary btn-sm me-1">
+                                {% translate "Edit" %}
+                            </a>
+                            {% url 'mfa_remove_webauthn' pk=authenticator.pk as remove_url %}
+                            <a href="{{ remove_url }}" class="btn btn-outline-danger btn-sm">
+                                {% translate "Remove" %}
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% endif %}
+
+    <div class="mt-4">
+        {% url 'mfa_add_webauthn' as add_url %}
+        <a href="{{ add_url }}" class="btn btn-success">
+            <i class="bi bi-plus-circle"></i> {% translate "Add" %}
+        </a>
+    </div>
+</div>
+{% endblock %}

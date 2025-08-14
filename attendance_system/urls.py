@@ -7,6 +7,7 @@ def admin_login_redirect(request):
 
 urlpatterns = [
     path("admin/login/", admin_login_redirect),  # override admin login
+    path('admin/doc/', include('django.contrib.admindocs.urls')), # Admin documentation
     path('admin/', admin.site.urls),
     path('account/', include('allauth.urls')),  # Include Allauth URLs
     path('account/mfa/', include('allauth.mfa.urls')),  # Ensure this is included

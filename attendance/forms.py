@@ -25,7 +25,6 @@ class EmployeeRegistrationForm(forms.ModelForm):
     class Meta:
         model = Employee
         fields = [
-            'employee_number',
             'first_name',
             'middle_name',
             'last_name',
@@ -72,9 +71,14 @@ class AttendanceForm(forms.ModelForm):
         label="Clock Out Time"
     )
 
+    is_half_day = forms.BooleanField(
+        required=False,
+        label="Half Day"
+    )
+
     class Meta:
         model = ShiftRecord
-        fields = ['date']  # Only show the date from the model
+        fields = ['date', 'is_half_day']  # Only show the date from the model
         widgets = {
             'date': forms.DateInput(attrs={'type': 'date'})
         }
@@ -87,3 +91,6 @@ class AttendanceForm(forms.ModelForm):
             self.fields['clock_in_time'].initial = self.instance.clock_in.time()
         if self.instance and self.instance.clock_out:
             self.fields['clock_out_time'].initial = self.instance.clock_out.time()
+        
+        # Add status attribute (not a form field)
+        self.status = "PRESENT"

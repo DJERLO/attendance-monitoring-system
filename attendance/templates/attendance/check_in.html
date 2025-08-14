@@ -194,7 +194,7 @@
                     matches = data.result.map(item => item.name || item.employee_id || "Unknown");
                     employee_number = data.result.map(item => item.employee_number || "N/A");
                     profile_image = data.result.map(item => item.profile_image_url || "N/A");
-                    messages = data.result.map(item => item.message || "No Content");
+                    messages = data.result.map(item => item.message || item.error || "No Content");
                     
                     // Check for valid matches (excluding "Unknown" and "No match found")
                     const validMatches = matches.filter(name => name !== "No match found");
@@ -222,7 +222,7 @@
 
                         }
 
-                        if (messages.some(msg => msg.includes(`has already checked in for today's morning shift.`)) || messages.some(msg => msg.includes(`has already checked in for today's afternoon shift.`))){
+                        if (messages.some(msg => msg.includes(`has already checked in for today's morning shift.`)) || messages.some(msg => msg.includes(`has already checked in for today's afternoon shift.`)) || messages.some(msg => msg.includes(`already has attendance`))){
                             //Prompt users Check-In Again Tommorow
                             Swal.fire({
                                 imageUrl: profile_image,

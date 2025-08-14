@@ -1,23 +1,41 @@
 # Define User Schema for Response
 from typing import List, Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from datetime import date, datetime
 from ninja import Query, Schema, Form, File, FilterSchema
 
-class UserSchema(Schema):
+class UserSchema(BaseModel):
+    user_id: int
     first_name: str
+    last_name: str
     email: str
+    is_authenticated: bool
+
+class GenerateTokenSchema(Schema):
+    access_token: str
+    refresh_token: str
+    user: UserSchema
+
+class RefreshTokenSchema(Schema):
+    old_refresh_token: str
+    new_refresh_token: str
+    new_access_token: str
+
+class VerifyTokenSchema(Schema):
+    message: str
+    user: UserSchema
+
+class BlacklistTokenSchema(Schema):
+    message: str
+
+class InternalServerErrorSchema(Schema):
+    error: str
 
 class ImageSchema(Schema):
     base64_image: str
 
 class Unauthorized(Schema):
-    detail:str
-
-class MyTokenObtainPairOutSchema(Schema):
-    refresh: str
-    access: str
-    user: UserSchema
+    error:str
 
 # Start (User Registration)
 class UserNotFound(BaseModel):
@@ -72,10 +90,8 @@ class ShiftRecordSchema(Schema):
     employee_number: int  # ID of the employee (Foreign Key reference)
     name: str
     date: date
-    clock_in_at_am: Optional[datetime]
-    clock_out_at_am: Optional[datetime]
-    clock_in_at_pm: Optional[datetime]
-    clock_out_at_pm: Optional[datetime]
+    clock_in: Optional[datetime]
+    clock_out: Optional[datetime]
     
 
 class SuccessResponse(BaseModel):
@@ -115,10 +131,8 @@ class ShiftRecordSchema(Schema):
     employee_number: int  # ID of the employee (Foreign Key reference)
     name: str
     date: date
-    clock_in_at_am: Optional[datetime]
-    clock_out_at_am: Optional[datetime]
-    clock_in_at_pm: Optional[datetime]
-    clock_out_at_pm: Optional[datetime]
+    clock_in: Optional[datetime]
+    clock_out: Optional[datetime]
     
 
 class SuccessResponse(BaseModel):
@@ -148,11 +162,17 @@ class SpoofingDetectedResponse(BaseModel):
 class NotFoundResponse(BaseModel):
     result: List[StatusMessage]
 
+class FaceCoordinates(BaseModel):
+    x: int
+    y: int
+    w: int
+    h: int
+
 class SuccessCheckFaceSpoofing(BaseModel):
     class_idx: int
     confidence: float
     message: str
-    coordinates: dict  # Using dict to represent the coordinates (x, y, w, h)
+    coordinates: FaceCoordinates  # Using dict to represent the coordinates (x, y, w, h)
 
 class SuccessAntiFaceSpoofing(BaseModel):
     result: List[SuccessCheckFaceSpoofing]

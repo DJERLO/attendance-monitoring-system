@@ -1,12 +1,12 @@
 {% load i18n %}
 {% load static %}
+{% load humanize %}
 <style>
     .profile {
         overflow: hidden; /* Prevents overflow */
         display: inline-flex;
         flex-direction: column;
         flex-wrap: nowrap;
-        align-items: center;
         justify-content: center;
         border-radius: 5px; /* Optional: rounded corners */
     }
@@ -51,7 +51,7 @@
 </style>
 
 <!-- Navbar with Real-Time Clock -->
-<nav class="navbar position-sticky sticky-top navbar-expand-lg navbar-dark bg-dark mb-4 top-nav d-block">
+<nav id="navbar" class="navbar navbar-expand-lg navbar-dark bg-dark mb-4 top-nav d-block">
     <div class="container-fluid">
         <div class="row w-100 h-100">
             <div class="row dropdown d-inline-flex text-wrap flex-row flex-nowrap align-self-stretch mx-3">
@@ -65,7 +65,7 @@
                 <div class="col-8 flex-grow-1">
                     <div class="col-5 flex-grow-1" style="flex: 0 0 75%;">
                         <div class="me-4 align-self-center">
-                            <a class="nav_title navbar-brand me-auto text-truncate" href="#">{% trans "Welcome" %} {{ user.username }}!</a>
+                            <a class="nav_title navbar-brand me-auto text-truncate" href="{% url 'profile'%}">{% trans "Welcome" %} {{ user.username }}!</a>
                         </div>
                         <div class="col-5 flex-grow-1 align-self-center">
                             <span id="currentTime" class="text-nowrap text-white text-end">
@@ -91,7 +91,7 @@
 </nav>
 
 <!-- Toggleable Notification List -->
-<div class="notification-list shadow-sm" id="notificationList" style="max-height: 400px; overflow-x: hidden; overflow-y: auto;">
+<div class="notification-list shadow-sm" id="notificationList" style="max-height: 400px; overflow-x: hidden; overflow-y: auto; z-index: 23;">
     <div class="bg-primary text-white sticky-top p-2">
         <div class="text-center fw-bold mb-2">
             Notifications
@@ -125,9 +125,10 @@
                         {% else %}
                         bg-white text-dark
                         {% endif %}"
+                        data-status="{% if not notif.is_read %}unread{% else %}read{% endif %}"
                         onclick="markAsRead({{ notif.id }}, this)">
                         {{ notif.message }}
-                        <br><small class="text-muted">{{ notif.created_at|date:"M d, Y H:i A" }}</small>
+                        <br><small class="text-muted">{{ notif.created_at|naturaltime }}</small>
                         <button class="btn btn-sm btn-danger justify-content-end" onclick="deleteNotification({{ notif.id }}, this)">
                             <i class="bi bi-trash"></i>
                         </button>
@@ -139,6 +140,12 @@
 </div>
 
 <script>
+    // Notification Permission Request
+    if ("Notification" in window && Notification.permission !== "granted") {
+        Notification.requestPermission().then(function (permission) {
+            console.log("Permission:", permission);
+        });
+    }
 
     // Initialize unreadCount from rendered notifications(if exist)
     document.addEventListener("DOMContentLoaded", function () {
@@ -155,8 +162,13 @@
     const sockeNotificationUrl = `${protocol}://${window.location.host}/ws/notifications/`;
     const notifSocket = new WebSocket(sockeNotificationUrl);
     const placeholder = document.getElementById('noNotificationsPlaceholder');
-
     let unreadCount = 0;
+
+    // Play notification sound when a new notification is received
+    const notificationSound = new Audio('{% static "sound/notification.wav" %}'); // Replace with your sound file path
+    function playNotificationSound() {
+        notificationSound.play();
+    }
 
     // Initialize the notification count based on existing notifications
     function updateBellIcon() {
@@ -169,11 +181,13 @@
             notificationCountElement.innerText = unreadCount;
             bellIcon.classList.remove('bi-bell'); // Remove the empty bell class
             bellIcon.classList.add('bi-bell-fill'); // Add the filled bell class
+            
         } else {
             notificationCountElement.style.display = "none";
             bellIcon.classList.remove('bi-bell-fill'); // Remove the filled bell class
             bellIcon.classList.add('bi-bell'); // Add the empty bell class
         }
+        
     }
 
 
@@ -189,6 +203,7 @@
         // Check if unread and increment counter
         if (!data.is_read) {
             unreadCount++;
+            playNotificationSound(); // Play sound if there are unread notifications
         }
 
         // Update bell icon and notification count
@@ -215,6 +230,15 @@
 
         // Add to top of list
         notifList.prepend(newNotif);
+
+        // Show native push notification
+        if ("Notification" in window && Notification.permission === "granted") {
+            new Notification("New Notification", {
+                body: data.message,
+                icon: "{% static 'img/logo.png' %}" // optional
+            });
+        }
+
     };
 
     notifSocket.onclose = function(e) {
@@ -280,7 +304,7 @@
                 document.querySelectorAll('.list-group-item.bg-info').forEach(btn => {
                     btn.classList.remove('bg-info', 'text-dark');
                     btn.classList.add('bg-white', 'text-dark');
-                    element.setAttribute('data-status', 'read');
+                    btn.setAttribute('data-status', 'read');
                     btn.disabled = true;
                 });
 

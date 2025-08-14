@@ -61,4 +61,32 @@
     // Fetch every 10 seconds
     setInterval(fetchAnnouncements, 10000);
 </script>
+<script> 
+    document.addEventListener("DOMContentLoaded", function () {
+        const driver = window.driver.js.driver;
+        const tour = driver({
+            prevBtnText: 'Previous', 
+            nextBtnText: 'Next',
+            doneBtnText: 'Finish',
+            overlayColor: 'black',
+            showProgress: true,
+            allowClose: false,
+            allowKeyboardControl: false,
+            disableActiveInteraction: true,
+            steps: [
+                { popover: { title: 'Welcome to the Announcements Page', description: 'Stay informed with system-wide updates and important messages from administrators.' } },
+                { element: '#announcements-container', popover: { title: 'Announcements', description: 'This is the announcement board. You can see all the announcements here.' } },
+                { popover: { title: 'Live Updates', description: 'The announcements are updated live every 10 seconds.' } },
+                { element: '#notificationButton', popover: { title: 'Global Notifications', description: 'Announcements will also appear here in real-time, even if you’re on a different page so you don\'t miss out any important announcements' } },
+                { popover: { title: 'End of Tour', description: 'You have completed the tour.' } }
+            ]
+        })
+
+        // Start tour on button click
+        document.getElementById('help-tour-btn').addEventListener('click', function () {
+            tour.drive();
+        });
+        
+    });
+</script>
 {% endblock page_content %}

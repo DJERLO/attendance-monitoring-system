@@ -32,6 +32,7 @@ from django.core.exceptions import PermissionDenied
 from django.views.decorators.cache import cache_page, never_cache
 from django.utils.timezone import now
 from django.http import JsonResponse
+from django.db.models import Max
 
 logger = logging.getLogger(__name__)
 
@@ -90,9 +91,9 @@ def get_employee_by_id(employee_number):
 @sync_to_async
 def check_in(employee_number):
     """Checking-In The Employee"""
-    today = timezone.now()  # Get today's date
+    today = timezone.localdate()  # Get today's date
     employee = get_object_or_404(Employee, employee_number=employee_number)  # Get employee
-    return ShiftRecord.objects.filter(employee=employee, clock_in__date=today).exists()  # Check if already checked in
+    return ShiftRecord.objects.filter(employee=employee, date=today, clock_in__date=today).exists()  # Check if already checked in
 
 # Clocking-In Employee's Time
 async def clock_in(employee_number):
@@ -113,9 +114,9 @@ async def clock_in(employee_number):
 @sync_to_async
 def check_out(employee_number):
     """Checking-Out The Employee"""
-    today = timezone.now() # Get today's date
+    today = timezone.localdate() # Get today's date
     employee = get_object_or_404(Employee, employee_number=employee_number)  # Get employee
-    return ShiftRecord.objects.filter(employee=employee, clock_out__date=today).exists()  # Check if already checked out
+    return ShiftRecord.objects.filter(employee=employee, date=today, clock_out__date=today).exists()  # Check if already checked out
 
 async def clock_out(employee_number):
     """Clocking-Out Employee's Time-Out"""
@@ -136,7 +137,7 @@ async def clock_out(employee_number):
 @cache_page(60 * 5)
 def check_in_attendance(request):
     """Renders the attendance page."""
-    load_known_faces(KNOWN_FACES_DIR) # Loads all the employee's faces in our dataset
+    load_known_faces() # Loads all the employee's faces in our dataset
     # Set your timezone to Asia/Manila
     manila_tz = pytz_timezone('Asia/Manila')
     current_time = timezone.now().astimezone(manila_tz)  # Convert to Manila timezone
@@ -201,26 +202,33 @@ async def checking_in(request):
                             try:
                                 #Clock-in that employee
                                 submit =  await clock_in(employee_number)
-                                
-                                # Send WebSocket notification
-                                # **SEND TO WEBSOCKET**
-                                channel_layer = get_channel_layer()
-                                await (channel_layer.group_send)(
-                                    "attendance_group",
-                                    {
-                                        "type": "send_message",
-                                        "message": f"✅ {employee_data.get('name')} has checked in for today's morning shift."
-                                    }
-                                )
 
                                 return JsonResponse({
                                     "result": [{
-                                        "name": employee_data.get('name'),
+                                        "name": str(employee.full_name()),
                                         "employee_number": employee_number,
                                         "profile_image_url": profile_image_url,
-                                        "message": f"{employee_data.get('name')} has checked in today's morning shift.",
+                                        "message": f"{employee.full_name()} has checked in today's morning shift.",
                                     }]
                                 }, status=200)
+                            
+                            except ValidationError as e:
+                                logger.warning("Validation error recording attendance: %s", e)
+                                # Clean up the message
+                                error_messages = []
+
+                                if hasattr(e, 'message_dict'):
+                                    # If it's a dict like {'__all__': [...]} → flatten the list
+                                    for field_errors in e.message_dict.values():
+                                        error_messages.extend(field_errors)
+                                else:
+                                    # Otherwise just get the message normally
+                                    error_messages.append(str(e))
+
+                                return JsonResponse({
+                                    "message": error_messages
+                                }, status=400)
+
                             except Exception as e:
                                 logger.error("Error recording attendance: %s", e)
                                 return JsonResponse({
@@ -232,10 +240,10 @@ async def checking_in(request):
                         else:
                             return JsonResponse({
                                 "result": [{
-                                    "name": employee_data.get('name'),
+                                    "name": str(employee.full_name()),
                                     "employee_number": employee_number,
                                     "profile_image_url": profile_image_url,
-                                    "message": f"{employee_data.get('name')} has already checked in for today's morning shift.",
+                                    "message": f"{employee.full_name()} has already checked in for today's morning shift.",
                                 }]
                             }, status=400)
 
@@ -326,23 +334,13 @@ async def checking_out(request):
                             try:
                                 # Clock-Out that employee
                                 submit = await clock_out(employee_number)
-                                
-                                # WebScoket
-                                channel_layer = get_channel_layer()
-                                await (channel_layer.group_send)(
-                                    "attendance_group",
-                                    {
-                                        "type": "send_message",
-                                        "message": f"✅ {employee_data.get('name')} has checked-out!"
-                                    }
-                                )
 
                                 return JsonResponse({
                                     "result": [{
-                                        "name": employee_data.get('name'),
+                                        "name": str(employee.full_name()),
                                         "employee_number": employee_number,
                                         "profile_image_url": profile_image_url,
-                                        "message": f"{employee_data.get('name')} has checked out today!",
+                                        "message": f"{employee.full_name()} has checked out today!",
                                     }]
                                 }, status=200)
                             except Exception as e:
@@ -357,10 +355,10 @@ async def checking_out(request):
                         elif checkin_exists and checkout_exists:
                             return JsonResponse({
                                     "result": [{
-                                        "name": employee_data.get('name'),
+                                        "name": str(employee.full_name()),
                                         "employee_number": employee_number,
                                         "profile_image_url": profile_image_url,
-                                        "message": f"{employee_data.get('name')} has already checked out for today!",
+                                        "message": f"{employee.full_name()} has already checked out for today!",
                                     }]
                                 }, status=409)
                         
@@ -391,6 +389,20 @@ async def checking_out(request):
             return JsonResponse({"error": [str(e)]}, status=500)
 
     return JsonResponse({"result":[{"status": "No Content"}]}, status=200)
+
+def generate_employee_number():
+    """Generate a unique employee number based on the current year and sequence."""
+    year = dt.now().year
+    last_employee = Employee.objects.filter(
+        employee_number__startswith=str(year)
+    ).aggregate(Max('employee_number'))['employee_number__max']
+
+    if last_employee:
+        last_seq = int(last_employee[4:])
+    else:
+        last_seq = 1  # no one yet
+
+    return f"{year}{last_seq + 1:04d}"
 
 # Register New Employee
 from allauth.socialaccount.models import SocialAccount
@@ -439,6 +451,7 @@ def user_registration(request):
                 employee.first_name = user.first_name  # Set first name from user
                 employee.last_name = user.last_name    # Set last name from user
                 employee.email = user.email            # Set email from user
+
                 employee.save()  # Save employee instance
 
                 #For Emergency Contact of Employee
@@ -475,6 +488,7 @@ def user_registration(request):
                 employee.first_name = user.first_name  # Set first name from user
                 employee.last_name = user.last_name    # Set last name from user
                 employee.email = user.email            # Set email from user
+
                 employee.save()  # Save employee instance
 
                 #For Emergency Contact of Employee
@@ -482,7 +496,6 @@ def user_registration(request):
                 emergency_contact.employee = employee  # link to employee
                 emergency_contact.save()
 
-                messages.success(request, "Employee registered successfully! Please proceed to facial registration.")
                 return redirect('facial-registration', employee_number=employee.employee_number)  # Redirect to a face registration page to capture their face for face recognition
 
         else:
@@ -599,7 +612,7 @@ def user_face_registration(request, employee_number):
 def face_verification(request):
     # Ensure faces are loaded only once
     if not cache.get("known_faces"):
-        load_known_faces(KNOWN_FACES_DIR)
+        load_known_faces()
     return render(request, 'attendance/face-verification.html')
 
 async def face_recognition_test(request):
@@ -847,7 +860,7 @@ def dashboard(request):
             return JsonResponse({"message": "Work hours not set."}, status=400)
 
         shiftstatus = ShiftRecord.objects.filter(employee=employee, date=today).last()
-        shiftlogs = ShiftRecord.objects.filter(employee=employee).order_by('-date')
+        shiftlogs = ShiftRecord.objects.all().order_by('-date')
         check_in_time = shiftstatus.clock_in if shiftstatus else None
         check_out_time = shiftstatus.clock_out if shiftstatus else None
 
@@ -857,9 +870,11 @@ def dashboard(request):
         # Date range for current month
         first_day_of_month = today.replace(day=1)
         last_day_of_month = (first_day_of_month + timedelta(days=31)).replace(day=1) - timedelta(days=1)
+
+        # Generate all dates in the current month
         all_dates = [first_day_of_month + timedelta(days=i) for i in range((last_day_of_month - first_day_of_month).days + 1)]
 
-        # Generate monthly attendance data
+        # Generate monthly attendance data based on all dates
         attendance_data = {
             "labels": [date.strftime("%Y-%m-%d") for date in all_dates],
             "EARLY": [],
@@ -901,6 +916,109 @@ def dashboard(request):
             "LATE": today_summary["LATE"],
             "ABSENT": absent_count,
         }
+        #For Calendar
+        current_year = timezone.now().year
+        url = f"https://date.nager.at/api/v3/PublicHolidays/{current_year}/PH"
+
+        try:
+            response = requests.get(url, timeout=5)  # Added timeout to prevent hanging requests
+            response.raise_for_status()  # Raises an error for HTTP codes 4xx/5xx
+            holidays = response.json()
+            
+        except requests.RequestException as e:
+            holidays = []  # If API fails, return an empty list
+            print(f"Error fetching holidays: {e}")  # Log error for debugging
+            
+        
+        # Get all events from the database
+        events = Event.objects.all()
+        all_events = []
+
+        # Define color mapping for each type of holiday
+        holiday_type_colors = {
+            'Public': 'blue',
+            'Bank': 'green',
+            'School': 'yellow',
+            'Authorities': 'orange',
+            'Optional': 'purple',
+            'Observance': 'gray',
+        }
+
+        # Convert holidays to FullCalendar format (blue color)
+        for holiday in holidays:
+
+            holiday_type = holiday.get("types", [])  # Get types (may be empty)
+            # Set the color based on the first type (if available)
+            color = holiday_type_colors.get(holiday_type[0], 'blue') if holiday_type else 'blue'
+
+            all_events.append({
+                "title": holiday["localName"],  # Holiday name
+                "start": holiday["date"],  # YYYY-MM-DD
+                "description": holiday["name"],
+                'startEditable': False,
+                "allDay": True,
+                "color": color,  # Holidays are blue
+                "extendedProps": {
+                    "holidayType": holiday_type[0] if holiday_type else "Unknown",  # Add holiday type
+                }
+            })
+        
+
+        # Convert user-created events
+        for event in events:
+            # Check if the event has a recurring pattern (days_of_week)
+            if event.days_of_week:
+                if event.url is not None:
+                    all_events.append({
+                        "id": event.id,
+                        "daysOfWeek": event.days_of_week,  # List of days the event occurs
+                        "title": event.title,
+                        'startEditable': False,
+                        "startRecur": event.start.isoformat(),
+                        "endRecur": event.end.isoformat(),
+                        "description": event.description,
+                        "url": event.url,
+                        "allDay": event.all_day,
+                        "color": "red",  # User events are red
+                    })
+                else:
+                    all_events.append({
+                        "id": event.id,
+                        "daysOfWeek": event.days_of_week,  # List of days the event occurs
+                        "title": event.title,
+                        'startEditable': False,
+                        "startRecur": event.start.isoformat(),
+                        "endRecur": event.end.isoformat(),
+                        "description": event.description,
+                        "allDay": event.all_day,
+                        "color": "red",  # User events are red
+                    })
+                
+            if not event.days_of_week:
+                if event.url is not None:
+                    all_events.append({
+                        "id": event.id,
+                        "title": event.title,
+                        'startEditable': False,
+                        "start": event.start.isoformat(),
+                        "end": event.end.isoformat(),
+                        "description": event.description,
+                        "url": event.url,
+                        "allDay": event.all_day,
+                        "color": "red",  # User events are red
+                    })
+                else:
+                    all_events.append({
+                        "id": event.id,
+                        "title": event.title,
+                        'startEditable': False,
+                        "start": event.start.isoformat(),
+                        "end": event.end.isoformat(),
+                        "description": event.description,
+                        "allDay": event.all_day,
+                        "color": "red",  # User events are red
+                    })
+
 
         return render(request, 'user/dashboard.html', {
             'user': user,
@@ -924,7 +1042,8 @@ def dashboard(request):
             'active_today_percentage': active_today_percentage,
             'active_today_trend': active_today_trend,
             'timemode': timemode,
-            'active_leave': active_leave
+            'active_leave': active_leave,
+            'events': json.dumps(all_events)
         })
 
     except Employee.DoesNotExist:
@@ -1338,9 +1457,13 @@ def employee_management(request):
 
 @login_required
 def mark_attendance(request, employee_num):
+    user = request.user  # Get the logged-in user
     employee = request.user.employee
     notifications = Notification.objects.filter(employee__user=request.user).order_by('-created_at')[:20]
     selected_employee = Employee.objects.get(employee_number=employee_num)
+
+    if not user.groups.filter(name='HR ADMIN').exists():
+        raise PermissionDenied  # Ensures a 403 Forbidden response
     
     if request.method == 'POST':
         form = AttendanceForm(request.POST)
@@ -1359,11 +1482,11 @@ def mark_attendance(request, employee_num):
             clock_out_time = form.cleaned_data.get('clock_out_time')
 
             if clock_in_time:
-                dt_in = datetime.combine(date, clock_in_time)
+                dt_in = dt.combine(date, clock_in_time)
                 attendance.clock_in = manila.localize(dt_in)
 
             if clock_out_time:
-                dt_out = datetime.combine(date, clock_out_time)
+                dt_out = dt.combine(date, clock_out_time)
                 attendance.clock_out = manila.localize(dt_out)
 
             try:
@@ -1384,8 +1507,10 @@ def mark_attendance(request, employee_num):
     
 #File Request Leave
 def request_leave_view(request):
+    user = request.user  # Get the logged-in user
     notifications = Notification.objects.filter(employee__user=request.user).order_by('-created_at')[:20]
     employee = request.user.employee
+
     if request.method == 'POST':
         form = LeaveRequestForm(request.POST, request.FILES)
         if form.is_valid():
@@ -1437,12 +1562,17 @@ def employee_details(request, employee_number):
         employee_profile = get_object_or_404(Employee, employee_number=employee_number)  # Get the employee profile by employee_number
         attendance_records = ShiftRecord.objects.filter(employee=employee_profile).order_by('-date')
 
+        current_month = dt.now().month
+        current_year = dt.now().year
+
         return render(request, 'user/employee_profile.html', {
             'user': user,
             'employee': employee,
             'employee_profile': employee_profile,
             'attendance_records': attendance_records,
             'notifications': notifications,
+            'current_month': current_month,
+            'current_year': current_year,
         })
     
     except Employee.DoesNotExist:
@@ -1475,11 +1605,13 @@ def announcement_board(request):
     try:
         user = request.user
         employee = Employee.objects.get(user=user)
+        notifications = Notification.objects.filter(employee=employee).order_by('-created_at')[:20]
         announcements = Announcement.objects.filter(is_active=True).order_by('-created_at')
         return render(request, 'user/announcement.html', {
             'user': user,
             'employee': employee,
-            'announcements': announcements
+            'announcements': announcements,
+            'notifications': notifications,
         })
     
     except Employee.DoesNotExist:

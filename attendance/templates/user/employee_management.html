@@ -52,7 +52,53 @@
     document.addEventListener('DOMContentLoaded', function() {
         let table = document.getElementById('employeeTable');
         let dataTable = new DataTable(table, {
-            "order": [[1, "asc"]], // Default sorting by Employee # (2nd column)
+            "order": [[3, "asc"]], // Default sorting by Department
+            'rowGroup': {
+                dataSrc: 3
+            },
+            'buttons': [
+                {
+                    extend: 'colvis',
+                },
+                {
+                    extend: 'copy',
+                    exportOptions: {
+                        columns: [1, 2, 3, 4] // Exclude Profile (0) and View (5)
+                    }
+                },
+                {
+                    extend: 'csv',
+                    title: 'Employee List',
+                    filename: 'Employee_List',
+                    exportOptions: {
+                        columns: [1, 2, 3, 4]
+                    }
+                },
+                {
+                    extend: 'excel',
+                    title: 'Employee List',
+                    filename: 'Employee_List',
+                    exportOptions: {
+                        columns: [1, 2, 3, 4]
+                    }
+                },
+                {
+                    extend: 'pdf',
+                    title: 'Employee List',
+                    filename: 'Employee_List',
+                    exportOptions: {
+                        columns: [1, 2, 3, 4]
+                    }
+                },
+                {
+                    extend: 'print',
+                    title: 'Employee List',
+                    exportOptions: {
+                        columns: [1, 2, 3, 4]
+                    }
+                }
+            ],
+            'colReorder': true,
             "fixedHeader": true,  // Enable fixed header
             "scrollCollapse": false,
             "scroller": true,
@@ -60,7 +106,7 @@
             "scrollY": 400,
             "stateSave": true,  // Enable state saving
             "searching": true,  // Enable global search
-            "dom": 'Plfrtip',  // Enables SearchPanes, length menu, filter, etc.
+            "dom": 'PlfrBtip',  // Enables SearchPanes, length menu, filter, etc.
             "columnDefs": [
                 { "targets": 0, "searchPanes": { "show": false } },
                 { "targets": 1, "searchPanes": { "show": true, "viewTotal": false  } },
@@ -77,6 +123,34 @@
                 "emptyTable": "No employee(s) records available."
             },
         });
+    });
+</script>
+<script> 
+    document.addEventListener("DOMContentLoaded", function () {
+        const driver = window.driver.js.driver;
+        const tour = driver({
+            prevBtnText: 'Previous', 
+            nextBtnText: 'Next',
+            doneBtnText: 'Finish',
+            overlayColor: 'black',
+            showProgress: true,
+            allowClose: false,
+            allowKeyboardControl: false,
+            disableActiveInteraction: true,
+            steps: [
+                { popover: { title: 'Welcome to Employee Management', description: 'Monitor employee attendance, working hours, and access exportable reports from this page.' } },
+                { element: '#employeeTable', popover: { title: 'Employee Directory', description: 'Browse all registered employees. Use the action buttons to view profiles, attendance logs, or record attendance.' } },
+                { element: '.dtsp-searchPanes', popover: { title: 'Filter Employees', description: 'Quickly narrow down employees by Employee Number, Name, Department, and more using these filters.' } },
+                { element: '.dt-buttons', popover: { title: 'Table Customization', description: 'Toggle column visibility, copy data, or export the table to Excel, CSV, and more.' } },
+                { popover: { title: 'Tour Complete', description: 'You’ve now explored the key features of the Employee Management system!' } }
+            ]
+        })
+
+        // Start tour on button click
+        document.getElementById('help-tour-btn').addEventListener('click', function () {
+            tour.drive();
+        });
+        
     });
 </script>
 {% endblock page_content %}

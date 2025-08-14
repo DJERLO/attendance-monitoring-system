@@ -1,4 +1,5 @@
 import threading
+import time
 import dlib
 import mediapipe as mp
 import cv2
@@ -12,6 +13,7 @@ import torch
 from torch import nn
 import torchvision.transforms as transforms
 from torchvision import models
+
 
 # Get the project root directory (one level up from this script)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -37,6 +39,8 @@ known_face_encodings = []
 known_face_names = []
 employee_numbers = []  # List to store employee IDs
 
+DEBUG = True  # Set to False in production
+
 # Load the model
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 MODEL_PATH = os.path.join(CURRENT_DIR, 'model', 'training_resnet50.pth')
@@ -61,19 +65,16 @@ model.eval()  # Set the model to evaluation mode
 if torch.cuda.is_available():
     num_gpus = torch.cuda.device_count()
     device_name = torch.cuda.get_device_name(0)
-    print(f"✅ CUDA is available! Running on GPU: {device_name} ({num_gpus} GPU(s) detected)")
+    print(f"CUDA is available! Running on GPU: {device_name} ({num_gpus} GPU(s) detected)")
 else:
-    print("⚠️ CUDA is NOT available. Running on CPU.")
+    print("CUDA is NOT available. Running on CPU.")
 
 
 # Verify DLIB CUDA usage
 if dlib.cuda.get_num_devices() > 0 and dlib.DLIB_USE_CUDA:
-    print(f"✅ DLIB is using CUDA for acceleration. ({dlib.cuda.get_num_devices()} GPU(s) detected)")
+    print(f"DLIB is using CUDA for acceleration. ({dlib.cuda.get_num_devices()} GPU(s) detected)")
 else:
-    print("⚠️ DLIB is NOT using CUDA. Running on CPU.")
-
-
-
+    print("DLIB is NOT using CUDA. Running on CPU.")
 
 # Move model to the appropriate device
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -149,6 +150,7 @@ mp_face_detection = mp.solutions.face_detection.FaceDetection(min_detection_conf
 
 def face_detection(frame, result):
     """Processes a video frame with Mediapipe and recognizes faces using face_recognition."""
+    employee_number = None  # Initialize employee_number to avoid UnboundLocalError
     try:
         # Convert to RGB (Mediapipe expects RGB input)
         rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -180,8 +182,8 @@ def face_detection(frame, result):
                 face_rgb = cv2.cvtColor(face_roi, cv2.COLOR_BGR2RGB)
                 
                 if result == "Real":
-                    #Use Face Recognition
-                    recognize_face(frame, face_rgb, bbox)
+                    #Use Face Recognition to recognize the face and get employee number
+                    employee_number = recognize_face(frame, face_rgb, bbox)
                 
                 if result == "Fake":
                     # Draw bounding box
@@ -193,15 +195,16 @@ def face_detection(frame, result):
                     # Overlay the name in white text
                     cv2.putText(frame, "Spoof", (bbox[0] + 6, bbox[1] - 6), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
 
-        return frame
+        return frame, employee_number
     
     except Exception as e:
         print(f"Error during Mediapipe + recognition processing: {e}")
-        return frame
+        return frame, None
 
 #Summary - Face Recognition
 def recognize_face(frame, face_frame, bbox):
     name = ""
+    employee_number = None  # Initialize employee_number to avoid UnboundLocalError
     encodings = face_recognition.face_encodings(face_frame, model="large")
 
     if encodings:
@@ -211,6 +214,8 @@ def recognize_face(frame, face_frame, bbox):
         if True in match_results:
             first_match_index = match_results.index(True)
             name = known_face_names[first_match_index]
+            employee_number = employee_numbers[first_match_index]
+            print(f"Recognized: {name} (Employee ID: {employee_number})")
         else:
             name = "Unknown"
 
@@ -223,37 +228,131 @@ def recognize_face(frame, face_frame, bbox):
         # Overlay the name in white text
         cv2.putText(frame, name, (bbox[0] + 6, bbox[1] - 6), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
 
+    return employee_number  # Will be None if no match was found
 
 def process_camera(camera):
-    print(f"Opening camera: {camera.name} | Mode: {camera.mode}")
-    cap = cv2.VideoCapture(camera.camera_url)
-    cap.set(cv2.CAP_PROP_FPS, 30)
-    cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+    """Process the camera feed."""
+    if DEBUG:
+        cap = cv2.VideoCapture(0) # Webcam
+        cap.set(cv2.CAP_PROP_FPS, 30)
+        cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
 
-    if not cap.isOpened():
-        print(f"Error: Unable to access the camera {camera.name}.")
-        return
+        if not cap.isOpened():
+            print(f"Error: Unable to access the webcam.")
+            return
 
-    while True:
-        ret, frame = cap.read()
-        if not ret:
-            print(f"Error: Failed to capture frame from {camera.name}.")
-            break
+        while True:
+            ret, frame = cap.read()
+            if not ret:
+                print(f"Error: Failed to capture frame from webcam")
+                break
 
-        # Spoof detection
-        _, _, is_real_message = detect_face_spoof(frame)
+            # Spoof detection
+            _, _, is_real_message = detect_face_spoof(frame)
 
-        # Face recognition
-        processed_frame = face_detection(frame, is_real_message)
+            # Face recognition
+            processed_frame, employee_number = face_detection(frame, is_real_message)
 
-        # Show with unique window name
-        cv2.imshow(f"{camera.name} - {camera.mode}", processed_frame)
+            # ✅ You can now log attendance here
+            if employee_number:
+                print(f"🔔 Log attendance for employee ID: {employee_number}")
+            
+            name = "CCTV FEED"
+            # Show with unique window name
+            cv2.imshow(name, processed_frame)
 
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
 
-    cap.release()
-    cv2.destroyWindow(f"{camera.name} - {camera.mode}")
+        cap.release()
+        cv2.destroyWindow(name)
+
+    if not DEBUG:
+        current_mode = camera.mode  # Track the initial mode
+        print(f"Opening camera: {camera.name} | Mode: {camera.mode}")
+        
+        # Function to initialize the camera stream
+        def initialize_camera():
+            cap = cv2.VideoCapture(camera.camera_url)
+            cap.set(cv2.CAP_PROP_FPS, 30)
+            cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+
+            if not cap.isOpened():
+                print(f"Error: Unable to access the camera {camera.name}.")
+                return None
+
+            return cap
+
+        # Initialize the camera
+        cap = initialize_camera()
+        if not cap:
+            return
+        
+        window_created = False
+        window_name = f"{camera.name} - {current_mode}"
+
+        while True:
+            camera.refresh_from_db()
+
+            if not camera.is_active:
+                print(f"[INFO] Camera '{camera.name}' is deactivated. Waiting for reactivation...")
+                cap.release()
+                if window_created:
+                    cv2.destroyWindow(window_name)
+                    window_created = False
+
+                while not camera.is_active:
+                    camera.refresh_from_db()
+                    time.sleep(1)
+
+                # Reactivated
+                print(f"[INFO] Camera '{camera.name}' reactivated. Restarting...")
+                cap = initialize_camera()
+                if not cap:
+                    continue  # Skip and wait for next reactivation
+
+                current_mode = camera.mode
+                window_name = f"{camera.name} - {current_mode}"
+                window_created = False  # Reset for new window
+
+            ret, frame = cap.read()
+            if not ret:
+                print(f"Error: Failed to capture frame from {camera.name}.")
+                break
+            
+            #Check if the camera mode has changed
+            # If the mode has changed, update the window name and recreate the window
+            if camera.mode != current_mode:
+                print(f"[INFO] {camera.name} Mode has changed: {current_mode} → {camera.mode}")
+                if window_created:
+                    cv2.destroyWindow(window_name)
+                current_mode = camera.mode
+                window_name = f"{camera.name} - {current_mode}"
+                window_created = False
+
+            # Spoof detection
+            _, _, is_real_message = detect_face_spoof(frame)
+
+            # Face recognition
+            processed_frame, employee_number = face_detection(frame, is_real_message)
+
+            # ✅ You can now log attendance here
+            if employee_number:
+                print(f"🔔 Log attendance for employee ID: {employee_number}")
+                # TODO: Call your attendance logging function here based on camera.mode
+
+            # Show window (only create once)
+            if not window_created:
+                cv2.namedWindow(window_name)
+                window_created = True
+            cv2.imshow(window_name, processed_frame)
+
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
+
+        cap.release()
+        if window_created:
+            cv2.destroyWindow(window_name)
 
 
 def main():
@@ -263,11 +362,13 @@ def main():
     cameras = Camera.objects.filter(is_active=True)
     threads = []
 
+    # Start a thread for each camera
     for camera in cameras:
         t = threading.Thread(target=process_camera, args=(camera,))
         t.start()
         threads.append(t)
 
+    # Wait for all threads to finish
     for t in threads:
         t.join()
 

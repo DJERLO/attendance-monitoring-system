@@ -7,52 +7,33 @@
     </div>
 </div>
 <script>
-    document.addEventListener("DOMContentLoaded", function () {
-        // Data from Django
-        const attendanceData = {{ attendance_overview|safe }};
-        
-        // Extract values for chart
-        const labels = ["Early", "Present", "Late", "Absent"];
-        const dataValues = [attendanceData.EARLY, attendanceData.PRESENT, attendanceData.LATE, attendanceData.ABSENT];
+    // Data from Django
+    const attendanceBarData = {{ attendance_overview|safe }};
+    
+    // Extract values for chart
+    const labels = ["Early", "Present", "Late", "Absent"];
+    const dataValues = [attendanceBarData.EARLY, attendanceBarData.PRESENT, attendanceBarData.LATE, attendanceBarData.ABSENT];
 
-        // 🎨 Bar Chart - Daily Attendance Trends
-        var ctxBar = document.getElementById("attendanceBarChart").getContext("2d");
-        new Chart(ctxBar, {
-            type: "bar",
-            data: {
-                labels: labels,
-                datasets: [{
-                    label: "Number of Employees",
-                    data: dataValues,
-                    backgroundColor: ["#007bff", "#28a745", "#ffc107", "#dc3545"],
-                    borderWidth: 1
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: {
-                    y: { beginAtZero: true }
-                }
+    // 🎨 Bar Chart - Daily Attendance Trends
+    var ctxBar = document.getElementById("attendanceBarChart").getContext("2d");
+    
+    var attendanceBarChart = new Chart(ctxBar, {
+        type: "bar",
+        data: {
+            labels: labels,
+            datasets: [{
+                label: "Number of Employees",
+                data: dataValues,
+                backgroundColor: ["#007bff", "#28a745", "#ffc107", "#dc3545"],
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: { beginAtZero: true }
             }
-        });
-        // Establish the SSE connection
-        const eventSource = new EventSource('/attendance-updates/');
-
-        // Listen for incoming events and update the chart
-        eventSource.onmessage = function(event) {
-            const updatedAttendanceData = JSON.parse(event.data);
-
-            // Update the chart's data values
-            attendanceBarChart.data.datasets[0].data = [
-                updatedAttendanceData.EARLY,
-                updatedAttendanceData.PRESENT,
-                updatedAttendanceData.LATE,
-                updatedAttendanceData.ABSENT
-            ];
-
-            // Re-render the chart to reflect new data
-            attendanceBarChart.update();
-        };
+        }
     });
 </script>

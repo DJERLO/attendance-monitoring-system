@@ -3,21 +3,252 @@
 {% load socialaccount %}
 {% load static %}
 {% load timecard %}
+{% load group_filter %}
 {% block head_title %}Dashboard{% endblock head_title %}
 {% block page_content %}
-<div class="row ms-3">
-    <div class="col-md-6 justify-content-center align-content-stretch">
-        <div class="col-md-12">{% include 'user/components/cards.html' %}</div>
-        <div class="col-md-12">{% include 'user/components/charts/attendance_trends.html' %}</div>
-        <div class="col-md-12">{% include 'user/components/charts/leaderboard.html' %}</div>
-    </div>
-    <div class="col-md-6">
-        <div class="col-md-12">{% include 'user/components/user_attendance_status.html' %}</div>
-        <div class="col-md-12">{% include 'user/components/charts/monthly_attendance.html' %}</div>
-        <div class="col-md-12">{% include 'user/components/attendance_logs.html' %}</div>
-    </div>
-    <div class="col-md-6">
-        
+<div id="content" class="container">
+    <div class="row ms-3">
+        <div class="col-md-6">
+            <div class="col-md-12">{% include 'user/components/cards.html' %}</div>
+            {% if user|has_group:"HR ADMIN" or user|has_group:"ADMIN"  %}
+                <div id="top-employees-container">
+                    <div class="col-md-12">{% include 'user/components/charts/leaderboard.html' with top_employees=top_employees %}</div>
+                </div>
+            {% endif %}
+        </div>
+        <div class="col-md-6">
+            <div class="col-md-12">{% include 'user/components/user_attendance_status.html' %}</div>
+            {% if user|has_group:"HR ADMIN" or user|has_group:"ADMIN"  %}
+                <div class="col-md-12">{% include 'user/components/charts/attendance_trends.html' %}</div>
+                <div class="col-md-12">{% include 'user/components/charts/monthly_attendance.html' %}</div>
+            {% endif %}
+            <div class="col-md-12 flex-grow-1">{% include 'user/components/calendar.html' %}</div>
+        </div>
+        <div class="col-md-12">
+            <div id="attendance-log">
+                <div class="col-md-12">{% include 'user/components/attendance_logs.html' %}</div>
+            </div>
+        </div>
     </div>
 </div>
+<script> 
+    document.addEventListener("DOMContentLoaded", function () {
+        const driver = window.driver.js.driver;
+        const tour = driver({
+            prevBtnText: 'Previous', 
+            nextBtnText: 'Next',
+            doneBtnText: 'Finish',
+            overlayColor: 'black',
+            showProgress: true,
+            allowClose: false,
+            allowKeyboardControl: false,
+            disableActiveInteraction: true,
+            steps: [
+                { popover: { title: 'Welcome to the Dashboard', description: 'This is your dashboard where you can see your attendance and other information.' } },
+                { element: '#navbar', popover: { title: 'Navbar', description: 'This is your navigation bar. It shows your profile, current time, and notification' } },
+                { element: '#notificationButton', popover: { title: 'Notifications', description: 'This area displays system alerts, unread/read notifications, or reminders for your attention.' } },
+                { element: '#breadcrumb', popover: { title: 'Breadcrumb Navigation', description: 'This helps you see your current location in the app and easily navigate back to previous pages.' } },
+                { element: '#sidebar', popover: { title: 'Sidebar', description: 'Use the sidebar to access various features and pages of the application quickly.' } },
+                { element: '#content', popover: { title: 'Page Content', description: 'This area displays all the main content related to the page you are viewing.' } },
+                { element: '#help-tour-btn', popover: { title: 'Help/Tour Button', description: 'Click this button anytime to restart the guided tour and get familiar with the page.' } },
+                { popover: { title: 'You\'re All Set!', description: 'Thank you for taking the tour. Enjoy exploring the page and making the most out of your experience!' } }
+            ]
+        })
+
+        // Start tour on button click
+        document.getElementById('help-tour-btn').addEventListener('click', function () {
+            tour.drive();
+        });
+        
+    });
+</script>
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        // Set up WebSocket connection
+        // Use the same protocol as the current page (ws or wss)
+        const wsScheme = window.location.protocol === "https:" ? "wss" : "ws";
+        const socketUrl = `${wsScheme}://${window.location.host}/ws/attendance/`;
+        let socket;
+
+        var ctx = document.getElementById('attendanceChart').getContext('2d');
+        var ctxBar = document.getElementById("attendanceBarChart").getContext("2d");
+
+         function updateAttendanceLog(){
+            let minDate = new Date();
+            let maxDate = new Date();
+
+            // Custom filtering function which will search data in column 0 (first column)
+            DataTable.ext.search.push(function (settings, data, dataIndex) {
+                let min = minDate.val() ? new Date(minDate.val()) : null;  // Convert to Date object
+                let max = maxDate.val() ? new Date(maxDate.val()) : null;
+                let date = new Date(data[0]); // Adjust column index if needed
+
+                if (!date || isNaN(date)) return true; // If date is invalid, don't filter
+
+                if ((min === null && max === null) ||
+                    (min === null && date <= max) ||
+                    (min <= date && max === null) ||
+                    (min <= date && date <= max)) {
+                    return true;
+                }
+                return false;
+            });
+
+            // Create DateTime picker instances
+            minDate = new DateTime(document.getElementById('minDate'), {
+                format: 'YYYY-MM-DD'
+            });
+            maxDate = new DateTime(document.getElementById('maxDate'), {
+                format: 'YYYY-MM-DD'
+            });
+
+            // Initialize DataTable
+            let table = new DataTable('#attendanceLog', {
+                "order": [[0, "desc"]],
+                "lengthMenu": [10, 25, 50, 100], // Allows selection of page size
+                responsive: true,
+                "columnDefs": [
+                { "targets": 0, "type": "date" } // Ensure proper date sorting
+                ],
+                dom: 'Brtip', // Enables buttons at the top
+                buttons: [
+                    {
+                        extend: 'copy',
+                        title: 'Attendance Records',
+                        filename: 'attendance_copy' // Used only for Excel/CSV, not copy
+                    },
+                    {
+                        extend: 'csv',
+                        title: 'Attendance Logs',
+                        filename: '{{ user.employee.full_name }} Attendance Logs'
+                    },
+                    {
+                        extend: 'excel',
+                        title: 'Attendance Logs',
+                        filename: '{{ user.employee.full_name }} Attendance Logs'
+                    }
+                ],
+                "language": {
+                    "emptyTable": "No attendance records available."
+                },  
+            });
+
+            table.buttons().container().appendTo('#dt-buttons');
+
+            document.querySelectorAll('#minDate, #maxDate').forEach((el) => {
+                el.addEventListener('change', () => table.draw());
+            });
+        }
+
+        updateAttendanceLog() 
+
+
+        // Connect to WebSocket server
+        function connectWebSocket() {
+            // Create a new WebSocket instance
+            socket = new WebSocket(socketUrl);
+
+            // Set up event handlers for the WebSocket connection
+            socket.onopen = function () {
+                console.log("✅ WebSocket Connected!");
+            };
+
+            // Listen for messages from the server
+            socket.onmessage = function (event) {
+                try {
+                    const data = JSON.parse(event.data);
+                    console.table(data);
+
+                    // Update employee counts on cards
+                    if (data.employees) {
+                        const total = document.getElementById("total-employees");
+                        const active = document.getElementById("active-employees");
+                        if (total) total.textContent = data.employees.total_employees;
+                        if (active) active.textContent = data.employees.active_employees;
+                    }
+
+                    // Update the leaderboard with new data
+                    if (data.leaderboard) {
+                        const container = document.getElementById("top-employees-container");
+                        if (container) {
+                            container.innerHTML = data.leaderboard;
+                            
+                        }
+                    }
+
+                    // Update the charts with new attendance data
+                    if (data.attendance_data) {
+                        
+                        if (ctx) {
+                            //Line Chart (Monthly Attendance Chart)
+                            updateChart(data.attendance_data);
+                        }
+
+                        if (ctxBar){
+                            //For Bar chart (Daily Attendance Trends)
+                            updateBarChart(data.attendance_overview);
+                        }
+                        
+                    } else {
+                        console.warn("No attendance data received");
+                    }
+
+                    if(data.shiftlog){
+                        const attendancetablelog = document.getElementById("attendance-log");
+                        if (attendancetablelog) {
+                            attendancetablelog.innerHTML = data.shiftlog;
+                            updateAttendanceLog() //Reinitialise Datatables
+                        }
+                    }
+                    
+                } catch (error) {
+                    console.error("Error processing WebSocket message:", error);
+                }
+            };
+
+
+            socket.onclose = function () {
+                console.log("❌ WebSocket Disconnected. Reconnecting in 5s...");
+                setTimeout(connectWebSocket, 5000);
+            };
+
+            socket.onerror = function (error) {
+                console.error("⚠️ WebSocket Error:", error);
+            };
+        }
+
+        //Line Chart
+        function updateChart(data) {
+            // Update the datasets with new data
+            attendanceChart.data.labels = data.labels;
+            attendanceChart.data.datasets[0].data = data.EARLY;
+            attendanceChart.data.datasets[1].data = data.PRESENT;
+            attendanceChart.data.datasets[2].data = data.LATE;
+
+            // Re-render the chart
+            attendanceChart.update();
+        }
+        
+        //Bar Chart
+        function updateBarChart(data) {
+            if (!attendanceBarChart) {
+                console.warn("attendanceBarChart is not yet initialized.");
+                return;
+            }
+            const updatedData = [
+                data.EARLY,
+                data.PRESENT,
+                data.LATE,
+                data.ABSENT
+            ];
+
+            // Update the bar chart's data
+            attendanceBarChart.data.datasets[0].data = updatedData;
+            attendanceBarChart.update();
+        }
+
+        // Start WebSocket connection
+        connectWebSocket();
+    });
+</script>
 {% endblock page_content %}

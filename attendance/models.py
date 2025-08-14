@@ -1,3 +1,4 @@
+import json
 import os
 from django.core.exceptions import ValidationError
 from django.conf import settings
@@ -6,9 +7,12 @@ from django.utils import timezone
 from datetime import time, timedelta
 from django.contrib.auth.models import User, Group
 from django.utils.timezone import localtime, now
+from django.db.models import Max
 from django.db.models.signals import post_migrate
 from django.dispatch import receiver
 from PIL import Image
+import face_recognition
+import numpy as np
 import requests
 
 # Model to store the work hours of the company
@@ -25,6 +29,10 @@ def create_default_work_hours(sender, **kwargs):
 class WorkHours(models.Model):
     open_time = models.TimeField(default="08:00:00", verbose_name="Opening Time")  # Default opening time
     close_time = models.TimeField(default="17:00:00", verbose_name="Closing Time")  # Default closing time
+
+    class Meta:
+        verbose_name = "Work Hours"
+        verbose_name_plural = "Work Hours"
 
     def can_clock_in(self):
         """Returns True if employees are allowed to clock in, False otherwise."""
@@ -49,18 +57,18 @@ EMPLOYMENT_STATUS_CHOICES = [
 
 class Employee(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, verbose_name="User Account")
-    employee_number = models.CharField(max_length=50, unique=True, verbose_name="Employee Number")
+    employee_number = models.CharField(max_length=8, unique=True, verbose_name="Employee Number")
     first_name = models.CharField(max_length=50, verbose_name="First Name")
     middle_name = models.CharField(max_length=50, blank=True, null=True, verbose_name="Middle Name")
     last_name = models.CharField(max_length=50, verbose_name="Last Name")
     gender = models.CharField(max_length=10, choices=[('male', 'Male'), ('female', 'Female'), ('other', 'Other')], verbose_name="Gender")
     birth_date = models.DateField(verbose_name="Date of Birth", null=True, blank=True)  # Optional field for date of birth
-    hire_date = models.DateField(verbose_name="Hire Date", null=True, blank=True)  # Date when the employee was hired
+    hire_date = models.DateField(default=timezone.now, verbose_name="Hire Date")  # Date when the employee was hired
     email = models.EmailField(unique=True, verbose_name="Email Address")
     contact_number = models.CharField(max_length=15, verbose_name="Contact Number")
     group = models.ForeignKey(Group, related_name='employees', on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Department")
     employment_status = models.CharField(max_length=20, choices=EMPLOYMENT_STATUS_CHOICES, default='full_time', verbose_name="Employee Status")
-    profile_image = models.ImageField(upload_to='profiles/', blank=True, null=True, default='profiles/default_avatar.webp', verbose_name="Profile Image")
+    profile_image = models.ImageField(upload_to='profiles/', blank=True, null=True, max_length=512, default='profiles/default_avatar.webp', verbose_name="Profile Image")
     hourly_rate  = models.BooleanField(default=False, verbose_name="Hourly Rate Employee")
     
     class Meta:
@@ -69,6 +77,34 @@ class Employee(models.Model):
 
     def save(self, *args, **kwargs):
         """ Automatically update is_staff and sync permissions if the user belongs to the Admin group """
+
+        # Generate Employee Number if not already set (e.g. 2025000)
+        # Only generate employee number if it doesn't already exist
+        # Ensure hire_date is set
+        if not self.hire_date:
+            self.hire_date = timezone.now()
+
+        # Generate Employee Number if not set
+        if not getattr(self, "employee_number", None):
+            
+            if not Employee.objects.filter(employee_number=self.employee_number).exists():
+                year_joined = self.hire_date.year
+
+                # Find the max employee_num for that year
+                last_employee = Employee.objects.filter(
+                    employee_number__startswith=str(year_joined)
+                ).aggregate(Max('employee_number'))['employee_number__max']
+
+                if last_employee:
+                    last_seq = int(last_employee[4:])  # Extract the ####
+                else:
+                    last_seq = 0  # First employee of that year
+
+                # Generate new number
+                self.employee_number = f"{year_joined}{last_seq + 1:04d}"
+            
+            if Employee.objects.filter(employee_number=self.employee_number).exists():
+                pass
 
         # Check employment status and update is_active flag
         if self.employment_status in ['resigned', 'terminated', 'retired']:
@@ -83,8 +119,10 @@ class Employee(models.Model):
             else:
                 self.user.is_staff = False
 
-            if "TEACHING" in self.group.name.upper():
+            if "TEACHING" in self.group.name.upper() and not "NON-TEACHING" in self.group.name.upper():
                 self.hourly_rate = True
+            else:
+                self.hourly_rate = False
                 
             # Sync User's Groups and Permissions
             self.user.groups.set([self.group])  # Ensure user is assigned to the correct group
@@ -93,9 +131,13 @@ class Employee(models.Model):
         else:
             # If no group is assigned, remove all permissions
             self.hourly_rate = False
-            self.user.is_staff = False
             self.user.groups.clear()
             self.user.user_permissions.clear()
+
+            if self.user.is_superuser:
+                self.user.is_staff = True
+            else:
+                self.user.is_staff = False
 
         # Save the user model first (after setting is_staff and permissions)
         self.user.save()
@@ -204,9 +246,36 @@ class Employee(models.Model):
 # Model to store multiple face images for facial recognition
 class FaceImage(models.Model):
     employee = models.ForeignKey(Employee, related_name='face_images', on_delete=models.CASCADE)
-    image = models.ImageField(upload_to='known_faces/')
+    image = models.ImageField(upload_to='known_faces/', max_length=512)
     uploaded_at = models.DateTimeField(default=timezone.now)
+    face_encoding = models.TextField(blank=True, null=True)
+    
+    class Meta:
+        verbose_name = "Face Image"
+        verbose_name_plural = "Face Images"
 
+    def save(self, *args, **kwargs):
+        """Override save method to store face encoding"""
+        if not self.face_encoding:
+            # If encoding doesn't exist, generate it from the image
+            image_path = self.image.path
+            image = face_recognition.load_image_file(image_path)
+            encoding = face_recognition.face_encodings(image)
+
+            if encoding:
+                self.face_encoding = json.dumps(encoding[0].tolist())  # Convert array to list and store as JSON
+            else:
+                self.face_encoding = None
+
+        super().save(*args, **kwargs)
+
+    def get_encoding(self):
+        """Returns the decoded face encoding"""
+        if self.face_encoding:
+            return np.array(json.loads(self.face_encoding))  # Decode the JSON into a numpy array
+        return None
+
+    # This method is used to delete the image file when the instance is deleted
     def delete(self, *args, **kwargs):
         """Delete the image file when the instance is deleted."""
         if self.image:
@@ -235,8 +304,11 @@ class ShiftRecord(models.Model):
 
     # Attendance status
     status = models.CharField(max_length=10, choices=ATTENDANCE_STATUSES, default='ABSENT')
-    # approved = models.BooleanField(default=False)  # For admin approval
-    # approved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='approved_attendance')
+    is_half_day = models.BooleanField(default=False, help_text="If checked, system will record as half-day with actual hours worked.")
+
+    class Meta:
+        verbose_name = "Attendance"
+        verbose_name_plural = "Attendances"
 
     def __str__(self):
         return f"{self.employee.full_name()} Attendance on {self.date}"
@@ -275,6 +347,7 @@ class ShiftRecord(models.Model):
         """Override the clean method to enforce validation rules."""
         today = timezone.localdate()
 
+        # Check if the current employee has an approved leave on the current date/day
         has_approved_leave = LeaveRequest.objects.filter(
             employee=self.employee,
             status='APPROVED',
@@ -282,6 +355,20 @@ class ShiftRecord(models.Model):
             end_date__gte=self.date
         ).exists()
 
+        # Check if employee is hourly and if they have multiple attendance entries
+        if not self.employee.is_hourly_employee:
+            # For non-hourly employees, ensure they only have one record per day
+            # Exclude self from the query to allow updating the same record
+            existing_records = ShiftRecord.objects.filter(employee=self.employee, date=self.date)
+            
+            # Exclude self from the query to allow updating the same record
+            if self.pk:
+                existing_records = existing_records.exclude(pk=self.pk)
+
+            if existing_records.exists():
+                raise ValidationError(f"{self.employee.full_name()} already has attendance recorded for {self.date}. Only one entry is allowed per day.")
+
+        # Check if the current employee has an approved leave on the current date/day don't allow them to clock-in/out
         if has_approved_leave:
             raise ValidationError(f"{self.employee.full_name()} has an approved leave on {self.date}.")
 
@@ -299,65 +386,82 @@ class ShiftRecord(models.Model):
         
         today = timezone.localdate()
 
-        # Check if the date is a holiday
-        if self.is_holiday(self.date):
-            self.status = 'HOLIDAY'
-            self.clock_in = None
-            self.clock_out = None
-            super().save(*args, **kwargs)
-            
-        # Get work hours from DB or use fallback defaults
-        work_hours = WorkHours.objects.first()
-        if not work_hours:
-            opening_time = timezone.datetime.combine(today, time(8, 0))
-            lunch_start = timezone.datetime.combine(today, time(12, 0))
-            lunch_end = timezone.datetime.combine(today, time(13, 0))
-            closing_time = timezone.datetime.combine(today, time(18, 0))  # 6:00 PM
+        # Check if this is a old record needed to be updated
+        if ShiftRecord.objects.filter(pk=self.pk).exists():
+            # If the record already exists, update the clock_in and clock_out times
+            existing_record = ShiftRecord.objects.get(pk=self.pk)
+            existing_record.clock_in = self.clock_in
+            existing_record.clock_out = self.clock_out
+        
+        # If the record is new continue with the rest of the logic
         else:
-            opening_time = timezone.datetime.combine(today, work_hours.open_time)
-            lunch_start = timezone.datetime.combine(today, time(12, 0))
-            lunch_end = timezone.datetime.combine(today, time(13, 0))
-            closing_time = timezone.datetime.combine(today, work_hours.close_time)
-
-        # Ensure time is timezone-aware
-        opening_time = timezone.make_aware(opening_time, timezone.get_current_timezone())
-        lunch_start = timezone.make_aware(lunch_start, timezone.get_current_timezone())
-        lunch_end = timezone.make_aware(lunch_end, timezone.get_current_timezone())
-        closing_time = timezone.make_aware(closing_time, timezone.get_current_timezone())
-
-        # Define early and grace period thresholds
-        early_threshold = opening_time - timedelta(hours=2)  # Can clock in up to 2 hours early
-        grace_period = opening_time + timedelta(minutes=5)  # 5-minute grace period for "Present"
-
-        if self.clock_in:
-            # Ensure clock_in is timezone-aware
-            if timezone.is_naive(self.clock_in):
-                self.clock_in = timezone.make_aware(self.clock_in)
-
+            # Check if the date is a holiday
+            if self.is_holiday(self.date):
+                self.status = 'HOLIDAY'
+                self.clock_in = None
+                self.clock_out = None
+                super().save(*args, **kwargs)
                 
-            # 🛠️ NEW: Only apply auto clock-out if employee is NOT hourly
-            if not self.employee.hourly_rate:
-                auto_clock_out = self.clock_in + timedelta(hours=7)
+            # Get work hours from DB or use fallback defaults
+            work_hours = WorkHours.objects.first()
+            if not work_hours:
+                opening_time = timezone.datetime.combine(today, time(8, 0))
+                lunch_start = timezone.datetime.combine(today, time(12, 0))
+                lunch_end = timezone.datetime.combine(today, time(13, 0))
+                closing_time = timezone.datetime.combine(today, time(18, 0))  # 6:00 PM
+            else:
+                opening_time = timezone.datetime.combine(today, work_hours.open_time)
+                lunch_start = timezone.datetime.combine(today, time(12, 0))
+                lunch_end = timezone.datetime.combine(today, time(13, 0))
+                closing_time = timezone.datetime.combine(today, work_hours.close_time)
 
-                if early_threshold <= self.clock_in < opening_time:
-                    self.status = 'EARLY'
-                elif opening_time <= self.clock_in <= grace_period:
-                    self.status = 'PRESENT'
-                elif self.clock_in > grace_period:
-                    self.status = 'LATE'
+            # Ensure time is timezone-aware
+            opening_time = timezone.make_aware(opening_time, timezone.get_current_timezone())
+            lunch_start = timezone.make_aware(lunch_start, timezone.get_current_timezone())
+            lunch_end = timezone.make_aware(lunch_end, timezone.get_current_timezone())
+            closing_time = timezone.make_aware(closing_time, timezone.get_current_timezone())
 
-                # Add lunch break if applicable
-                if self.clock_in < lunch_start and auto_clock_out >= lunch_start:
-                    auto_clock_out += timedelta(hours=1)
+            # Define early and grace period thresholds
+            early_threshold = opening_time - timedelta(hours=2)  # Can clock in up to 2 hours early
+            grace_period = opening_time + timedelta(minutes=5)  # 5-minute grace period for "Present"
 
-                # Limit to closing time
-                self.clock_out = min(auto_clock_out, closing_time)
-            
-            # Allow manual clock_out for hourly employees
-            if self.employee.hourly_rate:
-                # ✅ Hourly: HR input for status and allow manual clock_out if given
-                self.status = self.status or 'PRESENT'  # Default fallback if HR forgets
-                self.clock_out = self.clock_out or None  # Optional, in case auto is undesired
+            if self.clock_in:
+                # Ensure clock_in is timezone-aware
+                if timezone.is_naive(self.clock_in):
+                    self.clock_in = timezone.make_aware(self.clock_in)
+
+                    
+                # 🛠️ NEW: Only apply auto clock-out if employee is NOT hourly
+                if not self.employee.hourly_rate:
+                    # If Half-day is checked count only 4 hours else 8 hours
+                    if not self.is_half_day:
+                        auto_clock_out = self.clock_in + timedelta(hours=7)
+
+                    if self.is_half_day:
+                        auto_clock_out = self.clock_in + timedelta(hours=4)
+
+                    # Check if clock_in is within the allowed range
+                    if early_threshold <= self.clock_in < opening_time:
+                        self.status = 'EARLY'
+                    elif opening_time <= self.clock_in <= grace_period:
+                        self.status = 'PRESENT'
+                    elif self.clock_in > grace_period:
+                        self.status = 'LATE'
+                    else:
+                        self.status = 'ABSENT'
+
+                    # Add lunch break if applicable
+                    if not self.is_half_day and self.clock_in < lunch_start and auto_clock_out >= lunch_start:
+                        auto_clock_out += timedelta(hours=1)
+
+                    # Limit to closing time
+                    self.clock_out = min(auto_clock_out, closing_time)
+                
+                # Allow manual clock_out for hourly employees
+                if self.employee.hourly_rate:
+                    # ✅ Hourly: HR input for status and allow manual clock_out if given
+                    self.status = self.status or 'PRESENT'  # Default fallback if HR forgets
+                    self.clock_out = self.clock_out or None  # Optional, in case auto is undesired
 
 
         super().save(*args, **kwargs)
@@ -376,7 +480,6 @@ class ShiftRecord(models.Model):
 # This model is used to store events with recurrence rules
 from multiselectfield import MultiSelectField   
 class Event(models.Model):
-
     DAY_CHOICES = [
         ('0', 'Sunday'),
         ('1', 'Monday'),
@@ -387,13 +490,38 @@ class Event(models.Model):
         ('6', 'Saturday'),
     ]
 
-    title = models.CharField(max_length=200)
-    description = models.TextField()
-    url = models.URLField(blank=True, null=True)  # Optional URL for more info or meeeting link
-    start = models.DateTimeField()
-    end = models.DateTimeField()
-    days_of_week = MultiSelectField(choices=DAY_CHOICES, null=True, blank=True)  # Multiple choices of days
-    all_day = models.BooleanField(default=False)
+    title = models.CharField(
+        max_length=200,
+        help_text="Enter a short title for the event (e.g., 'Team Meeting')."
+    )
+    description = models.TextField(
+        help_text="Provide a detailed description of the event, including any important notes or agenda."
+    )
+    url = models.URLField(
+        blank=True,
+        null=True,
+        help_text="Optional: Include a link for more information or an online meeting URL (e.g., Zoom or Google Meet)."
+    )
+    start = models.DateTimeField(
+        help_text="Select the starting date and time of the event. Format: YYYY-MM-DD HH:MM."
+    )
+    end = models.DateTimeField(
+        help_text="Select the ending date and time of the event. Format: YYYY-MM-DD HH:MM."
+    )
+    days_of_week = MultiSelectField(
+        choices=DAY_CHOICES,
+        blank=True,
+        null=True,
+        help_text=(
+            "Optional: Select the days of the week this event should repeat on. "
+            "Use this only if the event is recurring (e.g., every Monday and Wednesday). "
+            "Leave blank for one-time events."
+        )
+    )
+    all_day = models.BooleanField(
+        default=False,
+        help_text="Check this if the event lasts all day without a specific start or end time."
+    )
 
     def __str__(self):
         return self.title
@@ -423,6 +551,10 @@ class Camera(models.Model):
     mode = models.CharField(max_length=50, choices=MODE_CHOICES, default='CHECK_IN')
     is_active = models.BooleanField(default=True)
 
+    class Meta:
+        verbose_name = "Camera"
+        verbose_name_plural = "Cameras"
+
     def __str__(self):
         return self.name
     
@@ -441,7 +573,7 @@ class LeaveRequest(models.Model):
     end_date = models.DateField(verbose_name="End Date")
     reason = models.TextField(verbose_name="Reason for Leave")
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='PENDING', verbose_name="Leave Status")
-    attachment = models.FileField(upload_to='leave_attachments/', null=True, blank=True)
+    attachment = models.FileField(upload_to='leave_attachments/', null=True, blank=True, max_length=512)
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Request Created At")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="Last Updated At")
     approved_by = models.ForeignKey(Employee, on_delete=models.SET_NULL, null=True, blank=True, related_name='approved_leaves', verbose_name="Approved By")
@@ -484,7 +616,9 @@ class Notification(models.Model):
     is_read = models.BooleanField(default=False)
 
     def __str__(self):
-        return f"Notification for {self.employee.full_name()} - {self.created_at}"
+        truncated = (self.message[:30] + '...') if len(self.message) > 30 else self.message
+        timestamp = self.created_at.strftime('%b %d, %Y %I:%M %p')
+        return f"{self.employee.full_name()} • {truncated} • {timestamp}"
 
 # Model to store announcements for employees (HR/Admin)
 # This model is used to store announcements for employees  
@@ -494,6 +628,10 @@ class Announcement(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     created_by = models.ForeignKey(Employee, on_delete=models.SET_NULL, null=True, related_name='announcements')
     is_active = models.BooleanField(default=True)  # Optional: for soft deleting/hiding
+
+    class Meta:
+        verbose_name = "Announcement"
+        verbose_name_plural = "Announcements"
 
     def __str__(self):
         return self.title

@@ -71,10 +71,9 @@
         }
     </style>
 </head>
-<body>
-    <div class="container-fluid">
-        <div id="calendar"></div>
-    </div>
+<section class="container-fluid p-0">
+
+    <div id="calendar"></div>
 
     <!-- Modal for Event Details -->
     <div class="modal fade" id="eventModal" tabindex="-2">
@@ -115,17 +114,21 @@
 
             var events = {{ events|safe }};  // Events include holidays (blue) and user events (red)
 
-            console.table(events); // Log the events to check their structure
+            //console.table(events); // Log the events to check their structure
 
             // Initialize the calendar
             var calendar = new FullCalendar.Calendar(calendarEl, {
                 themeSystem: 'bootstrap5',
                 initialView: 'dayGridMonth', // Month view
+                nowIndicator: true, // Show current date indicator
                 // Toolbar configuration
                 headerToolbar: {
-                    left: 'prev timeGridDay timeGridWeek dayGridMonth',        // Navigation buttons
-                    center: 'title',                                            // Title in the center
-                    right: 'today listWeek listYear next'                       // List Buttons
+                    left: 'prev listWeek',                          // Previous buttons
+                    center: 'title',     // Title in the center
+                    right: 'listYear next'                          // Next Buttons
+                },
+                footerToolbar: {       
+                    center: 'today timeGridDay timeGridWeek dayGridMonth',                                            // Title in the center
                 },
                 views: {
                     // Default views
@@ -142,13 +145,12 @@
                         buttonText: 'Day'
                     },
                     listWeek: {
-                        buttonText: 'ListWeek'
+                        buttonText: 'WeekList'
                     },
 
                     listYear: {
                         type: 'list',
-                        duration: { days: 365 },
-                        buttonText: 'ListYear'
+                        buttonText: 'YearList'
                     }
                 },
                 selectable: {% if user|has_group:"HR ADMIN" %} true {% else %} false {% endif %}, // Allow selection of dates for non-staff users
@@ -318,5 +320,76 @@
             calendar.render();
         });
     </script>
-</body>
+</section>
+<script> 
+    document.addEventListener("DOMContentLoaded", function () {
+        const driver = window.driver.js.driver;
+        const tour = driver({
+            prevBtnText: 'Previous', 
+            nextBtnText: 'Next',
+            doneBtnText: 'Finish',
+            overlayColor: 'black',
+            showProgress: true,
+            allowClose: false,
+            allowKeyboardControl: false,
+            disableActiveInteraction: true,
+            steps: [
+                    {
+                        popover: {
+                            title: 'Welcome to the Calendar',
+                            description: 'This calendar shows school events, public holidays in various views.'
+                        }
+                    },
+                    {
+                        element: '#calendar',
+                        popover: {
+                            title: 'Interactive Calendar',
+                            description: 'View your monthly events here. Click any event to see more details.'
+                        }
+                    },
+                    {
+                        element: '.fc-toolbar-chunk:first-child', // left toolbar chunk: prev / listWeek
+                        popover: {
+                            title: 'Navigation Controls',
+                            description: 'Use these buttons to navigate to the previous period or switch to "Week List" view.'
+                        }
+                    },
+                    {
+                        element: '.fc-toolbar-title', // center toolbar title
+                        popover: {
+                            title: 'Current View Title',
+                            description: 'Displays the currently visible date range (e.g., current month).'
+                        }
+                    },
+                    {
+                        element: '.fc-toolbar-chunk:last-child', // right toolbar chunk: listYear / next
+                        popover: {
+                            title: 'More Views and Forward Navigation',
+                            description: 'Switch to yearly list view or go forward in time using these buttons.'
+                        }
+                    },
+                    {
+                        element: '.fc-footer-toolbar',
+                        popover: {
+                            title: 'View Switcher',
+                            description: 'Switch between day, week, month, and today\'s view for more control over how you see your events.'
+                        }
+                    },
+                    {
+                        popover: {
+                            title: 'End of Calendar Tour',
+                            description: 'That’s it! Start managing and reviewing your schedule effectively with the calendar.'
+                        }
+                    }
+                ]
+
+        })
+
+        // Start tour on button click
+        document.getElementById('help-tour-btn').addEventListener('click', function () {
+            tour.drive();
+        });
+        
+    });
+</script>
 {% endblock %}

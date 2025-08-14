@@ -1,7 +1,9 @@
 {% extends "account/base_reauthenticate.html" %}
 {% load i18n %}
 {% load allauth %}
-
+{% block head_title %}
+    {% trans "Reauthenticate" %}
+{% endblock head_title %}
 {% block reauthenticate_content %}
 <script>
     document.addEventListener('DOMContentLoaded', function() {
